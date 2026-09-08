@@ -1,0 +1,45 @@
+{
+  "name": "carl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Carl — multi-tenant POS, inventory and business management platform.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --stream build",
+    "dev": "pnpm --filter @carl/web dev",
+    "typecheck": "pnpm -r --stream typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --project unit",
+    "test:db": "vitest run --project db",
+    "test:coverage": "vitest run --coverage",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff",
+    "db:lint": "supabase db lint",
+    "db:types": "node scripts/generate-db-types.mjs",
+    "verify": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
+    "clean": "git clean -xdf node_modules dist .next .turbo"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.4.0",
+    "prettier-plugin-tailwindcss": "^0.6.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}
