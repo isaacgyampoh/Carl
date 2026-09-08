@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   type Cart,
+  type TaxMode,
   DiscountKind,
   EMPTY_CART,
   NO_DISCOUNT,
-  TaxMode,
   cartTotals,
   toSalePayload,
 } from '@carl/domain';
@@ -26,6 +26,12 @@ import { createShop, sell, type Shop } from '../support/pos.js';
  * that do not divide evenly, inclusive tax, discount-then-tax ordering, and fractional
  * quantities.
  */
+/** Chooses the tax mode a generated product should carry. */
+function taxModeFor(product: { taxRate: number; inclusive: boolean }): TaxMode {
+  if (product.taxRate === 0) return 'EXEMPT';
+  return product.inclusive ? 'INCLUSIVE' : 'EXCLUSIVE';
+}
+
 describe('the cart agrees with the database', () => {
   let db: TestDatabase;
   let shop: Shop;
@@ -164,19 +170,16 @@ describe('the cart agrees with the database', () => {
             unitPrice: product.price,
             quantity: line.quantity,
             discount: line.discount
-              ? { kind: line.discount.kind as DiscountKind, value: line.discount.value }
+              ? { kind: DiscountKind[line.discount.kind], value: line.discount.value }
               : NO_DISCOUNT,
-            taxMode: (product.taxMode ?? 'EXEMPT') as TaxMode,
+            taxMode: product.taxMode ?? 'EXEMPT',
             taxRate: product.taxRate ?? 0,
             allowFractional: product.allowFractional ?? false,
             available: 1_000_000,
           };
         }),
         orderDiscount: scenario.orderDiscount
-          ? {
-              kind: scenario.orderDiscount.kind as DiscountKind,
-              value: scenario.orderDiscount.value,
-            }
+          ? { kind: DiscountKind[scenario.orderDiscount.kind], value: scenario.orderDiscount.value }
           : NO_DISCOUNT,
       };
 
@@ -185,7 +188,7 @@ describe('the cart agrees with the database', () => {
       // Submit exactly what the till would submit — products and quantities only.
       const payload = toSalePayload(cart);
       const sale = await sell(db, shop.ownerUserId, shop.branchId, {
-        items: payload.items as never,
+        items: payload.items,
         payments: [{ method: 'CASH', amount: displayed }],
         ...(scenario.orderDiscount
           ? {
@@ -243,11 +246,7 @@ describe('the cart agrees with the database', () => {
             Math.random() < 0.4
               ? { kind: DiscountKind.PERCENTAGE, value: Math.round(Math.random() * 20 * 4) / 4 }
               : NO_DISCOUNT,
-          taxMode: (product.taxRate === 0
-            ? 'EXEMPT'
-            : product.inclusive
-              ? 'INCLUSIVE'
-              : 'EXCLUSIVE') as TaxMode,
+          taxMode: taxModeFor(product),
           taxRate: product.taxRate,
           allowFractional: false,
           available: 1_000_000,
@@ -256,7 +255,7 @@ describe('the cart agrees with the database', () => {
 
       const displayed = cartTotals(cart).total;
       const sale = await sell(db, shop.ownerUserId, shop.branchId, {
-        items: toSalePayload(cart).items as never,
+        items: toSalePayload(cart).items,
         payments: [{ method: 'CASH', amount: displayed }],
       });
 

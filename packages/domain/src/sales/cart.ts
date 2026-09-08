@@ -234,15 +234,23 @@ export function insufficientLines(cart: Cart): readonly CartLine[] {
   return cart.lines.filter((line) => line.available !== null && line.quantity > line.available);
 }
 
+/**
+ * One line as `complete_sale` receives it.
+ *
+ * Note what has no place here: a price, a line total, a tax amount, a cost. The server
+ * derives every one of those. Sending them would be ignored, but having a field for one
+ * invites something downstream to trust it.
+ */
+export interface SaleItemPayload {
+  readonly product_id: string;
+  /** Decimal units, matching the database's numeric(14,3). */
+  readonly quantity: number;
+  readonly discount_type?: 'PERCENTAGE' | 'AMOUNT';
+  readonly discount_value?: number;
+}
+
 /** The payload sent to `complete_sale`. Deliberately carries no prices or totals. */
-export function toSalePayload(cart: Cart): {
-  items: {
-    product_id: string;
-    quantity: number;
-    discount_type?: string;
-    discount_value?: number;
-  }[];
-} {
+export function toSalePayload(cart: Cart): { items: SaleItemPayload[] } {
   return {
     items: cart.lines.map((line) => ({
       product_id: line.productId,

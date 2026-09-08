@@ -7,6 +7,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { SaleItemPayload } from '@carl/domain';
+
 import type { TestDatabase } from './test-database.js';
 import { createProduct, createTenant, type TenantFixture } from './fixtures.js';
 
@@ -70,12 +72,10 @@ export async function createShop(db: TestDatabase): Promise<Shop> {
   };
 }
 
-export interface CartLine {
-  product_id: string;
-  quantity: number;
-  discount_type?: 'PERCENTAGE' | 'AMOUNT';
-  discount_value?: number;
-}
+// Re-exported under its old name so existing tests keep reading naturally. The single
+// definition lives in the domain, so the wire format cannot drift between the two.
+export type { SaleItemPayload } from '@carl/domain';
+export type CartLine = SaleItemPayload;
 
 export interface Tender {
   method: 'CASH' | 'MOMO' | 'BANK_TRANSFER' | 'CARD' | 'CREDIT' | 'OTHER';
@@ -93,7 +93,7 @@ export interface SaleResult {
 }
 
 export interface SellOptions {
-  items: CartLine[];
+  items: readonly SaleItemPayload[];
   payments: Tender[];
   /** Reuse a key across two calls to exercise the retry path. */
   idempotencyKey?: string;
