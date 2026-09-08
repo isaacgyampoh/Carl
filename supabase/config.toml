@@ -1,0 +1,73 @@
+# Carl — Supabase project configuration.
+#
+# Used by the Supabase CLI for local development (`supabase start`) and migrations.
+# Requires Docker for the local stack; the database test suite deliberately does not,
+# so security tests remain runnable on any machine (see tests/support/test-database.ts).
+
+project_id = "carl"
+
+[api]
+enabled = true
+port = 54321
+# Only `public` is exposed over the API. Carl's helper functions live in the `app` schema,
+# which is intentionally NOT exposed: they are called from RLS policies and SECURITY DEFINER
+# functions, never directly by a client.
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# A hard ceiling on rows returned by any single PostgREST request. Even a caller that forgets
+# to paginate cannot pull an entire sales table over the wire.
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = true
+port = 54329
+# Serverless functions open and discard connections rapidly; transaction pooling is what
+# keeps a Vercel deployment from exhausting PostgreSQL's connection limit under load.
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 200
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = false          # Accounts are provisioned by Carl, never self-registered.
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = true
+
+[auth.email.template.invite]
+subject = "You have been invited to Carl"
+
+[auth.sessions]
+# A POS terminal is a shared device in a public place. Sessions expire so an unattended
+# till does not stay signed in indefinitely.
+timebox = "24h"
+inactivity_timeout = "8h"
+
+[analytics]
+enabled = false
