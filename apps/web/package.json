@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@carl/application": "workspace:*",
+    "@carl/database": "workspace:*",
     "@carl/domain": "workspace:*",
     "@carl/infrastructure": "workspace:*",
     "@carl/shared": "workspace:*",

@@ -6,4 +6,5 @@
  */
 
 export * from './primitives';
+export * from './sales';
 export { z } from 'zod';

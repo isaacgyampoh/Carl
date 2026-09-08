@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // Workspace packages ship as TypeScript source; Next compiles them in-place.
   transpilePackages: [
     '@carl/application',
+    '@carl/database',
     '@carl/domain',
     '@carl/infrastructure',
     '@carl/shared',

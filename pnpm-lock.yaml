@@ -151,6 +151,9 @@ importers:
       '@carl/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@carl/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@carl/domain':
         specifier: workspace:*
         version: link:../../packages/domain

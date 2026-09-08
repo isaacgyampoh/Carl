@@ -37,12 +37,12 @@ export async function requireAuth(): Promise<AuthContext> {
  * A signed-in user with no tenant membership is a real state — an account provisioned but
  * not yet attached to a business — and it needs its own screen rather than an error.
  */
-export async function requireTenant(): Promise<
-  AuthContext & { tenant: NonNullable<AuthContext['tenant']> }
-> {
+export type TenantAuthContext = AuthContext & { tenant: NonNullable<AuthContext['tenant']> };
+
+export async function requireTenant(): Promise<TenantAuthContext> {
   const auth = await requireAuth();
   if (!auth.tenant) redirect('/no-access');
-  return auth as AuthContext & { tenant: NonNullable<AuthContext['tenant']> };
+  return auth as TenantAuthContext;
 }
 
 /**
@@ -52,7 +52,7 @@ export async function requireTenant(): Promise<
  * database checks the same permission on every query and refuses regardless of what
  * happens here — which is why forgetting this call leaks nothing.
  */
-export async function requirePermission(permission: Permission): Promise<AuthContext> {
+export async function requirePermission(permission: Permission): Promise<TenantAuthContext> {
   const auth = await requireTenant();
   if (!hasPermission(auth, permission)) redirect('/no-access');
   return auth;
