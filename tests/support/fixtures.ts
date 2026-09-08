@@ -6,6 +6,8 @@
  * a tenant can be set up.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type { TestDatabase } from './test-database.js';
 
 export interface TenantFixture {
@@ -16,8 +18,17 @@ export interface TenantFixture {
   slug: string;
 }
 
+/**
+ * A suffix unique across the whole suite.
+ *
+ * The counter alone is not enough: it lives at module scope, and each test file gets its
+ * own module instance, so two files can produce the same counter in the same millisecond
+ * and collide on a unique index such as `tenants.slug`. The random component removes that
+ * — a rare, hard-to-reproduce failure is worse than an obvious one.
+ */
 let counter = 0;
-const nextSuffix = () => `${Date.now().toString(36)}${(counter += 1).toString(36)}`;
+const nextSuffix = () =>
+  `${Date.now().toString(36)}${(counter += 1).toString(36)}${randomUUID().slice(0, 6)}`;
 
 /** Creates an auth user and its profile. */
 export async function createUser(

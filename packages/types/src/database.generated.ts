@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 19 functions.
+ * 51 relations, 27 enums, 20 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -2519,6 +2519,33 @@ export interface Database {
         Returns: {
     adjusted_count: number | null;
     total_variance: number | null;
+  }[];
+      };
+      complete_sale: {
+        Args: {
+          p_branch_id: string;
+          p_items: Json;
+          p_payments: Json;
+          p_idempotency_key: string;
+          p_customer_id?: string | undefined;
+          p_tier?: Database['public']['Enums']['price_tier'] | undefined;
+          p_device_id?: string | undefined;
+          p_device_secret?: string | undefined;
+          p_pepper?: string | undefined;
+          p_order_discount_type?: Database['public']['Enums']['discount_type'] | undefined;
+          p_order_discount_value?: number | undefined;
+          p_discount_reason?: string | undefined;
+          p_note?: string | undefined;
+          p_sold_at?: string | undefined;
+          p_channel?: Database['public']['Enums']['sale_channel'] | undefined;
+        };
+        Returns: {
+    sale_id: string | null;
+    sale_number: string | null;
+    total: number | null;
+    amount_paid: number | null;
+    change_given: number | null;
+    was_replayed: boolean | null;
   }[];
       };
       dispatch_stock_transfer: {
