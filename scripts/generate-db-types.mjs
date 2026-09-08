@@ -119,10 +119,32 @@ async function main() {
   }
 
   // --- functions callable as RPC ---
+  //
+  // Argument and result columns are read from the catalogue rather than by parsing
+  // pg_get_function_result's text, so a RETURNS TABLE function is typed as the row shape
+  // callers actually receive. Without this the client cannot tell a set-returning function
+  // from a scalar one, and `.returns<T[]>()` fails to typecheck against `unknown`.
   const functionRows = await db.query(`
-    select p.proname as name, pg_get_function_result(p.oid) as returns
+    select
+      p.proname                                  as name,
+      p.proretset                                as returns_set,
+      p.pronargdefaults                          as defaults_count,
+      coalesce(rt.typname, '')                   as return_type,
+      coalesce(p.proargnames, '{}')              as arg_names,
+      coalesce(p.proargmodes, '{}')              as arg_modes,
+      coalesce(
+        array(
+          select coalesce(bt.typname, t.typname)
+          from unnest(coalesce(p.proallargtypes, p.proargtypes::oid[])) with ordinality as a(oid, ord)
+          join pg_type t on t.oid = a.oid
+          left join pg_type bt on t.typtype = 'd' and bt.oid = t.typbasetype
+          order by a.ord
+        ),
+        '{}'
+      )                                          as arg_types
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
+    left join pg_type rt on rt.oid = p.prorettype
     where n.nspname = 'public' and p.prokind = 'f'
     order by p.proname
   `);
@@ -196,12 +218,50 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
   }
   lines.push('    };');
 
-  // Functions — argument typing is left to callers, which pass a checked payload.
   lines.push('    Functions: {');
   for (const fn of functionRows.rows) {
+    const names = fn.arg_names ?? [];
+    const modes = fn.arg_modes ?? [];
+    const types = fn.arg_types ?? [];
+
+    // Mode 'i' is IN, 'b' is INOUT, 'v' is VARIADIC; 'o' and 't' are OUT/TABLE columns.
+    // An empty modes array means every argument is IN.
+    const isInput = (i) => modes.length === 0 || ['i', 'b', 'v'].includes(modes[i]);
+    const isOutput = (i) => modes.length > 0 && ['o', 'b', 't'].includes(modes[i]);
+
+    // The last `pronargdefaults` input arguments are the ones with DEFAULTs, and only
+    // those are optional. Marking every argument optional would let a required tenant id be
+    // omitted silently.
+    const inputIndexes = [];
+    for (let i = 0; i < types.length; i += 1) if (isInput(i)) inputIndexes.push(i);
+    const optionalFrom = inputIndexes.length - (fn.defaults_count ?? 0);
+
+    const args = [];
+    const outputs = [];
+    for (let i = 0; i < types.length; i += 1) {
+      const argName = names[i] ?? `arg${i}`;
+      if (isInput(i)) {
+        const optional = inputIndexes.indexOf(i) >= optionalFrom;
+        const type = tsType(types[i], enumNames);
+        // `| undefined` is required because Carl compiles with exactOptionalPropertyTypes,
+        // under which `x?: string` rejects an explicit `undefined`.
+        args.push(
+          `          ${argName}${optional ? '?' : ''}: ${type}${optional ? ' | undefined' : ''};`,
+        );
+      }
+      if (isOutput(i)) outputs.push(`    ${argName}: ${tsType(types[i], enumNames)} | null;`);
+    }
+
+    const returns =
+      outputs.length > 0
+        ? `{\n${outputs.join('\n')}\n  }${fn.returns_set ? '[]' : ''}`
+        : `${tsType(fn.return_type, enumNames)}${fn.returns_set ? '[]' : ''}`;
+
     lines.push(`      ${fn.name}: {`);
-    lines.push('        Args: Record<string, unknown>;');
-    lines.push('        Returns: unknown;');
+    lines.push('        Args: {');
+    lines.push(...args);
+    lines.push('        };');
+    lines.push(`        Returns: ${returns};`);
     lines.push('      };');
   }
   lines.push('    };');

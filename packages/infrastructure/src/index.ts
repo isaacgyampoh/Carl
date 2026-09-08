@@ -11,5 +11,5 @@
  * visible at the import site.
  */
 
-export * from './config/public-env.js';
-export * from './supabase/browser-client.js';
+export * from './config/public-env';
+export * from './supabase/browser-client';

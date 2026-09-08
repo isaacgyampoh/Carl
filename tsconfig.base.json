@@ -5,6 +5,11 @@
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "ESNext",
+    // Bundler resolution, and relative imports are written WITHOUT a file extension.
+    // Carl's workspace packages are consumed as TypeScript source and never emitted, so
+    // the ESM ".js-pointing-at-.ts" convention buys nothing here — and Turbopack does not
+    // resolve it inside a transpiled workspace package, which fails the production build
+    // with "the module has no exports at all".
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "resolveJsonModule": true,

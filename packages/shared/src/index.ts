@@ -5,13 +5,13 @@
  * package the domain layer is permitted to import.
  */
 
-export * from './result.js';
-export * from './encoding.js';
-export * from './errors.js';
-export * from './money.js';
-export * from './quantity.js';
-export * from './ids.js';
-export * from './clock.js';
-export * from './pagination.js';
-export * from './idempotency.js';
-export * from './logger.js';
+export * from './result';
+export * from './encoding';
+export * from './errors';
+export * from './money';
+export * from './quantity';
+export * from './ids';
+export * from './clock';
+export * from './pagination';
+export * from './idempotency';
+export * from './logger';

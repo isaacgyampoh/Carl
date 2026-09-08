@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CarlError } from './errors.js';
+import { CarlError } from './errors';
 import {
   addQuantity,
   coversQuantity,
@@ -10,7 +10,7 @@ import {
   toNumericString,
   toQuantity,
   toUnits,
-} from './quantity.js';
+} from './quantity';
 
 describe('quantity', () => {
   it('represents fractional units exactly', () => {

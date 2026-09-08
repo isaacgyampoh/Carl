@@ -13,19 +13,26 @@
 
 import 'server-only';
 
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@carl/types';
 
-import { publicEnv } from '../config/public-env.js';
-import { serverEnv } from '../config/server-env.js';
+import { publicEnv } from '../config/public-env';
+import { serverEnv } from '../config/server-env';
 
 export type CarlSupabaseClient = SupabaseClient<Database>;
 
-/** The cookie operations Next.js supplies; abstracted so this package need not import next. */
+/**
+ * The cookie operations Next.js supplies.
+ *
+ * Abstracted so this package need not import `next`, keeping it usable from the Tauri
+ * desktop host later. The options type comes from `@supabase/ssr` rather than being
+ * widened to a record: these really are Supabase's cookie options, and widening them would
+ * lose `sameSite` and `httpOnly` type-checking at the one place it matters.
+ */
 export interface CookieStore {
   getAll(): { name: string; value: string }[];
-  set(name: string, value: string, options?: Record<string, unknown>): void;
+  set(name: string, value: string, options: CookieOptions): void;
 }
 
 /**
@@ -48,7 +55,7 @@ export function serverClient(cookies: CookieStore): CarlSupabaseClient {
         setAll: (items) => {
           try {
             for (const { name, value, options } of items) {
-              cookies.set(name, value, options);
+              cookies.set(name, value, options ?? {});
             }
           } catch {
             // Server Components cannot set cookies. The middleware refreshes the session,

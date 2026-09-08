@@ -7,5 +7,5 @@
  * without standing up a database or a browser.
  */
 
-export * from './access/permissions.js';
-export * from './access/roles.js';
+export * from './access/permissions';
+export * from './access/roles';

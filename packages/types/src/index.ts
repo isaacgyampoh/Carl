@@ -17,4 +17,4 @@ export type {
   InsertRow,
   UpdateRow,
   ViewRow,
-} from './database.generated.js';
+} from './database.generated';

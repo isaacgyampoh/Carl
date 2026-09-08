@@ -14,8 +14,8 @@
  * second arrival returns the original outcome instead of performing the work again.
  */
 
-import { randomUuid } from './encoding.js';
-import { type IdempotencyKey, asId } from './ids.js';
+import { randomUuid } from './encoding';
+import { type IdempotencyKey, asId } from './ids';
 
 /**
  * Generates a key for a new logical operation.

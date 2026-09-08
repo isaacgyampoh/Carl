@@ -36,12 +36,25 @@ export interface AuthenticatedUser {
   readonly isPlatformAdmin: boolean;
 }
 
+/**
+ * A branch the caller may act in.
+ *
+ * Carries the name and code, not just the id: every screen that offers a branch choice
+ * needs to display one, and resolving names separately would mean a second round trip on
+ * every page render just to label a dropdown.
+ */
+export interface AccessibleBranch {
+  readonly id: BranchId;
+  readonly code: string;
+  readonly name: string;
+}
+
 export interface TenantContext {
   readonly tenantId: TenantId;
   readonly tenantName: string;
   readonly status: TenantStatus;
-  /** Branches this user may act in. Empty means tenant-wide access was not granted. */
-  readonly branchIds: readonly BranchId[];
+  /** Branches this user may act in, as determined by the database — never by the request. */
+  readonly branches: readonly AccessibleBranch[];
   /** The branch the current session is operating in, when one has been selected. */
   readonly activeBranchId: BranchId | null;
   readonly permissions: ReadonlySet<Permission>;
@@ -91,5 +104,12 @@ export function hasAnyPermission(
 
 /** Whether the caller may act in a given branch. */
 export function canAccessBranch(context: AuthContext, branchId: BranchId): boolean {
-  return context.tenant?.branchIds.includes(branchId) ?? false;
+  return context.tenant?.branches.some((branch) => branch.id === branchId) ?? false;
+}
+
+/** The branch the session is operating in, resolved to its full record. */
+export function activeBranch(context: AuthContext): AccessibleBranch | null {
+  const tenant = context.tenant;
+  if (!tenant?.activeBranchId) return null;
+  return tenant.branches.find((branch) => branch.id === tenant.activeBranchId) ?? null;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLogger, redact } from './logger.js';
+import { createLogger, redact } from './logger';
 
 describe('redaction', () => {
   it('removes credentials wherever they are nested', () => {

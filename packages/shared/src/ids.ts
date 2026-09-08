@@ -10,7 +10,7 @@
  * compile error.
  */
 
-import { randomUuid } from './encoding.js';
+import { randomUuid } from './encoding';
 
 declare const brand: unique symbol;
 

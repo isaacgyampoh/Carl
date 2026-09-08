@@ -10,7 +10,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@carl/types';
 
-import { publicEnv } from '../config/public-env.js';
+import { publicEnv } from '../config/public-env';
 
 export type CarlSupabaseClient = SupabaseClient<Database>;
 

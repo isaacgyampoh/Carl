@@ -22,15 +22,16 @@
 import 'server-only';
 
 import {
+  type AccessibleBranch,
   type AuthContext,
   type AuthenticatedUser,
   type TenantContext,
   TenantStatus,
 } from '@carl/application';
 import { type Permission } from '@carl/domain';
-import { type BranchId, asId, randomUuid } from '@carl/shared';
+import { asId, randomUuid } from '@carl/shared';
 
-import type { CarlSupabaseClient } from '../supabase/server-client.js';
+import type { CarlSupabaseClient } from '../supabase/server-client';
 
 interface MembershipRow {
   tenant_id: string;
@@ -42,7 +43,8 @@ interface MembershipRow {
 
 interface BranchRow {
   id: string;
-  tenant_id: string;
+  code: string;
+  name: string;
 }
 
 interface PermissionRow {
@@ -130,21 +132,21 @@ async function resolveTenant(
 
   const tenantId = asId<'TenantId'>(membership.tenant_id);
 
-  const [branchIds, permissions] = await Promise.all([
+  const [branches, permissions] = await Promise.all([
     accessibleBranches(supabase, membership.tenant_id),
     grantedPermissions(supabase, membership.tenant_id),
   ]);
 
-  const activeBranchId =
-    options.requestedBranchId && branchIds.includes(options.requestedBranchId as BranchId)
-      ? (options.requestedBranchId as BranchId)
-      : (branchIds[0] ?? null);
+  // The requested branch is a filter over what the database already permits, never a
+  // grant. Asking for a branch you cannot reach falls back to your first one.
+  const requested = branches.find((branch) => branch.id === options.requestedBranchId);
+  const activeBranchId = requested?.id ?? branches[0]?.id ?? null;
 
   return {
     tenantId,
     tenantName: membership.tenants.name,
     status: toTenantStatus(membership.tenants.status),
-    branchIds,
+    branches,
     activeBranchId,
     permissions,
   };
@@ -161,16 +163,20 @@ async function resolveTenant(
 async function accessibleBranches(
   supabase: CarlSupabaseClient,
   tenantId: string,
-): Promise<readonly BranchId[]> {
+): Promise<readonly AccessibleBranch[]> {
   const { data } = await supabase
     .from('branches')
-    .select('id, tenant_id')
+    .select('id, code, name')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .order('code')
     .returns<BranchRow[]>();
 
-  return (data ?? []).map((row) => asId<'BranchId'>(row.id));
+  return (data ?? []).map((row) => ({
+    id: asId<'BranchId'>(row.id),
+    code: row.code,
+    name: row.name,
+  }));
 }
 
 /**

@@ -7,7 +7,7 @@ import {
   encodeCursor,
   normalizeOffsetPage,
   toRange,
-} from './pagination.js';
+} from './pagination';
 
 describe('offset pagination', () => {
   it('clamps hostile or absent page input into a servable range', () => {

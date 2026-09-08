@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 4 functions.
+ * 51 relations, 27 enums, 11 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -2483,20 +2483,161 @@ export interface Database {
     };
     Functions: {
       activate_device: {
-        Args: Record<string, unknown>;
-        Returns: unknown;
+        Args: {
+          p_code: string;
+          p_pepper: string;
+          p_install_id: string;
+          p_platform?: Database['public']['Enums']['device_platform'] | undefined;
+          p_app_version?: string | undefined;
+        };
+        Returns: {
+    device_id: string | null;
+    tenant_id: string | null;
+    branch_id: string | null;
+    device_code: string | null;
+    device_name: string | null;
+    device_secret: string | null;
+    authorized_until: string | null;
+  }[];
       };
       issue_activation_code: {
-        Args: Record<string, unknown>;
-        Returns: unknown;
+        Args: {
+          p_device_id: string;
+          p_pepper: string;
+          p_valid_hours?: number | undefined;
+        };
+        Returns: {
+    code: string | null;
+    expires_at: string | null;
+  }[];
+      };
+      low_stock: {
+        Args: {
+          p_tenant_id: string;
+          p_branch_id?: string | undefined;
+          p_limit?: number | undefined;
+        };
+        Returns: {
+    product_id: string | null;
+    product_name: string | null;
+    branch_id: string | null;
+    quantity: number | null;
+    reorder_level: number | null;
+    shortfall: number | null;
+  }[];
+      };
+      payment_method_breakdown: {
+        Args: {
+          p_tenant_id: string;
+          p_from: string;
+          p_to: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    method: Database['public']['Enums']['payment_method'] | null;
+    payment_count: number | null;
+    amount: number | null;
+  }[];
       };
       provision_tenant: {
-        Args: Record<string, unknown>;
-        Returns: unknown;
+        Args: {
+          p_slug: string;
+          p_name: string;
+          p_owner_email: string;
+          p_owner_name: string;
+          p_owner_user_id: string;
+          p_branch_name?: string | undefined;
+          p_branch_code?: string | undefined;
+          p_status?: Database['public']['Enums']['tenant_status'] | undefined;
+          p_trial_days?: number | undefined;
+        };
+        Returns: {
+    tenant_id: string | null;
+    branch_id: string | null;
+    membership_id: string | null;
+  }[];
       };
       revoke_device: {
-        Args: Record<string, unknown>;
+        Args: {
+          p_device_id: string;
+          p_reason: string;
+        };
         Returns: unknown;
+      };
+      sales_summary: {
+        Args: {
+          p_tenant_id: string;
+          p_from: string;
+          p_to: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    sales_count: number | null;
+    gross: number | null;
+    discounts: number | null;
+    tax: number | null;
+    cost: number | null;
+    profit: number | null;
+    refunds: number | null;
+    average_sale: number | null;
+    items_sold: number | null;
+  }[];
+      };
+      staff_sales_summary: {
+        Args: {
+          p_tenant_id: string;
+          p_from: string;
+          p_to: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    cashier_id: string | null;
+    cashier_name: string | null;
+    sales_count: number | null;
+    gross: number | null;
+    refunds: number | null;
+  }[];
+      };
+      stock_valuation: {
+        Args: {
+          p_tenant_id: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    product_count: number | null;
+    total_units: number | null;
+    cost_value: number | null;
+    retail_value: number | null;
+  }[];
+      };
+      tenant_dashboard_today: {
+        Args: {
+          p_tenant_id: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    sales_count: number | null;
+    gross: number | null;
+    cost: number | null;
+    cash: number | null;
+    momo: number | null;
+  }[];
+      };
+      top_products: {
+        Args: {
+          p_tenant_id: string;
+          p_from: string;
+          p_to: string;
+          p_branch_id?: string | undefined;
+          p_limit?: number | undefined;
+        };
+        Returns: {
+    product_id: string | null;
+    product_name: string | null;
+    quantity_sold: number | null;
+    revenue: number | null;
+    profit: number | null;
+  }[];
       };
     };
     Enums: {

@@ -12,8 +12,8 @@ import {
   subtractMoney,
   toMajor,
   toMinor,
-} from './money.js';
-import { CarlError } from './errors.js';
+} from './money';
+import { CarlError } from './errors';
 
 describe('money conversion', () => {
   it('converts major units to exact minor units', () => {

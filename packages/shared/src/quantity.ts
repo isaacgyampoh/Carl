@@ -11,7 +11,7 @@
  * retail shop weighs to.
  */
 
-import { CarlError, ErrorCode } from './errors.js';
+import { CarlError, ErrorCode } from './errors';
 
 /** An integer count of thousandths of a unit. */
 export type Quantity = number;

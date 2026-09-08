@@ -13,7 +13,7 @@
 import 'server-only';
 
 import { z } from 'zod';
-import { formatIssues } from './public-env.js';
+import { formatIssues } from './public-env';
 
 const serverEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z

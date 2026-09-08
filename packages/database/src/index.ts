@@ -6,5 +6,5 @@
  * infrastructure's job.
  */
 
-export * from './rpc.js';
-export * from './errors.js';
+export * from './rpc';
+export * from './errors';

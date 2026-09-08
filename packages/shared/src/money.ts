@@ -20,7 +20,7 @@
  * exactly to the original.
  */
 
-import { CarlError, ErrorCode } from './errors.js';
+import { CarlError, ErrorCode } from './errors';
 
 /** An integer count of a currency's minor units. Never a fractional value. */
 export type Minor = number;

@@ -5,5 +5,5 @@
  * and RLS are the guarantee. Carl has all three, and this package is the middle one.
  */
 
-export * from './primitives.js';
+export * from './primitives';
 export { z } from 'zod';

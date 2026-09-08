@@ -6,4 +6,4 @@
  * rather than a database.
  */
 
-export * from './ports/auth-context.js';
+export * from './ports/auth-context';

@@ -19,7 +19,7 @@
  * auditable at all.
  */
 
-import { Permission } from './permissions.js';
+import { Permission } from './permissions';
 
 export const SystemRole = {
   TENANT_OWNER: 'tenant_owner',
