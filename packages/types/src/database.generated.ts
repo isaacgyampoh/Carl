@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 22 functions.
+ * 51 relations, 27 enums, 27 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -2521,6 +2521,26 @@ export interface Database {
     total_variance: number | null;
   }[];
       };
+      approve_expense: {
+        Args: {
+          p_expense_id: string;
+        };
+        Returns: {
+    approved_expense_id: string | null;
+  }[];
+      };
+      close_cash_session: {
+        Args: {
+          p_session_id: string;
+          p_counted_cash: number;
+          p_variance_note?: string | undefined;
+        };
+        Returns: {
+    expected_cash: number | null;
+    counted_cash: number | null;
+    variance: number | null;
+  }[];
+      };
       complete_sale: {
         Args: {
           p_branch_id: string;
@@ -2580,6 +2600,16 @@ export interface Database {
     quantity: number | null;
     reorder_level: number | null;
     shortfall: number | null;
+  }[];
+      };
+      open_cash_session: {
+        Args: {
+          p_register_id: string;
+          p_opening_float?: number | undefined;
+          p_device_id?: string | undefined;
+        };
+        Returns: {
+    session_id: string | null;
   }[];
       };
       payment_method_breakdown: {
@@ -2647,6 +2677,34 @@ export interface Database {
         };
         Returns: {
     received_count: number | null;
+  }[];
+      };
+      record_cash_movement: {
+        Args: {
+          p_session_id: string;
+          p_movement_type: Database['public']['Enums']['cash_movement_type'];
+          p_amount: number;
+          p_reason: string;
+          p_notes?: string | undefined;
+        };
+        Returns: {
+    movement_id: string | null;
+  }[];
+      };
+      record_expense: {
+        Args: {
+          p_branch_id: string;
+          p_description: string;
+          p_amount: number;
+          p_category_id?: string | undefined;
+          p_method?: Database['public']['Enums']['payment_method'] | undefined;
+          p_reference?: string | undefined;
+          p_expense_date?: string | undefined;
+          p_receipt_url?: string | undefined;
+        };
+        Returns: {
+    expense_id: string | null;
+    reference: string | null;
   }[];
       };
       resolve_sale_price: {
