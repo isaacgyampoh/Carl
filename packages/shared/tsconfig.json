@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Node's type definitions supply the globals Carl relies on being present in every
+    // runtime it targets: crypto, TextEncoder, btoa/atob, console. The source deliberately
+    // avoids Node-only APIs (Buffer, process) so the same build runs in the browser.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.test.ts"],
+  "exclude": ["node_modules", "dist"]
+}
