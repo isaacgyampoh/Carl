@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 11 functions.
+ * 51 relations, 27 enums, 19 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -2500,6 +2500,35 @@ export interface Database {
     authorized_until: string | null;
   }[];
       };
+      apply_stock_adjustment: {
+        Args: {
+          p_branch_id: string;
+          p_product_id: string;
+          p_quantity: number;
+          p_movement_type: Database['public']['Enums']['movement_type'];
+          p_reason: string;
+        };
+        Returns: {
+    new_quantity: number | null;
+  }[];
+      };
+      apply_stock_count: {
+        Args: {
+          p_stock_count_id: string;
+        };
+        Returns: {
+    adjusted_count: number | null;
+    total_variance: number | null;
+  }[];
+      };
+      dispatch_stock_transfer: {
+        Args: {
+          p_transfer_id: string;
+        };
+        Returns: {
+    dispatched_count: number | null;
+  }[];
+      };
       issue_activation_code: {
         Args: {
           p_device_id: string;
@@ -2557,6 +2586,39 @@ export interface Database {
     membership_id: string | null;
   }[];
       };
+      receive_purchase: {
+        Args: {
+          p_purchase_id: string;
+          p_items: Json;
+        };
+        Returns: {
+    received_count: number | null;
+  }[];
+      };
+      receive_stock_transfer: {
+        Args: {
+          p_transfer_id: string;
+          p_received?: Json | undefined;
+        };
+        Returns: {
+    received_count: number | null;
+  }[];
+      };
+      resolve_sale_price: {
+        Args: {
+          p_product_id: string;
+          p_branch_id: string;
+          p_tier?: Database['public']['Enums']['price_tier'] | undefined;
+          p_quantity?: number | undefined;
+        };
+        Returns: {
+    product_id: string | null;
+    unit_price: number | null;
+    tax_mode: Database['public']['Enums']['tax_mode'] | null;
+    tax_rate: number | null;
+    is_active: boolean | null;
+  }[];
+      };
       revoke_device: {
         Args: {
           p_device_id: string;
@@ -2581,6 +2643,36 @@ export interface Database {
     refunds: number | null;
     average_sale: number | null;
     items_sold: number | null;
+  }[];
+      };
+      search_products: {
+        Args: {
+          p_branch_id: string;
+          p_query: string;
+          p_tier?: Database['public']['Enums']['price_tier'] | undefined;
+          p_limit?: number | undefined;
+        };
+        Returns: {
+    product_id: string | null;
+    name: string | null;
+    sku: string | null;
+    unit: string | null;
+    unit_price: number | null;
+    quantity: number | null;
+    is_exact: boolean | null;
+    pack_size: number | null;
+  }[];
+      };
+      set_product_price: {
+        Args: {
+          p_product_id: string;
+          p_amount: number;
+          p_tier?: Database['public']['Enums']['price_tier'] | undefined;
+          p_branch_id?: string | undefined;
+          p_min_quantity?: number | undefined;
+        };
+        Returns: {
+    price_id: string | null;
   }[];
       };
       staff_sales_summary: {

@@ -20,6 +20,10 @@ create extension if not exists pgcrypto with schema extensions;
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists citext with schema extensions;
 
+-- Inside a function with `set search_path = ''`, EVERY identifier must be schema-qualified
+-- -- including enum types in casts (`'RECEIVED'::public.purchase_status`). An unqualified
+-- cast fails at runtime with "type does not exist", and only when that branch executes.
+--
 -- Extension objects are ALWAYS referenced schema-qualified (extensions.citext,
 -- extensions.digest, ...). The `extensions` schema is on the search_path for Supabase's
 -- API roles but not during migration execution, so an unqualified reference applies

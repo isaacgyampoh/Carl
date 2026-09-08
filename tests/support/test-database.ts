@@ -100,6 +100,22 @@ export interface TestDatabase {
    */
   expectNoRowsAffected(sql: string, params?: readonly unknown[]): Promise<void>;
 
+  /**
+   * Whether this driver can express genuine concurrency.
+   *
+   * False for PGlite, which is an embedded single-connection engine: two instances over the
+   * same data directory get separate snapshots rather than two sessions against one server,
+   * so they cannot contend for a row lock. Tests that need a real race check this and skip
+   * rather than pass vacuously — a green concurrency test that cannot fail is worse than
+   * an absent one.
+   */
+  readonly supportsConcurrency: boolean;
+
+  /**
+   * Opens a second, independent session. Only available where `supportsConcurrency`.
+   */
+  concurrent(): Promise<TestDatabase>;
+
   /** Truncates all Carl tables, leaving the schema intact. */
   reset(): Promise<void>;
 
@@ -108,6 +124,18 @@ export interface TestDatabase {
 
 class PgliteTestDatabase implements TestDatabase {
   constructor(private readonly db: PGlite) {}
+
+  readonly supportsConcurrency = false;
+
+  concurrent(): Promise<TestDatabase> {
+    return Promise.reject(
+      new Error(
+        'PGlite is an embedded single-connection engine and cannot open a second session ' +
+          'against the same database. Run concurrency tests against a real PostgreSQL ' +
+          '(CARL_TEST_DB_DRIVER=pg), or guard them with `supportsConcurrency`.',
+      ),
+    );
+  }
 
   async query<T = Record<string, unknown>>(
     sql: string,
