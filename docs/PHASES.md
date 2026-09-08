@@ -60,3 +60,50 @@ Docker and the Rust toolchain are absent from the current development machine. N
 Phases 0–10: the database suite runs on in-process WebAssembly PostgreSQL by design. Rust is
 required before Phase 11 (Tauri), and Docker is required only for `supabase start` and for the
 pre-release run against a real Supabase instance in Phase 15.
+
+---
+
+## Phase 1 — Database ✅
+
+**Delivered**
+
+11 migrations: **47 tables, 150 indexes, 102 check constraints, 30 triggers, 27 enum types.**
+
+- Identity and tenancy: profiles, tenants, branches, memberships, branch scoping
+- Roles and permissions as editable rows, with cross-tenant reference guards
+- Devices, activation codes and per-installation device sessions
+- Catalogue: products tenant-wide, multiple barcodes, windowed prices
+- Inventory as an append-only ledger plus a maintained running total, transfers, stock counts
+- Sales, line items, split payments, returns and refunds
+- Suppliers, purchasing, expenses, cash register sessions
+- Audit log, idempotency keys, sync conflicts, notifications
+- Platform: subscriptions, payments, installations, maintenance, time-boxed support grants
+- Permission seed **generated** from `@carl/domain`, with a drift test
+
+**Verification**
+
+```
+format      pass     typecheck   pass     lint   pass (0 problems)
+tests       84 passed (35 unit, 49 database)      build  pass
+```
+
+Database tests cover: migrations apply to a clean database; tenant-scoped uniqueness;
+cross-tenant reference rejection; sale arithmetic consistency; Momo reference requirement;
+ledger direction and immutability; audit-log immutability; single-default/single-open
+invariants; activation-code bounds; support-grant bounds; ledger reconciliation including
+fractional quantities and point-in-time reconstruction.
+
+**Notable decisions**
+
+- Extension objects are always schema-qualified. An unqualified `citext` applied cleanly on a
+  developer machine and failed on a clean database — caught by the migration test, not review.
+- The append-only trigger blocked a test that tried to backdate a ledger row. The test was
+  rewritten to insert with a past timestamp; the guarantee was not weakened to accommodate it.
+- No RLS yet. Policies and the isolation suite are Phase 2, so the schema can be reviewed
+  independently of the access rules layered on it.
+
+**Known issues**
+
+None. Row Level Security is not yet enabled — tables are currently reachable only by the
+service role and the migration owner, and Phase 2 closes that before any application code
+reads them.

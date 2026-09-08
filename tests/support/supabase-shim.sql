@@ -102,7 +102,12 @@ $$;
 
 grant usage on schema auth to anon, authenticated, service_role;
 grant usage on schema extensions to anon, authenticated, service_role;
-grant select on auth.users to authenticated, service_role;
+-- On hosted Supabase, accounts are created through the Auth admin API rather than by
+-- writing to auth.users. In the harness the service role stands in for that API, so it is
+-- granted write access here. `authenticated` deliberately gets read-only access, matching
+-- production: an end user can never mint an account.
+grant select on auth.users to authenticated;
+grant select, insert, update, delete on auth.users to service_role;
 
 -- Supabase grants the API roles usage on public and default privileges on new objects.
 -- Without this, a table created by a migration would be unreadable by `authenticated`
