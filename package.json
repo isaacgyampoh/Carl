@@ -2,7 +2,7 @@
   "name": "carl",
   "version": "0.1.0",
   "private": true,
-  "description": "Carl — multi-tenant POS, inventory and business management platform.",
+  "description": "Carl \u2014 multi-tenant POS, inventory and business management platform.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@12.3.4",
   "engines": {
@@ -26,7 +26,7 @@
     "db:diff": "supabase db diff",
     "db:lint": "supabase db lint",
     "db:types": "node scripts/generate-db-types.mjs",
-    "verify": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
+    "verify": "bash scripts/verify.sh",
     "clean": "git clean -xdf node_modules dist .next .turbo"
   },
   "devDependencies": {

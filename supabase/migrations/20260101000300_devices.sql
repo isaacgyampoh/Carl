@@ -116,11 +116,13 @@ create trigger devices_touch_updated_at
 create or replace function app.assert_device_branch_same_tenant()
 returns trigger
 language plpgsql
+security definer
+set search_path = ''
 as $$
 declare
   v_branch_tenant uuid;
 begin
-  select tenant_id into v_branch_tenant from branches where id = new.branch_id;
+  select tenant_id into v_branch_tenant from public.branches where id = new.branch_id;
   if v_branch_tenant is distinct from new.tenant_id then
     raise exception 'CROSS_TENANT_REFERENCE'
       using detail = 'The device branch belongs to a different tenant.';

@@ -85,10 +85,13 @@ describe('schema constraints', () => {
       const b = await createTenant(db);
 
       await db.asServiceRole(async () => {
+        // Tenant B's own cashier role, created by provisioning.
         const role = await db.query<{ id: string }>(
-          `insert into roles (tenant_id, key, name) values ($1, 'cashier', 'Cashier') returning id`,
+          `select id from roles where tenant_id = $1 and key = 'cashier'`,
           [b.tenantId],
         );
+        expect(role.rows[0]).toBeDefined();
+
         await expect(
           db.query(`insert into membership_roles (membership_id, role_id) values ($1, $2)`, [
             a.ownerMembershipId,

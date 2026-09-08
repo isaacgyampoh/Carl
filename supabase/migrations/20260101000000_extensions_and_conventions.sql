@@ -79,6 +79,7 @@ create domain app.slug as text
 create or replace function app.touch_updated_at()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at := now();
@@ -94,6 +95,7 @@ comment on function app.touch_updated_at() is
 create or replace function app.reject_mutation()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   raise exception 'IMMUTABLE_RECORD'

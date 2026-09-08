@@ -242,7 +242,7 @@ create trigger maintenance_touch_updated_at
 --
 -- Explicit, time-boxed permission for a named Carl staff member to read one tenant's
 -- business data. See the header note for why this is not simply implied by
--- profiles.is_platform_admin.
+-- a row in `platform_admins`.
 -- -----------------------------------------------------------------------------
 
 create table tenant_support_grants (

@@ -140,17 +140,28 @@ comment on column membership_roles.branch_id is
 -- filters rows rather than validating relationships between them. It is enforced here.
 -- -----------------------------------------------------------------------------
 
+-- These integrity triggers are SECURITY DEFINER deliberately.
+--
+-- A trigger that reads through RLS validates against a *filtered* view of the database: a
+-- row it needs to compare against may be invisible to the writer, so the check either
+-- passes when it should fail or fails when it should pass. Referential integrity is not a
+-- per-caller question, so these read everything and answer the same way for everyone.
+--
+-- `set search_path = ''` plus fully-qualified names is what makes that safe: without it a
+-- caller could point the function at a table of their own creation.
 create or replace function app.assert_membership_role_same_tenant()
 returns trigger
 language plpgsql
+security definer
+set search_path = ''
 as $$
 declare
   v_membership_tenant uuid;
   v_role_tenant       uuid;
   v_branch_tenant     uuid;
 begin
-  select tenant_id into v_membership_tenant from tenant_memberships where id = new.membership_id;
-  select tenant_id into v_role_tenant from roles where id = new.role_id;
+  select tenant_id into v_membership_tenant from public.tenant_memberships where id = new.membership_id;
+  select tenant_id into v_role_tenant from public.roles where id = new.role_id;
 
   if v_membership_tenant is distinct from v_role_tenant then
     raise exception 'CROSS_TENANT_REFERENCE'
@@ -158,7 +169,7 @@ begin
   end if;
 
   if new.branch_id is not null then
-    select tenant_id into v_branch_tenant from branches where id = new.branch_id;
+    select tenant_id into v_branch_tenant from public.branches where id = new.branch_id;
     if v_branch_tenant is distinct from v_membership_tenant then
       raise exception 'CROSS_TENANT_REFERENCE'
         using detail = 'The branch and the membership belong to different tenants.';
@@ -177,13 +188,15 @@ create trigger membership_roles_same_tenant
 create or replace function app.assert_membership_branch_same_tenant()
 returns trigger
 language plpgsql
+security definer
+set search_path = ''
 as $$
 declare
   v_membership_tenant uuid;
   v_branch_tenant     uuid;
 begin
-  select tenant_id into v_membership_tenant from tenant_memberships where id = new.membership_id;
-  select tenant_id into v_branch_tenant from branches where id = new.branch_id;
+  select tenant_id into v_membership_tenant from public.tenant_memberships where id = new.membership_id;
+  select tenant_id into v_branch_tenant from public.branches where id = new.branch_id;
 
   if v_membership_tenant is distinct from v_branch_tenant then
     raise exception 'CROSS_TENANT_REFERENCE'

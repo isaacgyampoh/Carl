@@ -107,3 +107,62 @@ fractional quantities and point-in-time reconstruction.
 None. Row Level Security is not yet enabled — tables are currently reachable only by the
 service role and the migration owner, and Phase 2 closes that before any application code
 reads them.
+
+---
+
+## Phase 2 — Security ✅
+
+**Delivered**
+
+**102 RLS policies across 50 tables**, 11 access-helper functions, tenant provisioning, and a
+57-test database security suite.
+
+- Access helpers in a non-exposed `app` schema: all `STABLE`, `SECURITY DEFINER`, and pinned
+  with `set search_path = ''`
+- RLS on every table, `FORCE`d so the owner is not exempt
+- Reads and writes separated: a suspended tenant reads its own records but cannot trade
+- Every UPDATE policy specifies both `USING` and `WITH CHECK`
+- Role-rank ceiling preventing anyone granting a role stronger than their own
+- Time-boxed, customer-visible support grants as the only route to tenant data for Carl staff
+- `provision_tenant()` — atomic tenant, branch, system roles and owner
+- Role templates **generated** from `@carl/domain`, like permissions
+
+**Verification**
+
+```
+format  PASS   typecheck  PASS   lint  PASS   test  PASS   build  PASS
+141 tests (35 unit, 106 database)
+```
+
+**Three bugs found by tests, not by review**
+
+1. **Trigger functions resolved unqualified table names.** They broke inside any
+   `SECURITY DEFINER` function — and were a search_path injection route. All now pin
+   `search_path` and fully qualify. Surfaced when `provision_tenant()` failed with
+   "relation tenant_memberships does not exist".
+
+2. **Integrity triggers read through RLS**, validating against a _filtered_ view of the
+   database. A row they needed to compare against could be invisible to the writer, so the
+   check passed or failed for the wrong reason. Now `SECURITY DEFINER`.
+
+3. **`profiles.is_platform_admin` could not be protected without infinite recursion.**
+   Guarding a privilege column on a self-editable row needs a policy on `profiles` that reads
+   `profiles`; PostgreSQL refuses that (42P17), and the same recursion would have broken every
+   legitimate profile update. Caught because `expectDenied` refuses to accept a statement that
+   failed for the wrong reason. Fixed by moving platform administration to its own table —
+   which also removes the escalation surface entirely and makes the grant auditable.
+
+A fourth, smaller finding: an UPDATE against rows no policy admits matches zero rows and
+_reports success_, rather than raising 42501 as an INSERT does. Both are safe; they are not the
+same, so the harness gained `expectNoRowsAffected` and the distinction is documented.
+
+**Also corrected**
+
+The verification gate was being checked with `grep -c "Done"`, which reported success while
+typecheck was failing. Replaced with `scripts/verify.sh`, which checks exit codes and stops at
+the first failure.
+
+**Known issues**
+
+None. Transactional functions (`complete_sale`, `process_return`, …) are Phase 4–7; until they
+exist, the tables they write have no INSERT policy, which is the intended state.

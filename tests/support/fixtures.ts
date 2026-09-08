@@ -33,10 +33,16 @@ export async function createUser(
   );
   const userId = rows[0]!.id;
 
-  await db.query(
-    `insert into profiles (id, email, full_name, is_platform_admin) values ($1, $2, $3, $4)`,
-    [userId, email, options.fullName ?? `Test User ${suffix}`, options.isPlatformAdmin ?? false],
-  );
+  await db.query(`insert into profiles (id, email, full_name) values ($1, $2, $3)`, [
+    userId,
+    email,
+    options.fullName ?? `Test User ${suffix}`,
+  ]);
+
+  if (options.isPlatformAdmin) {
+    await db.query(`insert into platform_admins (user_id) values ($1)`, [userId]);
+  }
+
   return userId;
 }
 
@@ -46,42 +52,53 @@ export async function createUser(
  * Runs as the service role because provisioning a tenant is, by definition, an operation
  * performed before the tenant's own members exist.
  */
+/**
+ * Creates a tenant through the real `provision_tenant()` function.
+ *
+ * Deliberately not hand-inserted rows: provisioning is what production does, so a fixture
+ * that bypasses it would leave tests running against a tenant shaped differently from any
+ * real one — with no system roles, and therefore no permissions to test against.
+ */
 export async function createTenant(
   db: TestDatabase,
   options: { name?: string; status?: string; ownerUserId?: string } = {},
 ): Promise<TenantFixture> {
-  return db.asServiceRole(async () => {
-    const suffix = nextSuffix();
-    const slug = `tenant-${suffix}`;
+  const suffix = nextSuffix();
+  const slug = `tenant-${suffix}`;
+  const ownerUserId = options.ownerUserId ?? (await createUser(db));
 
-    const tenant = await db.query<{ id: string }>(
-      `insert into tenants (slug, name, status) values ($1, $2, $3::tenant_status) returning id`,
-      [slug, options.name ?? `Test Business ${suffix}`, options.status ?? 'ACTIVE'],
-    );
-    const tenantId = tenant.rows[0]!.id;
+  const owner = await db.asServiceRole(() =>
+    db.query<{ email: string; full_name: string }>(
+      `select email::text as email, full_name from profiles where id = $1`,
+      [ownerUserId],
+    ),
+  );
 
-    const branch = await db.query<{ id: string }>(
-      `insert into branches (tenant_id, code, name, is_default) values ($1, 'main', 'Main Branch', true) returning id`,
-      [tenantId],
-    );
-    const branchId = branch.rows[0]!.id;
+  // Provisioning requires a platform administrator; the harness supplies one.
+  const platformAdmin = await createUser(db, { isPlatformAdmin: true });
 
-    const ownerUserId = options.ownerUserId ?? (await createUser(db));
+  const result = await db.asUser(platformAdmin, () =>
+    db.query<{ tenant_id: string; branch_id: string; membership_id: string }>(
+      `select * from provision_tenant($1, $2, $3, $4, $5, 'Main Branch', 'main', $6::tenant_status, 14)`,
+      [
+        slug,
+        options.name ?? `Test Business ${suffix}`,
+        owner.rows[0]!.email,
+        owner.rows[0]!.full_name,
+        ownerUserId,
+        options.status ?? 'ACTIVE',
+      ],
+    ),
+  );
 
-    const membership = await db.query<{ id: string }>(
-      `insert into tenant_memberships (tenant_id, user_id, status, is_owner, accepted_at)
-       values ($1, $2, 'ACTIVE', true, now()) returning id`,
-      [tenantId, ownerUserId],
-    );
-
-    return {
-      tenantId,
-      branchId,
-      ownerUserId,
-      ownerMembershipId: membership.rows[0]!.id,
-      slug,
-    };
-  });
+  const row = result.rows[0]!;
+  return {
+    tenantId: row.tenant_id,
+    branchId: row.branch_id,
+    ownerUserId,
+    ownerMembershipId: row.membership_id,
+    slug,
+  };
 }
 
 export async function createBranch(

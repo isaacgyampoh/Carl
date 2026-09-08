@@ -33,6 +33,21 @@ const REPO_ROOT = join(HERE, '..', '..');
 const MIGRATIONS_DIR = join(REPO_ROOT, 'supabase', 'migrations');
 const SHIM_PATH = join(HERE, 'supabase-shim.sql');
 
+/**
+ * Reference data populated by migrations rather than by a test.
+ *
+ * `reset()` must leave these alone. Truncating them produced a genuinely baffling failure:
+ * `provision_tenant()` found no role templates, granted the owner a null role, and the
+ * cross-tenant integrity trigger reported CROSS_TENANT_REFERENCE — an error with no
+ * apparent connection to the actual cause.
+ */
+const SEEDED_REFERENCE_TABLES = [
+  'permissions',
+  'role_templates',
+  'role_template_permissions',
+  'subscription_plans',
+] as const;
+
 export interface QueryResult<T> {
   rows: T[];
   rowCount: number;
@@ -74,6 +89,16 @@ export interface TestDatabase {
    * because of a typo would otherwise look like a passing security test.
    */
   expectDenied(sql: string, params?: readonly unknown[]): Promise<void>;
+
+  /**
+   * Asserts a statement ran but changed nothing.
+   *
+   * RLS refuses an INSERT with SQLSTATE 42501, but an UPDATE or DELETE against rows no
+   * policy admits simply matches zero rows and reports success. Both are safe outcomes;
+   * they are not the same outcome, and a test must assert the one that actually applies.
+   * Using `expectDenied` for an UPDATE would fail even with the policy working correctly.
+   */
+  expectNoRowsAffected(sql: string, params?: readonly unknown[]): Promise<void>;
 
   /** Truncates all Carl tables, leaving the schema intact. */
   reset(): Promise<void>;
@@ -154,9 +179,27 @@ class PgliteTestDatabase implements TestDatabase {
     throw new Error(`Expected the statement to be denied, but it succeeded.\n  SQL: ${sql}`);
   }
 
+  async expectNoRowsAffected(sql: string, params: readonly unknown[] = []): Promise<void> {
+    const trimmed = sql.trim();
+    if (!/returning/i.test(trimmed)) {
+      throw new Error(
+        'expectNoRowsAffected needs a RETURNING clause to count what the statement changed.',
+      );
+    }
+    const { rows } = await this.query(trimmed, params);
+    if (rows.length > 0) {
+      throw new Error(
+        `Expected the statement to change nothing, but it changed ${rows.length} row(s).\n  SQL: ${sql}`,
+      );
+    }
+  }
+
   async reset(): Promise<void> {
     const { rows } = await this.query<{ tablename: string }>(
-      `select tablename from pg_tables where schemaname = 'public' order by tablename`,
+      `select tablename from pg_tables where schemaname = 'public'
+         and tablename <> all($1::text[])
+       order by tablename`,
+      [SEEDED_REFERENCE_TABLES],
     );
     if (rows.length === 0) return;
     const tables = rows.map((r) => `public.${quoteIdent(r.tablename)}`).join(', ');

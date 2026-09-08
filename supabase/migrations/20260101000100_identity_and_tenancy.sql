@@ -52,15 +52,6 @@ create table profiles (
   phone            text,
   avatar_url       text,
 
-  -- Administers the Carl PLATFORM, not any tenant's data.
-  --
-  -- This flag grants access to tenants, subscriptions, installations and devices. It
-  -- deliberately does NOT grant access to a customer's sales, stock or customers: reading
-  -- a tenant's business data requires a separate, time-boxed and audited support grant
-  -- (see migration 0009). A support engineer who can silently read every shop's takings
-  -- is a breach waiting to be discovered by the shops.
-  is_platform_admin boolean not null default false,
-
   last_seen_at     timestamptz,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
@@ -69,15 +60,43 @@ create table profiles (
 );
 
 create unique index profiles_email_key on profiles (email);
-create index profiles_platform_admin_idx on profiles (id) where is_platform_admin;
 
 comment on table profiles is 'A person who can sign in to Carl. One row per auth.users row.';
-comment on column profiles.is_platform_admin is
-  'Administers the Carl platform. Does NOT confer access to tenant business data - that requires an audited support grant.';
 
 create trigger profiles_touch_updated_at
   before update on profiles
   for each row execute function app.touch_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- platform_admins
+--
+-- ## Why this is a table rather than a column on `profiles`
+--
+-- It began as `profiles.is_platform_admin`, and that was wrong for two reasons.
+--
+-- **Escalation surface.** A user can update their own profile row. Preventing them from
+-- also flipping a privilege column on it requires a policy that inspects the row's
+-- current value — which means a policy on `profiles` that reads `profiles`. PostgreSQL
+-- refuses that outright (42P17, infinite recursion), and the same recursion would have
+-- broken every legitimate profile update. Moving the flag out means there is simply no
+-- privilege column on the row a user controls.
+--
+-- **Auditability.** Platform administration should record who granted it and when.
+-- A boolean cannot.
+--
+-- Note what this still does NOT confer: access to any tenant's business data. That needs
+-- a `tenant_support_grants` row. See migration 0009.
+-- -----------------------------------------------------------------------------
+
+create table platform_admins (
+  user_id    uuid primary key references profiles (id) on delete cascade,
+  granted_by uuid references profiles (id) on delete set null,
+  granted_at timestamptz not null default now(),
+  note       text
+);
+
+comment on table platform_admins is
+  'Administers the Carl platform. Deliberately not a column on profiles - see the migration note.';
 
 -- -----------------------------------------------------------------------------
 -- tenants
