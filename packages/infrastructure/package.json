@@ -1,0 +1,32 @@
+{
+  "name": "@carl/infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "echo \"@carl/infrastructure is consumed as TypeScript source; no build step\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@carl/application": "workspace:*",
+    "@carl/domain": "workspace:*",
+    "@carl/shared": "workspace:*",
+    "@carl/types": "workspace:*",
+    "@carl/validation": "workspace:*",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "vitest": "^5.0.0"
+  }
+}

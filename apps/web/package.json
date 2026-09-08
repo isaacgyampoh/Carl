@@ -1,0 +1,39 @@
+{
+  "name": "@carl/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@carl/application": "workspace:*",
+    "@carl/domain": "workspace:*",
+    "@carl/infrastructure": "workspace:*",
+    "@carl/shared": "workspace:*",
+    "@carl/types": "workspace:*",
+    "@carl/ui": "workspace:*",
+    "@carl/validation": "workspace:*",
+    "@hookform/resolvers": "^5.0.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "@tanstack/react-query": "^5.102.8",
+    "next": "^16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-hook-form": "^7.87.0",
+    "zod": "^4.5.4",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.3.3"
+  }
+}

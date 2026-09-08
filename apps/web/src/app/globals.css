@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+/*
+ * Carl's design tokens.
+ *
+ * A POS is used for eight-hour shifts under fluorescent light, and often on a cheap touch
+ * panel. The palette is deliberately low-chroma with high text contrast: colour carries
+ * meaning (money in, money out, low stock) rather than decoration.
+ */
+@theme {
+  --color-canvas: oklch(0.99 0.002 250);
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.97 0.004 250);
+  --color-border: oklch(0.91 0.005 250);
+  --color-ink: oklch(0.21 0.015 255);
+  --color-ink-muted: oklch(0.52 0.012 255);
+
+  --color-brand: oklch(0.52 0.16 258);
+  --color-brand-strong: oklch(0.44 0.17 258);
+  --color-brand-soft: oklch(0.96 0.02 258);
+
+  --color-positive: oklch(0.55 0.14 155);
+  --color-warning: oklch(0.72 0.15 75);
+  --color-danger: oklch(0.55 0.19 25);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --radius-card: 0.75rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Money and stock figures must align vertically down a column to be scannable. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible focus is a POS requirement, not only an accessibility one: cashiers work by
+     keyboard and need to know where input will land. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
