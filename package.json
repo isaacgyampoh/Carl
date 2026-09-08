@@ -2,7 +2,7 @@
   "name": "carl",
   "version": "0.1.0",
   "private": true,
-  "description": "Carl \u2014 multi-tenant POS, inventory and business management platform.",
+  "description": "Carl — multi-tenant POS, inventory and business management platform.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@12.3.4",
   "engines": {
@@ -30,6 +30,7 @@
     "clean": "git clean -xdf node_modules dist .next .turbo"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.0",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^5.0.0",
