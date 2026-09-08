@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run tells nobody anything useful.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Neither is a real credential. The build needs syntactically valid values to resolve the
+  # public environment schema; nothing in CI reaches a live Supabase project.
+  NEXT_PUBLIC_SUPABASE_URL: https://ci.placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
+
+jobs:
+  verify:
+    name: ${{ matrix.task.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Report every failure in one run rather than one per push.
+      fail-fast: false
+      matrix:
+        task:
+          - { name: typecheck, run: pnpm run typecheck }
+          - { name: lint, run: pnpm run lint }
+          - { name: format, run: pnpm run format:check }
+          - { name: unit tests, run: pnpm run test:unit }
+          - { name: database & RLS tests, run: pnpm run test:db }
+          - { name: build, run: pnpm run build }
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: ${{ matrix.task.run }}
+
+  # Guards the one mistake that cannot be undone by a revert.
+  secret-scan:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
