@@ -94,6 +94,10 @@ export async function middleware(request: NextRequest) {
      * terminal in the estate can reach Carl at all.
      */
     pathname.startsWith('/api/device/') ||
+    // Browsers post CSP violation reports themselves, without cookies, often for the
+    // sign-in page where there is no session at all. Behind the session check the reports
+    // would be redirected and silently lost.
+    pathname === '/api/csp-report' ||
     pathname === '/offline' ||
     pathname === '/sw.js' ||
     pathname === '/manifest.webmanifest';

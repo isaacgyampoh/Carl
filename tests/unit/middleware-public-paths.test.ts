@@ -33,6 +33,7 @@ describe('middleware public paths', () => {
     ['/auth', 'the OAuth callback'],
     ['/api/health', 'the liveness probe'],
     ['/api/device/', 'terminals, which have no browser session'],
+    ['/api/csp-report', 'browsers post violation reports without cookies'],
     ['/offline', 'the page shown when there is no connection'],
     ['/sw.js', 'the service worker'],
     ['/manifest.webmanifest', 'the PWA manifest'],
@@ -45,6 +46,7 @@ describe('middleware public paths', () => {
     // and it should require changing this test.
     const paths = [...publicBlock.matchAll(/'(\/[^']*)'/g)].map((match) => match[1]);
     expect(paths.sort()).toEqual([
+      '/api/csp-report',
       '/api/device/',
       '/api/health',
       '/auth',

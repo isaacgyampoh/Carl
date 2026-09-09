@@ -53,6 +53,10 @@ const nextConfig: NextConfig = {
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
+      // Without this the policy is only a warning in somebody's console. Violations are
+      // collected so enforcement can be an evidence-based decision rather than a hopeful
+      // one — see /api/csp-report.
+      'report-uri /api/csp-report',
     ].join('; ');
 
     return [
