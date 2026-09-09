@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { ServiceWorker } from '@/components/service-worker';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -9,6 +10,12 @@ export const metadata: Metadata = {
   description: 'Carl — point of sale, inventory and business management for multi-branch retail.',
   applicationName: 'Carl',
   formatDetection: { telephone: false },
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Carl',
+    statusBarStyle: 'default',
+  },
 };
 
 export const viewport: Viewport = {
@@ -23,7 +30,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ServiceWorker />
+        {children}
+      </body>
     </html>
   );
 }

@@ -174,6 +174,19 @@ export default tseslint.config(
     },
   },
 
+  // ---- Service worker -------------------------------------------------------
+  // Served verbatim from `public/`, so it is outside any tsconfig and cannot be
+  // type-checked. It still gets the correctness rules, with the ServiceWorkerGlobalScope
+  // globals it actually runs against.
+  {
+    files: ['apps/web/public/sw.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      parserOptions: { projectService: false, project: null },
+      globals: { ...globals.serviceworker },
+    },
+  },
+
   // ---- Tests ----------------------------------------------------------------
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', 'tests/**/*.ts'],

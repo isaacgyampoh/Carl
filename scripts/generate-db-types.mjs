@@ -118,6 +118,51 @@ async function main() {
     relations.get(row.table_name).columns.push(row);
   }
 
+  // --- foreign keys ---
+  //
+  // PostgREST resolves an embedded select (`select('id, categories(name)')`) through the
+  // foreign keys between the tables, and @supabase/supabase-js types that resolution from
+  // the `Relationships` array. Emitting it empty makes every embedded select fail to
+  // typecheck, which pushes call sites toward `.returns<T>()` overrides — and an override
+  // is an assertion, not a check.
+  const relationshipRows = await db.query(`
+    select
+      con.conname                                   as constraint_name,
+      src.relname                                   as source_table,
+      tgt.relname                                   as target_table,
+      array(
+        select a.attname
+        from unnest(con.conkey) with ordinality as k(attnum, ord)
+        join pg_attribute a on a.attrelid = con.conrelid and a.attnum = k.attnum
+        order by k.ord
+      )                                             as source_columns,
+      array(
+        select a.attname
+        from unnest(con.confkey) with ordinality as k(attnum, ord)
+        join pg_attribute a on a.attrelid = con.confrelid and a.attnum = k.attnum
+        order by k.ord
+      )                                             as target_columns,
+      exists (
+        select 1 from pg_index i
+        where i.indrelid = con.conrelid
+          and i.indisunique
+          and i.indkey::int2[] @> con.conkey
+          and array_length(con.conkey, 1) = i.indnatts
+      )                                             as is_one_to_one
+    from pg_constraint con
+    join pg_class src on src.oid = con.conrelid
+    join pg_class tgt on tgt.oid = con.confrelid
+    join pg_namespace n on n.oid = src.relnamespace
+    where con.contype = 'f' and n.nspname = 'public'
+    order by src.relname, con.conname
+  `);
+
+  const relationships = new Map();
+  for (const row of relationshipRows.rows) {
+    if (!relationships.has(row.source_table)) relationships.set(row.source_table, []);
+    relationships.get(row.source_table).push(row);
+  }
+
   // --- functions callable as RPC ---
   //
   // Argument and result columns are read from the catalogue rather than by parsing
@@ -198,7 +243,25 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
       lines.push(`          ${column.column_name}?: ${type}${column.not_null ? '' : ' | null'};`);
     }
     lines.push('        };');
-    lines.push('        Relationships: [];');
+
+    const rels = relationships.get(name) ?? [];
+    if (rels.length === 0) {
+      lines.push('        Relationships: [];');
+    } else {
+      lines.push('        Relationships: [');
+      for (const rel of rels) {
+        lines.push('          {');
+        lines.push(`            foreignKeyName: '${rel.constraint_name}';`);
+        lines.push(`            columns: [${rel.source_columns.map((c) => `'${c}'`).join(', ')}];`);
+        lines.push(`            isOneToOne: ${rel.is_one_to_one ? 'true' : 'false'};`);
+        lines.push(`            referencedRelation: '${rel.target_table}';`);
+        lines.push(
+          `            referencedColumns: [${rel.target_columns.map((c) => `'${c}'`).join(', ')}];`,
+        );
+        lines.push('          },');
+      }
+      lines.push('        ];');
+    }
     lines.push('      };');
   }
   lines.push('    };');

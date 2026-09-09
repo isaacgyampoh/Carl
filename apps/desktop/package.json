@@ -1,0 +1,15 @@
+{
+  "name": "@carl/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "echo \"@carl/desktop requires the Rust toolchain; see apps/desktop/README.md\"",
+    "typecheck": "echo \"@carl/desktop has no TypeScript of its own yet\""
+  },
+  "dependencies": {
+    "@carl/sync": "workspace:*"
+  }
+}
