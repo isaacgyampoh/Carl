@@ -11,8 +11,6 @@
 
 mod credentials;
 
-use tauri::Manager;
-
 /// Stores the secret issued by `activate_device`.
 ///
 /// Called once, immediately after activation succeeds. The secret is passed straight from
@@ -48,13 +46,11 @@ fn main() {
             read_device_secret,
             clear_device_secret
         ])
-        .setup(|app| {
-            #[cfg(debug_assertions)]
-            {
-                if let Some(window) = app.get_webview_window("main") {
-                    window.open_devtools();
-                }
-            }
+        .setup(|_app| {
+            // Developer tools are deliberately NOT opened here, even in debug builds. A
+            // till is operated by staff, and a devtools window that appears on a shop
+            // floor is both confusing and a way to inspect a session that should not be
+            // inspected. Open them explicitly when debugging instead.
             Ok(())
         })
         .run(tauri::generate_context!())

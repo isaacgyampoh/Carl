@@ -5,9 +5,7 @@
   "identifier": "com.carl.pos",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "pnpm --filter @carl/web dev",
-    "beforeBuildCommand": "pnpm --filter @carl/web build"
+    "devUrl": "http://localhost:1420"
   },
   "app": {
     "windows": [
@@ -22,18 +20,31 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'",
-      "capabilities": []
+      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "capabilities": [
+        "default"
+      ],
+      "assetProtocol": {
+        "enable": false,
+        "scope": []
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis", "dmg", "app"],
-    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "app"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
     "publisher": "Carl",
     "category": "Business",
     "shortDescription": "Point of sale, inventory and business management",
-    "longDescription": "Carl — point of sale, inventory and business management for multi-branch retail. Keeps selling when the connection does not."
+    "longDescription": "Carl \u2014 point of sale, inventory and business management for multi-branch retail. Keeps selling when the connection does not."
   },
   "plugins": {
     "updater": {

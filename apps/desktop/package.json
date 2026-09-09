@@ -6,10 +6,16 @@
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "echo \"@carl/desktop requires the Rust toolchain; see apps/desktop/README.md\"",
-    "typecheck": "echo \"@carl/desktop has no TypeScript of its own yet\""
+    "build": "tauri build",
+    "typecheck": "echo \"@carl/desktop has no TypeScript of its own yet\"",
+    "check": "cd src-tauri && cargo check"
   },
   "dependencies": {
-    "@carl/sync": "workspace:*"
+    "@carl/sync": "workspace:*",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-sql": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
   }
 }
