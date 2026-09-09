@@ -222,3 +222,65 @@ around:
   the contract the durable ones must meet.
 - **Docker is absent**, so `supabase start` is unavailable. Everything runs against
   in-process PostgreSQL instead.
+
+---
+
+## Phases 8–13 — Screens, platform admin, PWA, security review ✅
+
+**Delivered**
+
+Twenty-two routes. Products, inventory, sales list and detail with the returns workflow,
+customers, suppliers, expenses, cash register, reports, branches, staff, terminals, and
+the platform administration area.
+
+- PWA: manifest, service worker, offline page, offline banner
+- Development seed data, provisioned through the real `provision_tenant` and covered by
+  nine tests
+- Tauri desktop scaffold: SQLite schema, Rust credential commands, configuration
+- `DEVICE_ACTIVATION.md` and `DEPLOYMENT.md`
+
+**Verification**
+
+```
+format  PASS   typecheck  PASS   lint  PASS   test  PASS   build  PASS
+403 tests · 22 routes · 6 consecutive clean suite runs
+```
+
+**Security review**
+
+| Check                                                      | Result                                                              |
+| ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| Secrets reachable from a client component                  | None. `serviceRoleClient` appears only inside `server-only` modules |
+| Client components importing server modules                 | None                                                                |
+| RLS enabled and forced on every table                      | Verified by test, not by inspection                                 |
+| `SECURITY DEFINER` functions with a floating `search_path` | None                                                                |
+| Secrets in logs                                            | None; redaction covers any depth                                    |
+| `.env` files tracked in git                                | None                                                                |
+| `dangerouslySetInnerHTML`                                  | Not used                                                            |
+
+**Two bugs found by running the application, not by building it**
+
+`/offline` and `/sw.js` both required authentication. Each defeats its own purpose:
+the offline page would redirect to a sign-in page that also cannot load, and the service
+worker could never register, disabling offline support entirely. Neither would have
+appeared in a type check, a lint pass or a production build — only in a request against a
+running server.
+
+**Known issues**
+
+None outstanding. Three environment constraints remain, documented rather than worked
+around:
+
+- **Rust absent** — the Tauri application is scaffolded and reviewable but has never been
+  compiled. Its README says so plainly.
+- **Docker absent** — `supabase start` unavailable; everything runs against in-process
+  PostgreSQL. The suite is designed to be pointed at a real instance in Phase 15.
+- **A genuine simultaneous race is untestable in-process** — marked as requiring real
+  PostgreSQL rather than covered by a test that would pass either way.
+
+**Not yet built**
+
+Create and edit forms for products, customers, suppliers, purchases and stock transfers.
+The database functions and RLS policies behind all of them exist and are tested; the
+screens currently read rather than write. Purchasing and transfers are reachable through
+the API but have no UI yet.

@@ -66,10 +66,26 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+
+  /*
+   * Routes that must work without a session.
+   *
+   * `/offline` and `/sw.js` are here for a specific reason: both are reached precisely
+   * when the browser cannot talk to the server. Requiring authentication for the offline
+   * page means it redirects to sign-in — which also cannot load — so the user sees a
+   * browser error instead of an explanation. Requiring it for the service worker means the
+   * worker can never register or update, which disables offline support entirely.
+   *
+   * Both were caught by requesting every route against a running server; neither would
+   * have shown up in a build or a type check.
+   */
   const isPublic =
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/auth') ||
-    pathname.startsWith('/api/health');
+    pathname.startsWith('/api/health') ||
+    pathname === '/offline' ||
+    pathname === '/sw.js' ||
+    pathname === '/manifest.webmanifest';
 
   if (!user && !isPublic) {
     const signIn = request.nextUrl.clone();
@@ -95,6 +111,6 @@ export const config = {
      * Everything except static assets and images. Running middleware on those would add a
      * token refresh to every icon request for no benefit.
      */
-    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)',
   ],
 };
