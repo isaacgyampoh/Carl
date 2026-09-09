@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 36 functions.
+ * 52 relations, 28 enums, 41 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -3052,6 +3052,94 @@ export interface Database {
           },
         ];
       };
+      subscription_invoices: {
+        Row: {
+          id: string;
+          invoice_number: string;
+          tenant_id: string;
+          subscription_id: string;
+          period_start: string;
+          period_end: string;
+          amount: number;
+          currency_code: string;
+          status: Database['public']['Enums']['invoice_status'];
+          issued_at: string | null;
+          due_at: string;
+          paid_at: string | null;
+          paid_by_payment_id: string | null;
+          cancelled_at: string | null;
+          cancel_reason: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          invoice_number: string;
+          tenant_id: string;
+          subscription_id: string;
+          period_start: string;
+          period_end: string;
+          amount: number;
+          currency_code?: string;
+          status?: Database['public']['Enums']['invoice_status'];
+          issued_at?: string | null;
+          due_at: string;
+          paid_at?: string | null;
+          paid_by_payment_id?: string | null;
+          cancelled_at?: string | null;
+          cancel_reason?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          invoice_number?: string;
+          tenant_id?: string;
+          subscription_id?: string;
+          period_start?: string;
+          period_end?: string;
+          amount?: number;
+          currency_code?: string;
+          status?: Database['public']['Enums']['invoice_status'];
+          issued_at?: string | null;
+          due_at?: string;
+          paid_at?: string | null;
+          paid_by_payment_id?: string | null;
+          cancelled_at?: string | null;
+          cancel_reason?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'subscription_invoices_paid_by_payment_id_fkey';
+            columns: ['paid_by_payment_id'];
+            isOneToOne: false;
+            referencedRelation: 'subscription_payments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'subscription_invoices_subscription_id_fkey';
+            columns: ['subscription_id'];
+            isOneToOne: false;
+            referencedRelation: 'subscriptions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'subscription_invoices_tenant_id_fkey';
+            columns: ['tenant_id'];
+            isOneToOne: false;
+            referencedRelation: 'tenants';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       subscription_payments: {
         Row: {
           id: string;
@@ -3568,6 +3656,7 @@ export interface Database {
           cancelled_at: string | null;
           created_at: string;
           updated_at: string;
+          contact_person: string | null;
         };
         Insert: {
           id?: string;
@@ -3592,6 +3681,7 @@ export interface Database {
           cancelled_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          contact_person?: string | null;
         };
         Update: {
           id?: string;
@@ -3616,6 +3706,7 @@ export interface Database {
           cancelled_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          contact_person?: string | null;
         };
         Relationships: [];
       };
@@ -3817,6 +3908,22 @@ export interface Database {
     expires_at: string | null;
   }[];
       };
+      issue_invoice: {
+        Args: {
+          p_subscription_id: string;
+          p_period_start?: string | undefined;
+          p_period_end?: string | undefined;
+          p_amount?: number | undefined;
+          p_due_at?: string | undefined;
+          p_notes?: string | undefined;
+        };
+        Returns: {
+    invoice_id: string | null;
+    invoice_number: string | null;
+    amount: number | null;
+    due_at: string | null;
+  }[];
+      };
       low_stock: {
         Args: {
           p_tenant_id: string;
@@ -3830,6 +3937,40 @@ export interface Database {
     quantity: number | null;
     reorder_level: number | null;
     shortfall: number | null;
+  }[];
+      };
+      onboard_client: {
+        Args: {
+          p_business_name: string;
+          p_slug: string;
+          p_owner_email: string;
+          p_owner_name: string;
+          p_owner_user_id: string;
+          p_plan_id: string;
+          p_branch_name?: string | undefined;
+          p_branch_code?: string | undefined;
+          p_contact_person?: string | undefined;
+          p_email?: string | undefined;
+          p_phone?: string | undefined;
+          p_address?: string | undefined;
+          p_legal_name?: string | undefined;
+          p_country_code?: string | undefined;
+          p_currency_code?: string | undefined;
+          p_timezone?: string | undefined;
+          p_trial_days?: number | undefined;
+          p_price?: number | undefined;
+          p_interval?: Database['public']['Enums']['billing_interval'] | undefined;
+          p_grace_days?: number | undefined;
+          p_starts_at?: string | undefined;
+          p_notes?: string | undefined;
+        };
+        Returns: {
+    tenant_id: string | null;
+    branch_id: string | null;
+    membership_id: string | null;
+    subscription_id: string | null;
+    status: Database['public']['Enums']['tenant_status'] | null;
+    next_billing_at: string | null;
   }[];
       };
       open_cash_session: {
@@ -3891,6 +4032,13 @@ export interface Database {
     membership_id: string | null;
   }[];
       };
+      reactivate_tenant: {
+        Args: {
+          p_tenant_id: string;
+          p_note?: string | undefined;
+        };
+        Returns: unknown;
+      };
       receive_purchase: {
         Args: {
           p_purchase_id: string;
@@ -3935,6 +4083,26 @@ export interface Database {
         Returns: {
     expense_id: string | null;
     reference: string | null;
+  }[];
+      };
+      record_subscription_payment: {
+        Args: {
+          p_subscription_id: string;
+          p_amount: number;
+          p_idempotency_key: string;
+          p_method?: Database['public']['Enums']['payment_method'] | undefined;
+          p_reference?: string | undefined;
+          p_paid_at?: string | undefined;
+          p_period_start?: string | undefined;
+          p_period_end?: string | undefined;
+          p_invoice_id?: string | undefined;
+          p_notes?: string | undefined;
+        };
+        Returns: {
+    payment_id: string | null;
+    subscription_status: Database['public']['Enums']['subscription_status'] | null;
+    period_end: string | null;
+    was_replayed: boolean | null;
   }[];
       };
       resolve_sale_price: {
@@ -4045,6 +4213,13 @@ export interface Database {
     retail_value: number | null;
   }[];
       };
+      suspend_tenant: {
+        Args: {
+          p_tenant_id: string;
+          p_reason: string;
+        };
+        Returns: unknown;
+      };
       sync_offline_sale: {
         Args: {
           p_branch_id: string;
@@ -4146,6 +4321,7 @@ export interface Database {
       expense_status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'PAID';
       idempotency_status: 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
       installation_status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+      invoice_status: 'DRAFT' | 'ISSUED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
       maintenance_priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
       maintenance_status: 'OPEN' | 'IN_PROGRESS' | 'WAITING_CUSTOMER' | 'RESOLVED' | 'CLOSED';
       membership_status: 'INVITED' | 'ACTIVE' | 'SUSPENDED' | 'REMOVED';
