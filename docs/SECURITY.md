@@ -184,10 +184,44 @@ a statement that failed for the wrong reason.
 | Device secret pepper | `CARL_DEVICE_SECRET_PEPPER`                         | **Never**                             |
 | Device secrets       | Hashed (SHA-256, peppered) in `devices.secret_hash` | Shown once at activation              |
 | Activation codes     | Hashed in `device_activations.code_hash`            | Shown once to the installer           |
+| Cashier refresh token | The terminal's OS credential store                 | It is the cashier's own               |
 
 The anon key is safe to publish **only because RLS is enforced on every tenant-owned table**.
 If RLS were ever disabled on one table, this key would expose it — which is why the coverage
 test is a blocking CI gate rather than a nice-to-have.
+
+### A terminal never talks to PostgreSQL
+
+`activate_device`, `sync_offline_sale` and `device_catalogue` all take the pepper as an
+argument, and the pepper exists in neither the database nor the terminal. That is what stops
+a stolen database dump from yielding working credentials for every till in the estate — so
+the pepper has to be applied somewhere that is neither, and that is the application server.
+
+Three routes hold it. A terminal reaches Carl only through them:
+
+| Route                    | Authenticates with                        | Runs as                     |
+| ------------------------ | ----------------------------------------- | --------------------------- |
+| `/api/device/activate`   | The activation code itself                | Service role — no user yet  |
+| `/api/device/catalogue`  | The device secret                         | Service role — no user      |
+| `/api/device/sync`       | The device secret **and** a cashier token | **The cashier**             |
+
+The last row is the one that matters. A sale is attributed to a person, and `complete_sale`
+checks that person holds `sales.create` at that branch. Syncing as the service role would
+satisfy the database while attributing every offline sale to nobody and skipping every
+permission check — which is exactly how a shared till becomes an unaudited one. So a
+terminal proves two separate things, and neither is sufficient alone: which till it is, and
+who is standing at it.
+
+`bearerClient()` exists for this: a *user* client, subject to RLS, for callers that carry
+their own credential instead of a cookie.
+
+### What a terminal may download
+
+`device_catalogue` returns only what is needed to ring up a sale. It excludes `average_cost`
+and `last_cost` — a stolen laptop should not reveal what the business pays its suppliers —
+along with customer balances and credit limits, every other branch's stock, and every other
+tenant's anything. Those absences are asserted by tests, and the cost-leak detector has been
+verified to fail when a leak is planted.
 
 The service-role key **bypasses RLS entirely**. `packages/infrastructure/src/config/server-env.ts`
 imports `server-only`, so any module reachable from a client component that imports it fails
