@@ -313,6 +313,22 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0))
 
+  packages/sync:
+    dependencies:
+      '@carl/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@carl/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0))
+
   packages/types:
     devDependencies:
       '@electric-sql/pglite':
@@ -389,6 +405,9 @@ importers:
       '@carl/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      '@carl/sync':
+        specifier: workspace:*
+        version: link:../packages/sync
       '@carl/validation':
         specifier: workspace:*
         version: link:../packages/validation

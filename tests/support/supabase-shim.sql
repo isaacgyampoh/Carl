@@ -118,3 +118,53 @@ alter default privileges in schema public
 alter default privileges in schema public
   grant select, insert, update, delete on tables to service_role;
 alter default privileges in schema public grant usage, select on sequences to authenticated, service_role;
+
+
+-- =============================================================================
+-- Test-only reset helper.
+--
+-- `reset()` runs before every test, and truncating all ~50 tables each time is the
+-- single most repeated operation in the suite. Most tests touch five or six of them, so
+-- this checks which are actually populated and truncates only those.
+--
+-- The emptiness check is a `limit 1` against a table that is nearly always empty, which
+-- costs almost nothing; the TRUNCATE it avoids does not.
+--
+-- Seeded reference data (permissions, role templates, plans) is preserved: wiping it
+-- leaves provision_tenant() with no roles to copy, which surfaces later as a baffling
+-- CROSS_TENANT_REFERENCE from an integrity trigger.
+-- =============================================================================
+
+create or replace function public.carl_test_reset(p_preserve text[])
+returns void
+language plpgsql
+as $$
+declare
+  r         record;
+  populated text[] := array[]::text[];
+  has_rows  boolean;
+begin
+  for r in
+    select c.relname
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind = 'r'
+      and c.relname <> all(p_preserve)
+    order by c.relname
+  loop
+    execute format('select exists (select 1 from public.%I limit 1)', r.relname) into has_rows;
+    if has_rows then
+      populated := populated || format('public.%I', r.relname);
+    end if;
+  end loop;
+
+  if array_length(populated, 1) > 0 then
+    execute 'truncate table ' || array_to_string(populated, ', ') || ' restart identity cascade';
+  end if;
+
+  if exists (select 1 from auth.users limit 1) then
+    truncate table auth.users cascade;
+  end if;
+end;
+$$;

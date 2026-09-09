@@ -8,6 +8,11 @@ internet does not.
 
 > **Status: under construction.** This README describes what is implemented today, not what is
 > planned. Phase progress is tracked in [`docs/PHASES.md`](docs/PHASES.md).
+>
+> Working today: multi-tenant schema with Row Level Security on every table, device
+> activation, catalogue and pricing, transactional inventory, point of sale, returns and
+> refunds, cash reconciliation, server-side reporting, and offline sync with conflict
+> handling. **394 automated tests**, of which 313 run against real PostgreSQL.
 
 ---
 
@@ -56,10 +61,11 @@ apps/
   web/                 Next.js application (web + PWA)
 packages/
   shared/              Primitives: money, quantity, Result, errors, IDs, logging
-  domain/              Business rules. No framework, no I/O, no database.
+  domain/              Business rules and the cart. No framework, no I/O, no database.
   application/         Use cases and the ports they depend on
   infrastructure/      Supabase adapters, configuration, external services
   database/            RPC contracts and PostgreSQL error translation
+  sync/                Offline queue and sync engine (storage-agnostic)
   validation/          Zod schemas for the application boundary
   types/               Types generated from the database schema
   ui/                  Shared presentational components

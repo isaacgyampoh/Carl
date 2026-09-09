@@ -26,6 +26,25 @@ import { createShop, sell, type Shop } from '../support/pos.js';
  * that do not divide evenly, inclusive tax, discount-then-tax ordering, and fractional
  * quantities.
  */
+/**
+ * A seeded pseudo-random generator.
+ *
+ * `Math.random()` makes a property test unreproducible: a failure names a basket that can
+ * never be constructed again, so the bug it found cannot be investigated. The seed is
+ * printed on failure and can be pinned with CARL_TEST_SEED to replay the exact run.
+ *
+ * mulberry32 — small, fast, and adequate for generating test data.
+ */
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** Chooses the tax mode a generated product should carry. */
 function taxModeFor(product: { taxRate: number; inclusive: boolean }): TaxMode {
   if (product.taxRate === 0) return 'EXEMPT';
@@ -211,9 +230,12 @@ describe('the cart agrees with the database', () => {
   it('agrees across a hundred randomly generated baskets', async () => {
     // Property-based rather than example-based: the cases above are the ones a person
     // thinks of, and rounding bugs hide in the ones nobody does.
+    const seed = Number(process.env.CARL_TEST_SEED ?? Date.now() % 2_147_483_647);
+    const random = seededRandom(seed);
+
     const products: { id: string; price: number; taxRate: number; inclusive: boolean }[] = [];
     for (let i = 0; i < 6; i += 1) {
-      const price = 100 + Math.floor(Math.random() * 20_000);
+      const price = 100 + Math.floor(random() * 20_000);
       const taxRate = [0, 0, 12.5, 15][i % 4]!;
       const inclusive = i % 2 === 0;
       products.push({
@@ -230,8 +252,8 @@ describe('the cart agrees with the database', () => {
     }
 
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const lineCount = 1 + Math.floor(Math.random() * 4);
-      const chosen = [...products].sort(() => Math.random() - 0.5).slice(0, lineCount);
+      const lineCount = 1 + Math.floor(random() * 4);
+      const chosen = [...products].sort(() => random() - 0.5).slice(0, lineCount);
 
       const cart: Cart = {
         ...EMPTY_CART,
@@ -241,10 +263,10 @@ describe('the cart agrees with the database', () => {
           sku: 'x',
           unit: 'unit',
           unitPrice: product.price,
-          quantity: (1 + Math.floor(Math.random() * 9)) * 1000,
+          quantity: (1 + Math.floor(random() * 9)) * 1000,
           discount:
-            Math.random() < 0.4
-              ? { kind: DiscountKind.PERCENTAGE, value: Math.round(Math.random() * 20 * 4) / 4 }
+            random() < 0.4
+              ? { kind: DiscountKind.PERCENTAGE, value: Math.round(random() * 20 * 4) / 4 }
               : NO_DISCOUNT,
           taxMode: taxModeFor(product),
           taxRate: product.taxRate,
@@ -262,6 +284,7 @@ describe('the cart agrees with the database', () => {
       expect(
         sale.total,
         `basket ${attempt}: till showed ${displayed}, charged ${sale.total}\n` +
+          `Replay this exact run with CARL_TEST_SEED=${seed}\n` +
           JSON.stringify(cart.lines, null, 2),
       ).toBe(displayed);
     }

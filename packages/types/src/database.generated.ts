@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 27 functions.
+ * 51 relations, 27 enums, 30 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -2568,6 +2568,20 @@ export interface Database {
     was_replayed: boolean | null;
   }[];
       };
+      device_sync_state: {
+        Args: {
+          p_device_id: string;
+          p_device_secret: string;
+          p_pepper: string;
+        };
+        Returns: {
+    tenant_id: string | null;
+    branch_id: string | null;
+    authorized_until: string | null;
+    server_time: string | null;
+    catalogue_version: string | null;
+  }[];
+      };
       dispatch_stock_transfer: {
         Args: {
           p_transfer_id: string;
@@ -2722,6 +2736,16 @@ export interface Database {
     is_active: boolean | null;
   }[];
       };
+      resolve_sync_conflict: {
+        Args: {
+          p_conflict_id: string;
+          p_resolution: Database['public']['Enums']['sync_conflict_status'];
+          p_note: string;
+        };
+        Returns: {
+    resolved_conflict_id: string | null;
+  }[];
+      };
       revoke_device: {
         Args: {
           p_device_id: string;
@@ -2803,6 +2827,31 @@ export interface Database {
     total_units: number | null;
     cost_value: number | null;
     retail_value: number | null;
+  }[];
+      };
+      sync_offline_sale: {
+        Args: {
+          p_branch_id: string;
+          p_items: Json;
+          p_payments: Json;
+          p_idempotency_key: string;
+          p_sold_at: string;
+          p_device_id: string;
+          p_device_secret: string;
+          p_pepper: string;
+          p_customer_id?: string | undefined;
+          p_tier?: Database['public']['Enums']['price_tier'] | undefined;
+          p_order_discount_type?: Database['public']['Enums']['discount_type'] | undefined;
+          p_order_discount_value?: number | undefined;
+          p_note?: string | undefined;
+        };
+        Returns: {
+    sale_id: string | null;
+    sale_number: string | null;
+    total: number | null;
+    was_replayed: boolean | null;
+    had_conflict: boolean | null;
+    conflict_id: string | null;
   }[];
       };
       tenant_dashboard_today: {

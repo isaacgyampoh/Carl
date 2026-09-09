@@ -166,3 +166,59 @@ the first failure.
 
 None. Transactional functions (`complete_sale`, `process_return`, …) are Phase 4–7; until they
 exist, the tables they write have no INSERT policy, which is the intended state.
+
+---
+
+## Phases 3–7 — Devices, catalogue, POS, returns, cash ✅
+
+**Delivered**
+
+- Device activation: CSPRNG codes, peppered SHA-256 storage, single-use, ≤48h, revocable,
+  idempotent per installation, plus the offline authorisation window
+- A database type generator that needs no Docker — introspects the real migrations applied
+  to in-process PostgreSQL (2,600 lines, 51 relations, 30 functions)
+- Authenticated web shell: middleware session refresh, permission-filtered navigation,
+  sign-in that does not leak which accounts exist
+- Server-side reporting, `SECURITY INVOKER` so RLS filters every underlying row
+- Transactional inventory: ledger + cached total, weighted-average cost, transfers that
+  deduct at dispatch, stock counts posted as movements
+- Price resolution with branch overrides, quantity breaks and historical lookup
+- `complete_sale` — one transaction across seven tables, every figure server-derived
+- Returns, refunds and voids as distinct events, with composing partial returns
+- Cash sessions, movements, expense recording and approval
+- Offline sync: `sync_offline_sale`, conflict recording, `device_sync_state`
+- `@carl/sync` — a storage-agnostic queue engine with 24 unit tests
+- The POS screen itself
+
+**Verification**
+
+```
+format  PASS   typecheck  PASS   lint  PASS   test  PASS   build  PASS
+394 tests (81 unit, 313 database/integration)
+```
+
+**Two results worth singling out**
+
+The cart computes a total in the browser so the cashier sees a figure the instant an item
+is scanned; PostgreSQL computes it again because that is what the customer is charged.
+Duplicated arithmetic drifts, so the agreement is a test: twelve scenarios chosen where
+naive implementations diverge, plus a hundred seeded random baskets, compared to the
+pesewa. It was verified to fail when the rounding rule was deliberately broken.
+
+The two-terminal oversell — both tills selling from the same ten units while offline — is
+covered end to end: the first sale is accepted, the second becomes a reviewable conflict
+with the payload kept verbatim, and stock is never driven negative.
+
+**Known issues**
+
+None outstanding. Three environment constraints remain, all documented rather than worked
+around:
+
+- **A genuine simultaneous race is not testable in-process.** PGlite is a single-connection
+  engine. The two-terminal lock contention case is marked as requiring a real PostgreSQL
+  (Phase 15) rather than covered by a test that would pass either way.
+- **Rust is absent**, so the Tauri desktop application and its SQLite queue are not built.
+  The sync engine is complete and tested against an in-memory reference queue that defines
+  the contract the durable ones must meet.
+- **Docker is absent**, so `supabase start` is unavailable. Everything runs against
+  in-process PostgreSQL instead.

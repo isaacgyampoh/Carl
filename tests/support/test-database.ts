@@ -223,25 +223,15 @@ class PgliteTestDatabase implements TestDatabase {
   }
 
   async reset(): Promise<void> {
-    const { rows } = await this.query<{ tablename: string }>(
-      `select tablename from pg_tables where schemaname = 'public'
-         and tablename <> all($1::text[])
-       order by tablename`,
-      [SEEDED_REFERENCE_TABLES],
-    );
-    if (rows.length === 0) return;
-    const tables = rows.map((r) => `public.${quoteIdent(r.tablename)}`).join(', ');
-    await this.exec(`truncate table ${tables} restart identity cascade`);
-    await this.exec('truncate table auth.users cascade');
+    // Delegated to a database function so the whole reset is one round trip rather than
+    // one per table. It truncates only tables that actually hold rows — see the helper's
+    // comment in supabase-shim.sql for why that matters at this call frequency.
+    await this.query(`select public.carl_test_reset($1::text[])`, [SEEDED_REFERENCE_TABLES]);
   }
 
   async close(): Promise<void> {
     await this.db.close();
   }
-}
-
-function quoteIdent(name: string): string {
-  return `"${name.replace(/"/g, '""')}"`;
 }
 
 function literal(value: string): string {

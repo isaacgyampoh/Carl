@@ -10,6 +10,7 @@
   "dependencies": {
     "@carl/domain": "workspace:*",
     "@carl/shared": "workspace:*",
+    "@carl/sync": "workspace:*",
     "@carl/validation": "workspace:*",
     "@electric-sql/pglite": "^0.5.8"
   }

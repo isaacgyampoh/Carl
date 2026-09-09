@@ -85,6 +85,36 @@ really took effect (`current_user = 'authenticated'`, not superuser), that `auth
 resolves, and that a cross-tenant write is genuinely refused. If the shim were subtly wrong the
 entire RLS suite would pass while proving nothing; these tests fail loudly in that case.
 
+## Keeping the suite trustworthy
+
+Two problems were found and fixed here, and both are worth knowing about because they
+recur.
+
+**A test that cannot fail is worse than no test.** Every detector in this suite has been
+verified against a deliberate defect: the RLS coverage checks were run against an
+unprotected table and an unpinned `SECURITY DEFINER` function; the cart/database agreement
+suite was run with `roundHalfAwayFromZero` swapped for `Math.floor` and correctly reported
+_"the till showed 850 but the customer was charged 849"_. A green test that cannot detect
+the problem it names implies coverage that does not exist.
+
+**Intermittent failures are diagnosed, not re-run.** The suite once failed roughly one run
+in three, in a _different_ file each time. Two causes, neither of them a race:
+
+1. `beforeEach` hooks were timing out because several test suites were being run
+   concurrently on the same machine, starving each other. One file took 699 seconds
+   against a whole-suite time of 52.
+2. Fixture identifiers combined `Date.now()` with a module-scoped counter, and each test
+   file gets its own counter — so two files could collide on `tenants.slug` in the same
+   millisecond.
+
+A third issue nearly hid the first: a Vitest configuration change was silently ignored
+(`poolOptions` was removed in Vitest 4) and only warned about in output that was being
+filtered away by a `grep`. **Read the warnings.**
+
+`reset()` runs before every test, so it truncates only tables that actually hold rows
+rather than all fifty-odd. At that call frequency the difference is most of the suite's
+runtime.
+
 ## Conventions
 
 - **Test behaviour, not implementation.** "A cashier cannot refund" survives refactoring;
