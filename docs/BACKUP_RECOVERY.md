@@ -68,6 +68,50 @@ This is more common than infrastructure failure, and Carl is built for it:
 A full restore should rarely be needed for this class of problem, and reaching for one
 would discard other tenants' legitimate work.
 
+### The database filled its disk
+
+Observed, not hypothesised: a performance probe wrote 610,000 rows, took the project to
+398 MB against a 500 MB limit, and PostgreSQL went read-only. Attempting to clean up made it
+worse — the project stopped accepting connections altogether.
+
+The trap is that **the obvious cleanup cannot run**. `DELETE` writes a WAL record per row,
+so deleting data to free space needs space to write, and there is none:
+
+```
+error: could not write to file "pg_wal/xlogtemp.124226": No space left on device
+```
+
+What works:
+
+1. **Wait for the project to accept connections.** It may be restarting. Retry on a loop
+   rather than assuming it is gone — recovery here took several minutes of refusals
+   (`the database system is not accepting connections`) before one attempt succeeded.
+
+2. **Lift read-only for the session.** Supabase sets it as a protective default:
+
+   ```sql
+   set session characteristics as transaction read write;
+   set default_transaction_read_only = off;
+   ```
+
+3. **`TRUNCATE`, never `DELETE`.** Truncation writes almost no WAL, which is the entire
+   difference between recovering and not:
+
+   ```sql
+   truncate table public.sale_items cascade;
+   truncate table public.sales cascade;
+   ```
+
+4. **Then reclaim.** `vacuum full` on the truncated tables, and `analyze`.
+
+5. **Verify it is genuinely writable**, not merely reporting so — create a table, insert a
+   row, drop it. `show transaction_read_only` returning `off` is not proof on its own.
+
+**Prevention.** Alert on database size well before the limit; the failure mode is not
+gradual. Note also that a tenant cannot be hard-deleted (`audit_logs` is append-only), so
+"delete the test tenant" is not available as a space-recovery step — truncation of the bulk
+tables is.
+
 ### A terminal was lost or stolen
 
 No data recovery is needed — the terminal holds a catalogue and a queue, not the business.
