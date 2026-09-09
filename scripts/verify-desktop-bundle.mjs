@@ -61,7 +61,8 @@ const code = scripts.map((f) => readFileSync(join(DIST, 'assets', f), 'utf8')).j
  * comments and error strings, and failing on those would make this check something people
  * work around rather than trust.
  */
-const bareImport = /(?:^|[\s;}])(?:import|export)[^;'"]*from\s*["'](?!\.{0,2}\/|https?:|data:)([^"']+)["']/gm;
+const bareImport =
+  /(?:^|[\s;}])(?:import|export)[^;'"]*from\s*["'](?!\.{0,2}\/|https?:|data:)([^"']+)["']/gm;
 const bare = [...code.matchAll(bareImport)].map((m) => m[1]);
 check(
   'no bare module specifiers survive bundling',

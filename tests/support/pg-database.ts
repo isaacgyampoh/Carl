@@ -205,9 +205,7 @@ class PgTestDatabase implements TestDatabase {
       // A reconnect resets the role by itself, so failing to reset it on a dead connection
       // is not a leak — and must not mask the error that killed it.
       await this.query('reset role').catch(() => undefined);
-      await this.query(`select set_config('request.jwt.claims', '', false)`).catch(
-        () => undefined,
-      );
+      await this.query(`select set_config('request.jwt.claims', '', false)`).catch(() => undefined);
     }
   }
 

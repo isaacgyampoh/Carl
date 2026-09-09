@@ -66,13 +66,16 @@ export class DeviceSyncTransport implements SyncTransport {
       };
     }
 
-    return this.api.submitSale({ ...this.credential, accessToken }, {
-      // The idempotency key IS the operation id, generated once when the cashier finished
-      // the sale and reused for every retry. That is what makes resending safe when a
-      // connection dies without saying whether the sale landed.
-      idempotencyKey: operation.id,
-      soldAt: operation.occurredAt,
-      ...operation.payload,
-    });
+    return this.api.submitSale(
+      { ...this.credential, accessToken },
+      {
+        // The idempotency key IS the operation id, generated once when the cashier finished
+        // the sale and reused for every retry. That is what makes resending safe when a
+        // connection dies without saying whether the sale landed.
+        idempotencyKey: operation.id,
+        soldAt: operation.occurredAt,
+        ...operation.payload,
+      },
+    );
   }
 }

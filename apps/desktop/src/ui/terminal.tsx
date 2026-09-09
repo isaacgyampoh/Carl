@@ -212,7 +212,9 @@ export function Terminal({
       />
 
       <main style={{ display: 'grid', gridTemplateColumns: '1fr 420px', minHeight: 0 }}>
-        <section style={{ padding: 16, display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
+        <section
+          style={{ padding: 16, display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}
+        >
           <input
             ref={searchBox}
             value={term}
@@ -324,7 +326,9 @@ export function Terminal({
             )}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border)', padding: 16, display: 'grid', gap: 12 }}>
+          <div
+            style={{ borderTop: '1px solid var(--border)', padding: 16, display: 'grid', gap: 12 }}
+          >
             <div
               style={{
                 display: 'flex',

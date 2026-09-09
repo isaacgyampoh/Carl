@@ -143,10 +143,9 @@ describe('erasure', () => {
       // `cancelled_at` is not optional: a CHECK constraint requires a closure to carry
       // its date, so a business cannot be closed without a record of when.
       await db.asServiceRole(() =>
-        db.query(
-          `update tenants set status = 'CANCELLED', cancelled_at = now() where id = $1`,
-          [shop.tenantId],
-        ),
+        db.query(`update tenants set status = 'CANCELLED', cancelled_at = now() where id = $1`, [
+          shop.tenantId,
+        ]),
       );
 
       await expect(

@@ -118,7 +118,14 @@ export function PaymentPanel({
           gap: 18,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 30, fontWeight: 700 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 30,
+            fontWeight: 700,
+          }}
+        >
           <span>Total</span>
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
             {money(total, config.currencyCode)}

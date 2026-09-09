@@ -296,7 +296,9 @@ async function main() {
       const verdict = ms <= query.budgetMs ? 'PASS' : 'SLOW';
       results.push({ ...query, ms, verdict, scans });
 
-      console.log(`${verdict === 'PASS' ? '✓' : '✗'} ${query.name}  —  ${ms.toFixed(1)} ms (budget ${query.budgetMs} ms)`);
+      console.log(
+        `${verdict === 'PASS' ? '✓' : '✗'} ${query.name}  —  ${ms.toFixed(1)} ms (budget ${query.budgetMs} ms)`,
+      );
       console.log(`    ${query.why}`);
       if (scans.length > 0) {
         console.log(

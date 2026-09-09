@@ -3,7 +3,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { systemClock } from '@carl/shared';
-import { SyncEngine, SyncState, SqliteSyncQueue, type SyncOutcome, type SyncTransport, type QueuedOperation } from '@carl/sync';
+import {
+  SyncEngine,
+  SyncState,
+  SqliteSyncQueue,
+  type SyncOutcome,
+  type SyncTransport,
+  type QueuedOperation,
+} from '@carl/sync';
 import { NodeSqliteConnection } from '@carl/sync/sqlite/node-sqlite-adapter';
 
 import { createTestDatabase, type TestDatabase } from '../support/test-database.js';
@@ -160,9 +167,10 @@ describe('a terminal that goes offline', () => {
 
   const serverSales = async (): Promise<number> => {
     const { rows } = await db.asServiceRole(() =>
-      db.query<{ count: string }>(`select count(*)::text as count from sales where branch_id = $1`, [
-        shop.branchId,
-      ]),
+      db.query<{ count: string }>(
+        `select count(*)::text as count from sales where branch_id = $1`,
+        [shop.branchId],
+      ),
     );
     return Number(rows[0]!.count);
   };
@@ -298,18 +306,15 @@ describe('a terminal that goes offline', () => {
     const id = await ring({ quantity: 4, amount: 32000 });
 
     await db.asUser(shop.ownerUserId, () =>
-      db.query(
-        `select * from sync_offline_sale($1, $2::jsonb, $3::jsonb, $4, now(), $5, $6, $7)`,
-        [
-          shop.branchId,
-          JSON.stringify([{ product_id: productId, quantity: 4 }]),
-          JSON.stringify([{ method: 'CASH', amount: 32000 }]),
-          id,
-          deviceId,
-          deviceSecret,
-          PEPPER,
-        ],
-      ),
+      db.query(`select * from sync_offline_sale($1, $2::jsonb, $3::jsonb, $4, now(), $5, $6, $7)`, [
+        shop.branchId,
+        JSON.stringify([{ product_id: productId, quantity: 4 }]),
+        JSON.stringify([{ method: 'CASH', amount: 32000 }]),
+        id,
+        deviceId,
+        deviceSecret,
+        PEPPER,
+      ]),
     );
     expect(await serverSales()).toBe(1);
     expect(await serverStock()).toBe(96);

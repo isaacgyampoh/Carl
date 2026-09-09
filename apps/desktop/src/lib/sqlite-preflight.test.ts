@@ -62,8 +62,14 @@ describe('verifyLocalDatabase', () => {
     // Stands in for the defect that actually shipped: the SQL plugin was not bundled, so
     // every call rejected with a module-resolution error.
     const broken = {
-      execute: () => Promise.reject(new Error("Module name, '@tauri-apps/plugin-sql' does not resolve to a valid URL")),
-      select: () => Promise.reject(new Error("Module name, '@tauri-apps/plugin-sql' does not resolve to a valid URL")),
+      execute: () =>
+        Promise.reject(
+          new Error("Module name, '@tauri-apps/plugin-sql' does not resolve to a valid URL"),
+        ),
+      select: () =>
+        Promise.reject(
+          new Error("Module name, '@tauri-apps/plugin-sql' does not resolve to a valid URL"),
+        ),
     };
 
     const result = await verifyLocalDatabase(broken);
@@ -76,7 +82,7 @@ describe('verifyLocalDatabase', () => {
     // Silent corruption. Worse than an outright failure, so it is checked exactly.
     const lying = {
       execute: (sql: string, params?: readonly unknown[]) => connection.execute(sql, params),
-      select: async <T,>(sql: string, params?: readonly unknown[]): Promise<T[]> => {
+      select: async <T>(sql: string, params?: readonly unknown[]): Promise<T[]> => {
         const rows = await connection.select<Record<string, unknown>>(sql, params);
         if (sql.includes('value from local_settings') && rows.length > 0) {
           return [{ ...rows[0], value: 'something else entirely' }] as T[];

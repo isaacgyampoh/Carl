@@ -243,10 +243,9 @@ export class SqliteSyncQueue implements SyncQueue {
       `select count(*) as n from sync_queue where state = 'SYNCED' and last_attempt_at < ?`,
       [before.toISOString()],
     );
-    await this.db.execute(
-      `delete from sync_queue where state = 'SYNCED' and last_attempt_at < ?`,
-      [before.toISOString()],
-    );
+    await this.db.execute(`delete from sync_queue where state = 'SYNCED' and last_attempt_at < ?`, [
+      before.toISOString(),
+    ]);
     return Number(row?.n ?? 0);
   }
 

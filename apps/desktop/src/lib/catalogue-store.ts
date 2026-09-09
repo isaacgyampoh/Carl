@@ -288,10 +288,12 @@ export class CatalogueStore {
 
   /** The price for a specific quantity, used when a line's quantity changes. */
   async priceFor(productId: string, quantity: number, tier = 'RETAIL'): Promise<number | null> {
-    const rows = await this.db.select<RawItem>(
-      `${this.selectItems('where p.id = ?')}`,
-      [tier, quantity, quantity, productId],
-    );
+    const rows = await this.db.select<RawItem>(`${this.selectItems('where p.id = ?')}`, [
+      tier,
+      quantity,
+      quantity,
+      productId,
+    ]);
     return rows[0]?.price ?? null;
   }
 

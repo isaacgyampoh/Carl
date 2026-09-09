@@ -23,9 +23,7 @@
     ],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' https://app.carl.africa https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
-      "capabilities": [
-        "default"
-      ],
+      "capabilities": ["default"],
       "assetProtocol": {
         "enable": false,
         "scope": []
@@ -34,15 +32,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "msi",
-      "nsis",
-      "dmg",
-      "app"
-    ],
-    "icon": [
-      "icons/icon.png"
-    ],
+    "targets": ["msi", "nsis", "dmg", "app"],
+    "icon": ["icons/icon.png"],
     "publisher": "Carl",
     "category": "Business",
     "shortDescription": "Point of sale, inventory and business management",

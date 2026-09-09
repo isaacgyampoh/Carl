@@ -38,8 +38,7 @@ export interface ApiFailure {
 }
 
 export type ApiResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly failure: ApiFailure };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly failure: ApiFailure };
 
 /** Errors that mean this terminal must stop, not retry. */
 const FATAL = new Set([

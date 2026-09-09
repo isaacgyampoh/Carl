@@ -64,7 +64,7 @@ export interface DeviceApiError {
 /** The message a Supabase RPC failure carries, whatever shape it arrives in. */
 function messageOf(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String((error).message);
+    return String(error.message);
   }
   return error instanceof Error ? error.message : String(error);
 }

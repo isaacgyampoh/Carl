@@ -70,7 +70,9 @@ describe('SqliteSyncQueue', () => {
         operation: 'complete_sale',
         payload: {
           branch_id: 'b1',
-          items: [{ product_id: 'p1', quantity: 1.5, discount_type: 'PERCENTAGE', discount_value: 12.5 }],
+          items: [
+            { product_id: 'p1', quantity: 1.5, discount_type: 'PERCENTAGE', discount_value: 12.5 },
+          ],
           payments: [{ method: 'MOMO', amount: 12345, reference: 'MM-99' }],
         },
         occurredAt: '2026-03-01T08:00:00.000Z',
@@ -97,7 +99,13 @@ describe('SqliteSyncQueue', () => {
 
     it('does not claim an operation before its retry time', async () => {
       await queueSale('op-1', '2026-03-01T08:00:00.000Z');
-      await queue.markFailed('op-1', null, 'Timeout', new Date('2026-03-01T09:05:00.000Z'), clock.now());
+      await queue.markFailed(
+        'op-1',
+        null,
+        'Timeout',
+        new Date('2026-03-01T09:05:00.000Z'),
+        clock.now(),
+      );
 
       expect(await queue.claimBatch(10, clock.now())).toHaveLength(0);
       clock.set('2026-03-01T09:06:00.000Z');

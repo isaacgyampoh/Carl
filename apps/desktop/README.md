@@ -4,34 +4,71 @@ The offline-capable POS terminal, built with [Tauri 2](https://tauri.app).
 
 ## Status
 
-| Piece                                                    | Status                                     |
-| -------------------------------------------------------- | ------------------------------------------ |
-| Rust host: keychain commands, SQL plugin, capabilities   | ✅ Compiles (`cargo check`, macOS arm64)   |
-| Local SQLite schema (queue, catalogue, settings)         | ✅ Applied and exercised by tests          |
-| `SqliteSyncQueue` implementing the `SyncQueue` port      | ✅ Implemented, 24 tests                   |
-| Catalogue store, device store, API client, transport     | ✅ Implemented, 38 tests                   |
-| Activation, cashier sign-in, till, payment panel         | ✅ Implemented, bundle builds              |
-| End-to-end offline sale against real PostgreSQL          | ✅ 9 tests (`tests/integration/`)          |
-| Receipt printing                                         | ⬜ **Not implemented**                     |
-| Cash drawer kick                                         | ⬜ **Not implemented**                     |
-| Barcode scanner                                          | ⚠️ Code path tested; **no hardware tested** |
-| Automatic updates                                        | ⬜ Deliberately disabled                   |
-| Windows / Linux builds                                   | ⬜ **Not built or tested**                 |
+| Piece                                                  | Status                                      |
+| ------------------------------------------------------ | ------------------------------------------- |
+| Rust host: keychain commands, SQL plugin, capabilities | ✅ Compiles (`cargo check`, macOS arm64)    |
+| Local SQLite schema applied as a migration             | ✅ Verified in the running `.app`           |
+| `SqliteSyncQueue` implementing the `SyncQueue` port    | ✅ Implemented, 24 tests                    |
+| Catalogue store, device store, API client, transport   | ✅ Implemented, 52 desktop tests            |
+| Activation, cashier sign-in, till, payment panel       | ✅ Implemented, bundle builds               |
+| Startup database preflight                             | ✅ 7 tests, incl. proof it can fail         |
+| End-to-end offline sale against real PostgreSQL        | ✅ 11 tests (`tests/integration/`)          |
+| **macOS `.app` launches and initialises SQLite**       | ✅ **Verified by running it**               |
+| macOS `.dmg`                                           | ✅ Built                                    |
+| Code signing / notarisation                            | ⬜ **Not done** — required before shipping  |
+| Windows build                                          | ⛔ BLOCKED — needs the CI Windows runner    |
+| Receipt printing                                       | ⬜ **Not implemented**                      |
+| Cash drawer kick                                       | ⬜ **Not implemented**                      |
+| Barcode scanner                                        | ⚠️ Code path tested; **no hardware tested** |
+| Automatic updates                                      | ⬜ Deliberately disabled                    |
 
 Everything marked ✅ has been compiled and run. Nothing here has been tested on a real shop
 floor, with a real scanner, or on a real thermal printer.
+
+### Verified in the running application
+
+Launched from a deleted application-data directory, `Carl.app` produced:
+
+```
+tables created            10  (full schema)
+_sqlx_migrations          v1 carl local schema
+journal_mode              wal
+boot_count                2   ← data written by an earlier run survived a restart
+install_id                present  ← reached the activation flow
+```
+
+## Two defects this build fixed, and how they hid
+
+**`Module name, '@tauri-apps/plugin-sql' does not resolve to a valid URL`.** The release
+`.app` had been built three hours before the frontend existed, and embedded a placeholder
+page whose inline module used a bare specifier. `tauri.conf.json` had no
+`beforeBuildCommand`, so `tauri build` never built the frontend — it bundled whatever stale
+`dist/` was on disk and said nothing. Now `pnpm build` runs as `beforeBuildCommand`, and it
+ends in `scripts/verify-desktop-bundle.mjs`, which refuses to ship a bundle containing a
+bare specifier, an unbundled `/src/` entry point, a missing SQL plugin, or an embedded
+secret.
+
+**The schema had never been applied on any terminal.** `main.rs` carried a comment saying
+migrations ran on startup, and `tauri_plugin_sql::Builder::default()` registers none. Only
+`sync_queue` existed, created separately by the queue itself, so the next failure after the
+module error would have been `no such table: device_config`. The schema is now registered as
+migration v1 via `include_str!`.
+
+Both were invisible to the type checker, the tests and the Tauri build. The startup
+preflight exists because of them: a terminal that cannot record a sale must refuse to open,
+rather than take money it cannot write down.
 
 ## Why a desktop application at all
 
 A browser cannot be trusted with a shop's money when the connection drops:
 
-| Concern                    | Browser                                                      | Carl Desktop                              |
-| -------------------------- | ------------------------------------------------------------ | ----------------------------------------- |
-| Durable local transactions | IndexedDB — evictable by the browser under storage pressure  | SQLite on disk                            |
-| Credential storage         | Local storage — a file, readable by anything on the machine  | OS keychain                               |
-| Receipt printer            | Print dialog only                                            | Direct to a thermal printer (not built)   |
-| Cash drawer                | No                                                           | Via the printer's kick port (not built)   |
-| Survives a crash mid-sale  | Sometimes                                                    | Yes — the sale is committed locally first |
+| Concern                    | Browser                                                     | Carl Desktop                              |
+| -------------------------- | ----------------------------------------------------------- | ----------------------------------------- |
+| Durable local transactions | IndexedDB — evictable by the browser under storage pressure | SQLite on disk                            |
+| Credential storage         | Local storage — a file, readable by anything on the machine | OS keychain                               |
+| Receipt printer            | Print dialog only                                           | Direct to a thermal printer (not built)   |
+| Cash drawer                | No                                                          | Via the printer's kick port (not built)   |
+| Survives a crash mid-sale  | Sometimes                                                   | Yes — the sale is committed locally first |
 
 The deciding factor is the first row. A browser may evict IndexedDB without warning, and
 "the browser cleared your unsynced sales" is not a sentence any shop should have to hear.
@@ -105,12 +142,12 @@ Configuration is baked in at build time and is deliberately not editable from th
 a till that can be pointed at a different server by someone standing in front of it is a
 till whose sales can be redirected:
 
-| Variable                 | Purpose                                     |
-| ------------------------ | ------------------------------------------- |
-| `VITE_CARL_URL`          | Where the Carl application server is        |
-| `VITE_SUPABASE_URL`      | Supabase project URL, for cashier sign-in   |
+| Variable                 | Purpose                                      |
+| ------------------------ | -------------------------------------------- |
+| `VITE_CARL_URL`          | Where the Carl application server is         |
+| `VITE_SUPABASE_URL`      | Supabase project URL, for cashier sign-in    |
 | `VITE_SUPABASE_ANON_KEY` | Public anon key — RLS decides what it can do |
-| `VITE_APP_VERSION`       | Reported at activation                      |
+| `VITE_APP_VERSION`       | Reported at activation                       |
 
 The service-role key is not here, is not in any client, and must never be.
 

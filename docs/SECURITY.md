@@ -177,14 +177,14 @@ a statement that failed for the wrong reason.
 
 ## Key handling
 
-| Credential           | Location                                            | Reaches the client?                   |
-| -------------------- | --------------------------------------------------- | ------------------------------------- |
-| Supabase anon key    | `NEXT_PUBLIC_SUPABASE_ANON_KEY`                     | **Yes, and that is fine** — see below |
-| Service role key     | `SUPABASE_SERVICE_ROLE_KEY`                         | **Never**                             |
-| Device secret pepper | `CARL_DEVICE_SECRET_PEPPER`                         | **Never**                             |
-| Device secrets       | Hashed (SHA-256, peppered) in `devices.secret_hash` | Shown once at activation              |
-| Activation codes     | Hashed in `device_activations.code_hash`            | Shown once to the installer           |
-| Cashier refresh token | The terminal's OS credential store                 | It is the cashier's own               |
+| Credential            | Location                                            | Reaches the client?                   |
+| --------------------- | --------------------------------------------------- | ------------------------------------- |
+| Supabase anon key     | `NEXT_PUBLIC_SUPABASE_ANON_KEY`                     | **Yes, and that is fine** — see below |
+| Service role key      | `SUPABASE_SERVICE_ROLE_KEY`                         | **Never**                             |
+| Device secret pepper  | `CARL_DEVICE_SECRET_PEPPER`                         | **Never**                             |
+| Device secrets        | Hashed (SHA-256, peppered) in `devices.secret_hash` | Shown once at activation              |
+| Activation codes      | Hashed in `device_activations.code_hash`            | Shown once to the installer           |
+| Cashier refresh token | The terminal's OS credential store                  | It is the cashier's own               |
 
 The anon key is safe to publish **only because RLS is enforced on every tenant-owned table**.
 If RLS were ever disabled on one table, this key would expose it — which is why the coverage
@@ -199,11 +199,11 @@ the pepper has to be applied somewhere that is neither, and that is the applicat
 
 Three routes hold it. A terminal reaches Carl only through them:
 
-| Route                    | Authenticates with                        | Runs as                     |
-| ------------------------ | ----------------------------------------- | --------------------------- |
-| `/api/device/activate`   | The activation code itself                | Service role — no user yet  |
-| `/api/device/catalogue`  | The device secret                         | Service role — no user      |
-| `/api/device/sync`       | The device secret **and** a cashier token | **The cashier**             |
+| Route                   | Authenticates with                        | Runs as                    |
+| ----------------------- | ----------------------------------------- | -------------------------- |
+| `/api/device/activate`  | The activation code itself                | Service role — no user yet |
+| `/api/device/catalogue` | The device secret                         | Service role — no user     |
+| `/api/device/sync`      | The device secret **and** a cashier token | **The cashier**            |
 
 The last row is the one that matters. A sale is attributed to a person, and `complete_sale`
 checks that person holds `sales.create` at that branch. Syncing as the service role would
@@ -212,7 +212,7 @@ permission check — which is exactly how a shared till becomes an unaudited one
 terminal proves two separate things, and neither is sufficient alone: which till it is, and
 who is standing at it.
 
-`bearerClient()` exists for this: a *user* client, subject to RLS, for callers that carry
+`bearerClient()` exists for this: a _user_ client, subject to RLS, for callers that carry
 their own credential instead of a cookie.
 
 ### What a terminal may download
