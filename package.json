@@ -28,7 +28,8 @@
     "db:types": "node scripts/generate-db-types.mjs",
     "verify": "bash scripts/verify.sh",
     "clean": "git clean -xdf node_modules dist .next .turbo",
-    "db:perf": "node scripts/performance-probe.mjs"
+    "db:perf": "node scripts/performance-probe.mjs",
+    "db:verify-history": "node scripts/verify-migration-history.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
