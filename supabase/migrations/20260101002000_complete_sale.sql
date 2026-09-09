@@ -277,6 +277,15 @@ begin
       v_line_discount := (v_item ->> 'discount_value')::bigint;
     end if;
 
+    -- A negative discount would *increase* the line, charging the customer more than the
+    -- catalogue price. The CHECK on sale_items catches it as a last resort, but that
+    -- surfaces as a raw constraint violation; refusing it here gives the cashier something
+    -- they can act on.
+    if v_line_discount < 0 then
+      raise exception 'INVALID_PRICE'
+        using detail = format('Line %s has a negative discount.', v_line_no);
+    end if;
+
     if v_line_discount > 0 then
       if not app.has_permission(v_tenant_id, 'sales.discount', p_branch_id) then
         raise exception 'DISCOUNT_NOT_PERMITTED'
@@ -349,6 +358,10 @@ begin
     v_order_discount := round(v_subtotal * (p_order_discount_value / 100))::bigint;
   elsif p_order_discount_type = 'AMOUNT' then
     v_order_discount := p_order_discount_value::bigint;
+  end if;
+
+  if v_order_discount < 0 then
+    raise exception 'INVALID_PRICE' using detail = 'The order discount is negative.';
   end if;
 
   if v_order_discount > 0 then

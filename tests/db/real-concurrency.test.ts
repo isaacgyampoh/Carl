@@ -24,6 +24,19 @@ import { createShop, sell, type Shop } from '../support/pos.js';
  * These tests assert the **final database state**, not merely that both requests returned.
  * A test that only checks for a rejection can pass while stock has silently gone negative.
  */
+/*
+ * Decided at module load, which is when `it.runIf` is evaluated.
+ *
+ * An earlier version read this from `db.supportsConcurrency` inside `beforeAll` — but
+ * `beforeAll` runs *after* collection, so the flag was always false and every test here
+ * was skipped, including against real PostgreSQL. The suite reported 322 passed and 6
+ * skipped, and the six were the only tests that actually prove the locking works.
+ *
+ * A test that silently skips reads exactly like a test that passed. This is now derived
+ * from the driver selection itself, which is known before collection.
+ */
+const CONCURRENCY_AVAILABLE = process.env.CARL_TEST_DB_DRIVER === 'pg';
+
 describe('real concurrency', () => {
   let db: TestDatabase;
   let other: TestDatabase;
@@ -33,6 +46,15 @@ describe('real concurrency', () => {
   beforeAll(async () => {
     db = await createTestDatabase();
     supported = db.supportsConcurrency;
+
+    // If the driver disagrees with what was assumed at collection time, that is a harness
+    // bug and must fail loudly rather than quietly skipping.
+    if (CONCURRENCY_AVAILABLE && !supported) {
+      throw new Error(
+        'CARL_TEST_DB_DRIVER=pg was set but the driver reports it cannot open a second ' +
+          'session. The concurrency tests would silently skip.',
+      );
+    }
     if (supported) other = await db.concurrent();
   });
 
@@ -67,9 +89,7 @@ describe('real concurrency', () => {
     return Number(rows[0]?.s ?? 0);
   }
 
-  const canRun = () => supported;
-
-  it.runIf(canRun())(
+  it.runIf(CONCURRENCY_AVAILABLE)(
     'refuses the second terminal when both sell from the same last units',
     async () => {
       // The scenario the whole locking design exists for.
@@ -111,7 +131,7 @@ describe('real concurrency', () => {
     120_000,
   );
 
-  it.runIf(canRun())(
+  it.runIf(CONCURRENCY_AVAILABLE)(
     'lets both through when stock covers both, without losing an update',
     async () => {
       // The other half of the guarantee: the lock must serialise, not reject.
@@ -139,7 +159,7 @@ describe('real concurrency', () => {
     120_000,
   );
 
-  it.runIf(canRun())(
+  it.runIf(CONCURRENCY_AVAILABLE)(
     'creates one sale when the same idempotency key arrives on two connections at once',
     async () => {
       // A terminal that retries while its first attempt is still in flight. The unique
@@ -170,7 +190,7 @@ describe('real concurrency', () => {
     120_000,
   );
 
-  it.runIf(canRun())(
+  it.runIf(CONCURRENCY_AVAILABLE)(
     'serialises concurrent stock adjustments without losing one',
     async () => {
       const item = await shop.stock({ price: 1000, quantity: 100 });
@@ -194,7 +214,7 @@ describe('real concurrency', () => {
     120_000,
   );
 
-  it.runIf(canRun())(
+  it.runIf(CONCURRENCY_AVAILABLE)(
     'blocks the second transaction until the first commits',
     async () => {
       // Demonstrates the lock directly rather than inferring it from an outcome.
@@ -240,17 +260,17 @@ describe('real concurrency', () => {
     120_000,
   );
 
-  it('reports honestly when the driver cannot express concurrency', () => {
-    // Not a placeholder: this asserts the suite refuses to look green on a driver that
-    // cannot actually run it, which is how a concurrency gap would otherwise hide.
-    if (!supported) {
-      expect(db.supportsConcurrency).toBe(false);
+  it('states plainly whether the locking tests actually ran', () => {
+    // Always runs, on every driver. Its job is to make the skip visible rather than let
+    // it be mistaken for coverage.
+    expect(db.supportsConcurrency).toBe(CONCURRENCY_AVAILABLE);
+
+    if (!CONCURRENCY_AVAILABLE) {
       console.warn(
-        '\n  real-concurrency: SKIPPED — the in-process driver cannot open a second session.' +
-          '\n  Run with CARL_TEST_DB_DRIVER=pg to execute these against real PostgreSQL.\n',
+        '\n  real-concurrency: NOT RUN — the in-process driver cannot open a second session.' +
+          '\n  These are the only tests that prove FOR UPDATE actually serialises two tills.' +
+          '\n  Run with CARL_TEST_DB_DRIVER=pg against real PostgreSQL.\n',
       );
-    } else {
-      expect(db.supportsConcurrency).toBe(true);
     }
   });
 });

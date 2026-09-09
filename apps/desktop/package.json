@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "tauri": "tauri",
+    "build": "echo \"@carl/desktop is built with: pnpm --filter @carl/desktop bundle\"",
+    "bundle": "tauri build",
     "dev": "tauri dev",
-    "build": "tauri build",
+    "check": "cd src-tauri && cargo check",
     "typecheck": "echo \"@carl/desktop has no TypeScript of its own yet\"",
-    "check": "cd src-tauri && cargo check"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@carl/sync": "workspace:*",
