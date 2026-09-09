@@ -11,7 +11,13 @@ import { DeviceApi } from './device-api';
  * passing shop day, which is why it is pinned here.
  */
 describe('DeviceApi', () => {
-  const credential = { deviceId: 'd1', deviceSecret: 'x'.repeat(64) };
+  const credential = {
+    deviceId: 'd1',
+    deviceSecret: 'x'.repeat(64),
+    // The cashier's token. A sale is attributed to a person, so the terminal's own
+    // credential is necessary and not sufficient.
+    accessToken: 'y'.repeat(40),
+  };
 
   /** A fetch that answers with one prepared response. */
   function respondWith(status: number, body: unknown): typeof globalThis.fetch {
@@ -168,7 +174,9 @@ describe('DeviceApi', () => {
       const body = typeof call?.[1]?.body === 'string' ? call[1].body : '';
       expect(url).toBe('https://carl.example/api/device/sync');
       expect(url).not.toContain(credential.deviceSecret);
+      expect(url).not.toContain(credential.accessToken);
       expect(body).toContain(credential.deviceSecret);
+      expect(body).toContain(credential.accessToken);
     });
   });
 });

@@ -34,3 +34,27 @@ export async function readDeviceSecret(deviceId: string): Promise<string | null>
 export async function clearDeviceSecret(deviceId: string): Promise<void> {
   await invoke('clear_device_secret', { deviceId });
 }
+
+/**
+ * The signed-in cashier's refresh token.
+ *
+ * Kept beside the device secret and for the same reason: it is a bearer credential for a
+ * real person's account. A shift's worth of it sitting in a SQLite file on a counter is a
+ * shift's worth of it walking out of the shop.
+ */
+export async function storeCashierToken(deviceId: string, token: string): Promise<void> {
+  await invoke('store_cashier_token', { deviceId, token });
+}
+
+export async function readCashierToken(deviceId: string): Promise<string | null> {
+  try {
+    return await invoke<string>('read_cashier_token', { deviceId });
+  } catch {
+    // No cashier signed in. An ordinary state at the start of a shift.
+    return null;
+  }
+}
+
+export async function clearCashierToken(deviceId: string): Promise<void> {
+  await invoke('clear_cashier_token', { deviceId });
+}

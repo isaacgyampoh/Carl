@@ -19,7 +19,8 @@
     "@carl/domain": "workspace:*",
     "@carl/shared": "workspace:*",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "@supabase/supabase-js": "^2.58.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

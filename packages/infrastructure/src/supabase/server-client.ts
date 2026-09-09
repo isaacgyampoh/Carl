@@ -68,6 +68,28 @@ export function serverClient(cookies: CookieStore): CarlSupabaseClient {
 }
 
 /**
+ * A client acting as the bearer of an access token.
+ *
+ * For requests that carry their own credential rather than a session cookie: a POS
+ * terminal syncing a shift of offline sales is the case this exists for. It is a *user*
+ * client — RLS applies, `auth.uid()` is the token's subject — and so it is the right tool
+ * whenever the caller has an identity but no cookie jar.
+ *
+ * Note what this is not: it is not a way to act on someone's behalf without their
+ * credential. The token must come from the caller, and Supabase validates it. A route
+ * reaching for `serviceRoleClient()` instead, because the terminal "is authorised anyway",
+ * would attribute every sale to nobody and skip every permission check the database makes.
+ */
+export function bearerClient(accessToken: string): CarlSupabaseClient {
+  const env = publicEnv();
+
+  return createClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+}
+
+/**
  * A client that bypasses Row Level Security completely.
  *
  * Anything holding this can read and write every tenant's data. It exists for the few

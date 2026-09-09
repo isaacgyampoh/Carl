@@ -1,7 +1,7 @@
 import { type NextResponse } from 'next/server';
 import { z } from '@carl/validation';
 
-import { serviceRoleClient } from '@/lib/supabase';
+import { bearerClient } from '@carl/infrastructure/supabase/server-client';
 import { badRequest, deviceCredential, deviceError, log, ok, pepper } from '../route-support';
 
 /**
@@ -43,6 +43,16 @@ const payment = z.object({
 });
 
 const schema = deviceCredential.extend({
+  /**
+   * The cashier's Supabase access token.
+   *
+   * A sale is attributed to a person, and `complete_sale` checks that person holds
+   * `sales.create` at this branch — so an authorised terminal is necessary and not
+   * sufficient. Running this as the service role instead would attribute every offline
+   * sale to nobody and skip every permission check the database makes, which is exactly
+   * the shortcut that turns a shared till into an unaudited one.
+   */
+  accessToken: z.string().min(20),
   idempotencyKey: z.string().trim().min(8).max(200),
   branchId: z.uuid(),
   soldAt: z.iso.datetime(),
@@ -65,7 +75,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const { data, error } = await serviceRoleClient().rpc('sync_offline_sale', {
+    const { data, error } = await bearerClient(parsed.accessToken).rpc('sync_offline_sale', {
       p_branch_id: parsed.branchId,
       p_items: parsed.items,
       p_payments: parsed.payments,

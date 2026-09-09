@@ -3,9 +3,11 @@
  *
  * Three states, and the order matters:
  *
- *   1. Not activated  -> the activation screen. Nothing else is reachable.
- *   2. Activated       -> the till.
- *   3. Out of window   -> the till is locked until it reaches the server again.
+ *   1. Not activated     -> the activation screen. Nothing else is reachable.
+ *   2. No cashier        -> sign-in. The device secret proves which till this is; it does
+ *                           not prove who is standing at it, and a sale needs both.
+ *   3. Signed in         -> the till.
+ *   4. Out of window     -> the till is locked until it reaches the server again.
  *
  * (3) is the one worth stating plainly: a terminal that has not contacted Carl within its
  * offline grace period stops selling. That is what bounds the usefulness of a stolen till,
@@ -16,13 +18,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SqliteSyncQueue } from '@carl/sync';
 
+import { CashierSession, type Cashier } from './lib/cashier-session';
 import { CatalogueStore } from './lib/catalogue-store';
-import { CARL_URL } from './lib/env';
+import { CARL_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './lib/env';
 import { DeviceApi } from './lib/device-api';
 import { DeviceStore, type DeviceConfig } from './lib/device-store';
 import { readDeviceSecret } from './lib/keychain';
 import { TauriSqliteConnection } from './lib/tauri-sqlite';
 import { Activation } from './ui/activation';
+import { SignIn } from './ui/sign-in';
 import { Terminal } from './ui/terminal';
 
 export interface Runtime {
@@ -37,7 +41,21 @@ type State =
   | { status: 'starting' }
   | { status: 'failed'; detail: string }
   | { status: 'activating'; runtime: Runtime }
-  | { status: 'ready'; runtime: Runtime; config: DeviceConfig; secret: string };
+  | {
+      status: 'signing-in';
+      runtime: Runtime;
+      config: DeviceConfig;
+      secret: string;
+      session: CashierSession;
+    }
+  | {
+      status: 'ready';
+      runtime: Runtime;
+      config: DeviceConfig;
+      secret: string;
+      session: CashierSession;
+      cashier: Cashier;
+    };
 
 export function App(): React.JSX.Element {
   const [state, setState] = useState<State>({ status: 'starting' });
@@ -73,7 +91,20 @@ export function App(): React.JSX.Element {
         return;
       }
 
-      setState({ status: 'ready', runtime, config, secret });
+      const session = new CashierSession({
+        supabaseUrl: SUPABASE_URL,
+        anonKey: SUPABASE_ANON_KEY,
+        deviceId: config.deviceId,
+      });
+
+      // Restores the previous shift if its token is still good, so a terminal restarted
+      // mid-shift does not make a queue of customers wait for a password.
+      const cashier = await session.restore();
+      setState(
+        cashier
+          ? { status: 'ready', runtime, config, secret, session, cashier }
+          : { status: 'signing-in', runtime, config, secret, session },
+      );
     } catch (error) {
       setState({
         status: 'failed',
@@ -107,7 +138,29 @@ export function App(): React.JSX.Element {
     return <Activation runtime={state.runtime} onActivated={() => void start()} />;
   }
 
-  return <Terminal runtime={state.runtime} config={state.config} secret={state.secret} />;
+  if (state.status === 'signing-in') {
+    return (
+      <SignIn
+        session={state.session}
+        branchName={state.config.branchName}
+        tenantName={state.config.tenantName}
+        onSignedIn={(cashier) => setState({ ...state, status: 'ready', cashier })}
+      />
+    );
+  }
+
+  return (
+    <Terminal
+      runtime={state.runtime}
+      config={state.config}
+      secret={state.secret}
+      session={state.session}
+      cashier={state.cashier}
+      onSignOut={() => {
+        void state.session.signOut().then(() => start());
+      }}
+    />
+  );
 }
 
 function Splash({

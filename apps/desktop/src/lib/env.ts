@@ -12,6 +12,8 @@
 interface DesktopEnv {
   readonly VITE_CARL_URL?: string;
   readonly VITE_APP_VERSION?: string;
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_ANON_KEY?: string;
 }
 
 const env = import.meta.env as unknown as DesktopEnv;
@@ -21,3 +23,13 @@ export const CARL_URL: string = env.VITE_CARL_URL ?? 'https://app.carl.africa';
 
 /** Reported at activation so an estate can be audited for out-of-date terminals. */
 export const APP_VERSION: string = env.VITE_APP_VERSION ?? '0.1.0';
+
+/**
+ * Supabase, for cashier sign-in only.
+ *
+ * The anon key is public by design — it is in the web application's browser bundle too,
+ * and it grants nothing on its own; RLS decides what the signed-in user may do. The
+ * service-role key is not here, is not in any client, and must never be.
+ */
+export const SUPABASE_URL: string = env.VITE_SUPABASE_URL ?? '';
+export const SUPABASE_ANON_KEY: string = env.VITE_SUPABASE_ANON_KEY ?? '';

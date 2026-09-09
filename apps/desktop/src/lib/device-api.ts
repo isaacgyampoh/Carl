@@ -131,7 +131,7 @@ export class DeviceApi {
    * decides whether a sale is retried, parked for a human, or abandoned.
    */
   async submitSale(
-    credential: { deviceId: string; deviceSecret: string },
+    credential: { deviceId: string; deviceSecret: string; accessToken: string },
     payload: Record<string, unknown>,
   ): Promise<SyncOutcome> {
     const result = await this.post<{

@@ -9,16 +9,21 @@
 
 import { useEffect, useState } from 'react';
 
+import type { Cashier } from '../lib/cashier-session';
 import type { DeviceConfig } from '../lib/device-store';
 
 export function StatusBar({
   config,
+  cashier,
   pendingCount,
   onSync,
+  onSignOut,
 }: {
   config: DeviceConfig;
+  cashier: Cashier;
   pendingCount: number;
   onSync: () => void;
+  onSignOut: () => void;
 }): React.JSX.Element {
   const [online, setOnline] = useState(navigator.onLine);
 
@@ -78,6 +83,14 @@ export function StatusBar({
           />
           {online ? 'Online' : 'Offline'}
         </span>
+
+        {/* Who the sales are being filed as. A cashier who cannot see at a glance that
+            the previous shift is still signed in will file their takings as someone
+            else. */}
+        <span style={{ color: 'var(--muted)' }}>{cashier.displayName}</span>
+        <button onClick={onSignOut} title="End this shift">
+          Sign out
+        </button>
 
         {pendingCount > 0 ? (
           <button onClick={onSync} title="Send queued sales now">

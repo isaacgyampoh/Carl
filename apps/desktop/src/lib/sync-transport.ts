@@ -16,10 +16,20 @@ export interface DeviceCredential {
   readonly deviceSecret: string;
 }
 
+/**
+ * Supplies the signed-in cashier's access token.
+ *
+ * A function rather than a value: access tokens are short-lived, and a terminal that has
+ * been offline for hours is always holding a stale one. It is resolved per attempt, when
+ * the network is known to be there.
+ */
+export type AccessTokenSource = () => Promise<string | null>;
+
 export class DeviceSyncTransport implements SyncTransport {
   constructor(
     private readonly api: DeviceApi,
     private readonly credential: DeviceCredential,
+    private readonly accessToken: AccessTokenSource,
     /**
      * How the host reports connectivity. Injected rather than reading `navigator.onLine`
      * directly so it can be driven in tests — and because `navigator.onLine` reports
@@ -32,19 +42,31 @@ export class DeviceSyncTransport implements SyncTransport {
     return this.online();
   }
 
-  submit(operation: QueuedOperation): Promise<SyncOutcome> {
+  async submit(operation: QueuedOperation): Promise<SyncOutcome> {
     if (operation.operation !== 'complete_sale') {
       // Returns rather than throws: an operation this build does not know how to send is a
       // deployment mismatch, and the sale must stay queued for a newer build rather than
       // being lost by a crash.
-      return Promise.resolve({
+      return {
         kind: 'retryable',
         code: 'UNSUPPORTED_OPERATION',
         detail: `This terminal cannot send a ${operation.operation} yet.`,
-      });
+      };
     }
 
-    return this.api.submitSale(this.credential, {
+    const accessToken = await this.accessToken();
+    if (!accessToken) {
+      // No cashier session. Retryable rather than fatal: the sale is on disk and will go
+      // through as soon as someone signs in. Discarding it because nobody is signed in
+      // right now would lose a sale that really happened.
+      return {
+        kind: 'retryable',
+        code: 'NO_CASHIER_SESSION',
+        detail: 'No cashier is signed in at this terminal.',
+      };
+    }
+
+    return this.api.submitSale({ ...this.credential, accessToken }, {
       // The idempotency key IS the operation id, generated once when the cashier finished
       // the sale and reused for every retry. That is what makes resending safe when a
       // connection dies without saying whether the sale landed.

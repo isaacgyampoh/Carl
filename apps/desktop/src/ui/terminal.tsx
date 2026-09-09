@@ -36,6 +36,7 @@ import { systemClock } from '@carl/shared';
 import { SyncEngine, SyncState } from '@carl/sync';
 
 import type { Runtime } from '../app';
+import type { Cashier, CashierSession } from '../lib/cashier-session';
 import { DeviceSyncTransport } from '../lib/sync-transport';
 import type { CatalogueItem } from '../lib/catalogue-store';
 import type { DeviceConfig } from '../lib/device-store';
@@ -49,10 +50,16 @@ export function Terminal({
   runtime,
   config,
   secret,
+  session,
+  cashier,
+  onSignOut,
 }: {
   runtime: Runtime;
   config: DeviceConfig;
   secret: string;
+  session: CashierSession;
+  cashier: Cashier;
+  onSignOut: () => void;
 }): React.JSX.Element {
   const [cart, setCart] = useState<Cart>(EMPTY_CART);
   const [term, setTerm] = useState('');
@@ -68,13 +75,16 @@ export function Terminal({
     () =>
       new SyncEngine({
         queue: runtime.queue,
-        transport: new DeviceSyncTransport(runtime.api, {
-          deviceId: config.deviceId,
-          deviceSecret: secret,
-        }),
+        transport: new DeviceSyncTransport(
+          runtime.api,
+          { deviceId: config.deviceId, deviceSecret: secret },
+          // Resolved per attempt: an access token is short-lived, and a terminal that has
+          // been offline for hours is always holding a stale one.
+          () => session.accessToken(),
+        ),
         clock: systemClock,
       }),
-    [runtime, config.deviceId, secret],
+    [runtime, config.deviceId, secret, session],
   );
 
   const refreshPending = useCallback(async () => {
@@ -164,7 +174,13 @@ export function Terminal({
 
   return (
     <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto 1fr' }}>
-      <StatusBar config={config} pendingCount={pending} onSync={() => void engine.run()} />
+      <StatusBar
+        config={config}
+        cashier={cashier}
+        pendingCount={pending}
+        onSync={() => void engine.run()}
+        onSignOut={onSignOut}
+      />
 
       <main style={{ display: 'grid', gridTemplateColumns: '1fr 420px', minHeight: 0 }}>
         <section style={{ padding: 16, display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>

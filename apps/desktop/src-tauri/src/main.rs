@@ -32,6 +32,26 @@ fn clear_device_secret(device_id: String) -> Result<(), String> {
     credentials::clear_device_secret(&device_id).map_err(|error| error.to_string())
 }
 
+/// Stores the signed-in cashier's refresh token.
+///
+/// A sale is attributed to a person, so the terminal must be able to prove which person —
+/// and that proof is a bearer credential for a real account, which belongs in the OS
+/// credential store rather than in a database file on a counter.
+#[tauri::command]
+fn store_cashier_token(device_id: String, token: String) -> Result<(), String> {
+    credentials::store_cashier_token(&device_id, &token).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn read_cashier_token(device_id: String) -> Result<String, String> {
+    credentials::read_cashier_token(&device_id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn clear_cashier_token(device_id: String) -> Result<(), String> {
+    credentials::clear_cashier_token(&device_id).map_err(|error| error.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(
@@ -44,7 +64,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             store_device_secret,
             read_device_secret,
-            clear_device_secret
+            clear_device_secret,
+            store_cashier_token,
+            read_cashier_token,
+            clear_cashier_token
         ])
         .setup(|_app| {
             // Developer tools are deliberately NOT opened here, even in debug builds. A
