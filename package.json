@@ -2,7 +2,7 @@
   "name": "carl",
   "version": "0.1.0",
   "private": true,
-  "description": "Carl — multi-tenant POS, inventory and business management platform.",
+  "description": "Carl \u2014 multi-tenant POS, inventory and business management platform.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@12.3.4",
   "engines": {
@@ -27,7 +27,8 @@
     "db:lint": "supabase db lint",
     "db:types": "node scripts/generate-db-types.mjs",
     "verify": "bash scripts/verify.sh",
-    "clean": "git clean -xdf node_modules dist .next .turbo"
+    "clean": "git clean -xdf node_modules dist .next .turbo",
+    "db:perf": "node scripts/performance-probe.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -41,6 +42,7 @@
     "prettier-plugin-tailwindcss": "^0.6.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "pg": "^8.23.0"
   }
 }

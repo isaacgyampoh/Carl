@@ -11,8 +11,6 @@
 -- DESTRUCTIVE. Only run against a disposable verification project.
 -- =============================================================================
 
-\timing on
-
 -- --- Volume ------------------------------------------------------------------------------
 
 do $$
@@ -60,37 +58,49 @@ begin
   from public.products p where p.tenant_id = v_tenant_id;
 
   -- 100,000 sales spread over a year.
+  -- The arithmetic is computed in one pass rather than randomised per column: the schema
+  -- enforces `total = subtotal - discount + tax`, and it is right to. Volume that violates
+  -- Carl's own invariants would measure a database Carl never contains.
   insert into public.sales
-    (tenant_id, branch_id, sale_number, cashier_id, subtotal, total, cost_total,
-     amount_paid, sold_at, status)
+    (tenant_id, branch_id, sale_number, cashier_id, subtotal, discount_amount, tax_amount,
+     total, cost_total, amount_paid, sold_at, status)
   select v_tenant_id, v_branch_id,
          'PERF-' || lpad(g::text, 8, '0'),
          v_admin,
-         (500 + random() * 20000)::bigint,
-         (500 + random() * 20000)::bigint,
-         (300 + random() * 12000)::bigint,
-         (500 + random() * 20000)::bigint,
+         line.subtotal,
+         0,
+         0,
+         line.subtotal,
+         (line.subtotal * 0.6)::bigint,
+         line.subtotal,
          now() - (random() * interval '365 days'),
          'COMPLETED'
-  from generate_series(1, 100000) g;
-
-  -- Keep the row-level arithmetic consistent, so reports over this data are meaningful.
-  update public.sales set total = subtotal, amount_paid = subtotal
-   where tenant_id = v_tenant_id;
+  from generate_series(1, 100000) g
+  cross join lateral (select (500 + random() * 20000)::bigint as subtotal) line;
 
   -- ~5 line items per sale.
+  --
+  -- The product for each line is chosen by arithmetic on a numbered copy of the catalogue,
+  -- not by `offset floor(random() * n) limit 1` per row. That form reads the products table
+  -- once for every line item — half a million scans — and takes longer than the whole
+  -- rest of the probe. This is one hash join.
+  create temporary table perf_products on commit drop as
+  select (row_number() over (order by p.sku)) - 1 as n, p.id, p.name, p.sku, p.average_cost
+    from public.products p where p.tenant_id = v_tenant_id;
+  create index on perf_products (n);
+
   insert into public.sale_items
     (sale_id, tenant_id, branch_id, product_id, line_number, product_name, product_sku,
      quantity, unit_price, unit_cost, line_total)
-  select s.id, v_tenant_id, v_branch_id, p.id, ln,
+  select numbered.id, v_tenant_id, v_branch_id, p.id, ln,
          p.name, p.sku, 1, p.average_cost + 500, p.average_cost, p.average_cost + 500
-  from public.sales s
-  cross join lateral (select generate_series(1, 5) as ln) lines
-  join lateral (
-    select id, name, sku, average_cost from public.products
-    where tenant_id = v_tenant_id offset floor(random() * 9990) limit 1
-  ) p on true
-  where s.tenant_id = v_tenant_id;
+  from (
+    select s.id, (row_number() over (order by s.sale_number)) as rn
+      from public.sales s where s.tenant_id = v_tenant_id
+  ) numbered
+  cross join generate_series(1, 5) as ln
+  -- Coprime multipliers, so lines spread across the catalogue rather than clustering.
+  join perf_products p on p.n = ((numbered.rn * 7 + ln * 13) % 10000);
 
   insert into public.sale_payments (sale_id, tenant_id, branch_id, method, amount)
   select s.id, v_tenant_id, v_branch_id, 'CASH', s.total
