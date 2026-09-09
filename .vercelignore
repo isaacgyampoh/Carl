@@ -1,22 +1,17 @@
-# Carl is a monorepo; Vercel deploys the web application and nothing else.
+# Carl is a monorepo. Vercel's Root Directory is apps/web, so only the web application is
+# built — but the desktop terminal and the Rust build tree are excluded from the upload as
+# well, because there is no reason to send them and no Rust toolchain there to use them.
 #
 # The desktop terminal is built by GitHub Actions on macOS and Windows runners
-# (.github/workflows/desktop.yml). It must never be built here: Vercel has no Rust
-# toolchain, and a Tauri build on a web deployment would either fail the deploy or
-# silently produce an artifact nobody ships.
-apps/desktop
+# (.github/workflows/desktop.yml).
+apps/desktop/src-tauri/target
+apps/desktop/dist
 
-# The Rust build tree, which is large and useless to a web deployment.
-**/src-tauri/target
-
-# Test suites and their fixtures. CI runs these; a production build does not.
+# Test suites. CI runs these; a production build does not.
 tests
-**/*.test.ts
-**/*.test.tsx
 
 # Local build output and caches.
 **/.next
-**/dist
 **/node_modules
 **/.turbo
 
