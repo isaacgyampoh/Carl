@@ -204,13 +204,6 @@ export interface Database {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'cash_movements_performed_by_fkey';
-            columns: ['performed_by'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-          {
             foreignKeyName: 'cash_movements_session_id_fkey';
             columns: ['session_id'];
             isOneToOne: false;
@@ -1217,13 +1210,6 @@ export interface Database {
             columns: ['device_id'];
             isOneToOne: false;
             referencedRelation: 'devices';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'inventory_movements_performed_by_fkey';
-            columns: ['performed_by'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
           {
@@ -3113,13 +3099,6 @@ export interface Database {
           created_at?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: 'subscription_payments_recorded_by_fkey';
-            columns: ['recorded_by'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
           {
             foreignKeyName: 'subscription_payments_subscription_id_fkey';
             columns: ['subscription_id'];
