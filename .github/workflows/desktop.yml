@@ -27,13 +27,21 @@ concurrency:
 env:
   NEXT_PUBLIC_SUPABASE_URL: https://ci.placeholder.supabase.co
   NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
-  # The terminal's build-time configuration. These are public by design — the anon key
-  # grants nothing on its own, because RLS decides what a signed-in user may do. No
-  # service-role key, database URL or pepper is available to this workflow, and
-  # verify-desktop-bundle.mjs fails the build if one ever appears in a bundle.
-  VITE_CARL_URL: https://app.carl.africa
-  VITE_SUPABASE_URL: https://ci.placeholder.supabase.co
-  VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
+  # The terminal's build-time configuration.
+  #
+  # All three are public by design. The anon key is served in the browser bundle of every
+  # Supabase application, including Carl's own web deployment; it grants nothing on its own
+  # because RLS decides what a signed-in user may do. It is written here rather than kept in
+  # a repository secret so that the installers this workflow produces are actually usable —
+  # a terminal built against a placeholder Supabase URL cannot sign a cashier in, and would
+  # be a build-verification artifact rather than something a shop could install.
+  #
+  # What is NOT here, and must never be: the service-role key, the database URL and the
+  # device-secret pepper. verify-desktop-bundle.mjs fails the build if any of them appears
+  # in a bundle, so this is enforced rather than trusted.
+  VITE_CARL_URL: https://carl-red.vercel.app
+  VITE_SUPABASE_URL: https://nkbqqxahvytvutjrsqom.supabase.co
+  VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rYnFxeGFodnl0dnV0anJzcW9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzkzMzksImV4cCI6MjEwNDQ1NTMzOX0.tSPjwVdSanykUXfW0ulx8KhgG-4-a3fjXUateAJRfTI
 
 jobs:
   build:

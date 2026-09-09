@@ -18,8 +18,18 @@ interface DesktopEnv {
 
 const env = import.meta.env as unknown as DesktopEnv;
 
-/** Where Carl is. */
-export const CARL_URL: string = env.VITE_CARL_URL ?? 'https://app.carl.africa';
+/**
+ * Where Carl is.
+ *
+ * The default is the current production deployment. It was previously a domain that does
+ * not exist, which would have shipped a terminal unable to reach Carl at all — and the
+ * symptom would have been a network error a shop could do nothing about.
+ *
+ * Override with VITE_CARL_URL at build time when pointing a build at another deployment.
+ * The Tauri CSP must be changed to match: connect-src confines the WebView to named
+ * origins, so a build pointed elsewhere without that change has every request blocked.
+ */
+export const CARL_URL: string = env.VITE_CARL_URL ?? 'https://carl-red.vercel.app';
 
 /** Reported at activation so an estate can be audited for out-of-date terminals. */
 export const APP_VERSION: string = env.VITE_APP_VERSION ?? '0.1.0';
