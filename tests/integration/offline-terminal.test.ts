@@ -83,6 +83,8 @@ describe('a terminal that goes offline', () => {
           branchId: string;
           items: unknown;
           payments: unknown;
+          customerId?: string | null;
+          tier?: string;
         };
 
         try {
@@ -96,7 +98,10 @@ describe('a terminal that goes offline', () => {
               had_conflict: boolean;
               conflict_id: string | null;
             }>(
-              `select * from sync_offline_sale($1, $2::jsonb, $3::jsonb, $4, $5::timestamptz, $6, $7, $8)`,
+              // Every field the real route forwards. A double that quietly drops one is a
+              // double that proves less than it appears to — the customer on a sale went
+              // missing exactly this way.
+              `select * from sync_offline_sale($1, $2::jsonb, $3::jsonb, $4, $5::timestamptz, $6, $7, $8, $9, $10::price_tier)`,
               [
                 payload.branchId,
                 JSON.stringify(payload.items),
@@ -106,6 +111,8 @@ describe('a terminal that goes offline', () => {
                 deviceId,
                 options.secret ?? deviceSecret,
                 PEPPER,
+                payload.customerId ?? null,
+                payload.tier ?? 'RETAIL',
               ],
             ),
           );
@@ -393,6 +400,131 @@ describe('a terminal that goes offline', () => {
 
     expect(await serverSales()).toBe(0);
     expect(await serverStock()).toBe(100);
+  });
+
+  /**
+   * The full acceptance path, offline, in one test.
+   *
+   * The individual mechanisms are covered above; this is the shape of a real transaction —
+   * a discounted line, a named customer, and money taken in two tenders — carried through
+   * the queue and reconciled against every table the server should have written.
+   */
+  describe('a complete offline sale', () => {
+    it('records the sale, its payments, its stock movement and its audit entry', async () => {
+      const customerId = await db.asServiceRole(async () => {
+        const { rows } = await db.query<{ id: string }>(
+          `insert into customers (tenant_id, name, phone, default_tier)
+           values ($1, 'Ama Mensah', '0244000111', 'RETAIL') returning id`,
+          [shop.tenantId],
+        );
+        return rows[0]!.id;
+      });
+
+      const wire = transport({ online: false });
+      const id = randomUUID();
+      await queue.enqueue({
+        id,
+        operation: 'complete_sale',
+        occurredAt: new Date().toISOString(),
+        payload: {
+          branchId: shop.branchId,
+          customerId,
+          // GH₵80.00 × 4 = GH₵320.00, less 10% = GH₵288.00.
+          items: [
+            { product_id: productId, quantity: 4, discount_type: 'PERCENTAGE', discount_value: 10 },
+          ],
+          // Split across two tenders, as a real counter does.
+          payments: [
+            { method: 'CASH', amount: 20000 },
+            { method: 'MOMO', amount: 8800, reference: 'MM-4471' },
+          ],
+        },
+      } as never);
+
+      // Nothing has reached the server yet.
+      expect(await serverSales()).toBe(0);
+
+      wire.online = true;
+      await engineFor(wire).run();
+
+      const { rows: sales } = await db.asServiceRole(() =>
+        db.query<{ id: string; total: string; customer_id: string; sale_number: string }>(
+          `select id, total::text as total, customer_id, sale_number from sales where branch_id = $1`,
+          [shop.branchId],
+        ),
+      );
+      expect(sales).toHaveLength(1);
+      const sale = sales[0]!;
+
+      // The discount was applied by the server from its own catalogue price.
+      expect(sale.total).toBe('28800');
+      expect(sale.customer_id).toBe(customerId);
+      expect(sale.sale_number, 'the sale was not numbered').toBeTruthy();
+
+      const { rows: payments } = await db.asServiceRole(() =>
+        db.query<{ method: string; amount: string }>(
+          `select method, amount::text as amount from sale_payments where sale_id = $1 order by method`,
+          [sale.id],
+        ),
+      );
+      expect(payments).toEqual([
+        { method: 'CASH', amount: '20000' },
+        { method: 'MOMO', amount: '8800' },
+      ]);
+
+      // The goods left the shelf, and the ledger says so.
+      const { rows: movements } = await db.asServiceRole(() =>
+        db.query<{ quantity: string; movement_type: string }>(
+          `select quantity::text as quantity, movement_type from inventory_movements
+            where product_id = $1 and branch_id = $2`,
+          [productId, shop.branchId],
+        ),
+      );
+      const sold = movements.filter((m) => m.movement_type === 'SALE');
+      expect(sold).toHaveLength(1);
+      expect(Number(sold[0]!.quantity)).toBe(-4);
+      expect(await serverStock()).toBe(96);
+
+      // And somebody can find out that it happened.
+      const { rows: audit } = await db.asServiceRole(() =>
+        db.query<{ action: string }>(
+          `select action from audit_logs where entity_id = $1 and entity_type = 'sale'`,
+          [sale.id],
+        ),
+      );
+      expect(audit.map((a) => a.action)).toContain('SALE_CREATED');
+
+      expect((await queue.get(id))?.state).toBe(SyncState.SYNCED);
+    });
+
+    it('does not duplicate any of it when the sale is synced again', async () => {
+      // Every one of those tables must be written exactly once, not just the sale row.
+      const wire = transport({ online: false });
+      await ring({ quantity: 2, amount: 16000 });
+      wire.online = true;
+      await engineFor(wire).run();
+      await engineFor(wire).run();
+      await engineFor(wire).run();
+
+      const counts = await db.asServiceRole(() =>
+        db.query<{ sales: string; items: string; payments: string; movements: string }>(
+          `select
+             (select count(*)::text from sales where branch_id = $1) as sales,
+             (select count(*)::text from sale_items where branch_id = $1) as items,
+             (select count(*)::text from sale_payments where branch_id = $1) as payments,
+             (select count(*)::text from inventory_movements
+               where branch_id = $1 and movement_type = 'SALE') as movements`,
+          [shop.branchId],
+        ),
+      );
+      expect(counts.rows[0]).toEqual({
+        sales: '1',
+        items: '1',
+        payments: '1',
+        movements: '1',
+      });
+      expect(await serverStock()).toBe(98);
+    });
   });
 
   it('prices the sale from the server, not from what the till says it charged', async () => {
