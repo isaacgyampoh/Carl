@@ -83,6 +83,17 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/health') ||
+    /*
+     * The terminal endpoints.
+     *
+     * These are NOT unprotected — they are protected by something a browser session cannot
+     * express. A till carries a device secret, and `/api/device/sync` additionally carries
+     * the cashier's own access token; both are verified inside the database functions the
+     * routes call. What a till does not have is a cookie, so leaving these behind the
+     * session check redirects every activation and every sync to `/sign-in`, and no
+     * terminal in the estate can reach Carl at all.
+     */
+    pathname.startsWith('/api/device/') ||
     pathname === '/offline' ||
     pathname === '/sw.js' ||
     pathname === '/manifest.webmanifest';
