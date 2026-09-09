@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/verify-desktop-bundle.mjs",
     "bundle": "tauri build",
     "dev": "vite",
     "check": "cd src-tauri && cargo check",

@@ -17,9 +17,15 @@
 -- `PENDING` only when the server has confirmed it.
 -- =============================================================================
 
-pragma journal_mode = WAL;      -- survives a crash mid-write
-pragma synchronous = FULL;      -- a sale must be on disk before the receipt prints
-pragma foreign_keys = ON;
+-- NOTE: the PRAGMAs this database needs are NOT here.
+--
+-- `journal_mode = WAL` cannot be set inside a transaction, and this file is applied as a
+-- migration, which runs in one. Left here it fails the migration outright and the terminal
+-- comes up with no schema at all.
+--
+-- They are applied by the connection adapter immediately after opening instead — see
+-- `TauriSqliteConnection.open()` and `NodeSqliteConnection` — so every caller gets them and
+-- this file stays a pure schema definition.
 
 -- -----------------------------------------------------------------------------
 -- Device configuration. Exactly one row.

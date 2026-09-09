@@ -24,6 +24,8 @@ import { CARL_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './lib/env';
 import { DeviceApi } from './lib/device-api';
 import { DeviceStore, type DeviceConfig } from './lib/device-store';
 import { readDeviceSecret } from './lib/keychain';
+import { isDesktop } from './lib/runtime';
+import { verifyLocalDatabase } from './lib/sqlite-preflight';
 import { TauriSqliteConnection } from './lib/tauri-sqlite';
 import { Activation } from './ui/activation';
 import { SignIn } from './ui/sign-in';
@@ -62,6 +64,19 @@ export function App(): React.JSX.Element {
 
   const start = useCallback(async () => {
     try {
+      // The desktop database is Tauri-only. Reached from a plain browser — a developer
+      // opening the Vite dev server directly — the plugin does not exist, and the error
+      // would be a module-resolution failure rather than an explanation.
+      if (!isDesktop()) {
+        setState({
+          status: 'failed',
+          detail:
+            'Carl Desktop must be run as the desktop application. Opening this page in a ' +
+            'browser has no local database, so it cannot take a sale offline.',
+        });
+        return;
+      }
+
       const connection = await TauriSqliteConnection.open();
       const queue = new SqliteSyncQueue(connection);
       // Idempotent, and run on every start: a terminal updated after months offline brings
@@ -75,6 +90,25 @@ export function App(): React.JSX.Element {
         devices: new DeviceStore(connection),
         api: new DeviceApi({ baseUrl: CARL_URL }),
       };
+
+      /*
+       * The till does not open until the database has proved it works.
+       *
+       * A terminal that cannot write to disk must refuse to trade. Carl's central promise
+       * is that a sale is on disk before the cashier is told it succeeded, and if SQLite is
+       * silently broken that promise is void: the terminal looks fine, takes money, prints
+       * receipts, and loses every transaction. Refusing to open is strictly better.
+       */
+      const preflight = await verifyLocalDatabase(connection);
+      if (!preflight.ok) {
+        setState({
+          status: 'failed',
+          detail:
+            `The local database failed its startup check: ${preflight.detail ?? 'unknown'}. ` +
+            'This terminal cannot record a sale, so it will not open.',
+        });
+        return;
+      }
 
       const config = await runtime.devices.read();
       if (!config) {

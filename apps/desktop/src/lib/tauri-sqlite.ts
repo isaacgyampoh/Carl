@@ -16,7 +16,24 @@ export class TauriSqliteConnection implements SqliteConnection {
   private constructor(private readonly db: Database) {}
 
   static async open(path = 'sqlite:carl.db'): Promise<TauriSqliteConnection> {
-    return new TauriSqliteConnection(await Database.load(path));
+    // `load` also runs the registered migrations, so the schema exists after this line.
+    const connection = new TauriSqliteConnection(await Database.load(path));
+
+    /*
+     * The PRAGMAs, applied here rather than in the schema file.
+     *
+     * They cannot live in `schema.sql`: that file is applied as a migration, migrations run
+     * inside a transaction, and `journal_mode = WAL` cannot be set inside one — it fails the
+     * migration and leaves the terminal with no schema at all.
+     *
+     * `synchronous = FULL` is the expensive one and it is deliberate. A sale must be
+     * genuinely on disk before the receipt prints; the alternative trades a shop's takings
+     * for a few milliseconds.
+     */
+    await connection.execute('pragma journal_mode = WAL');
+    await connection.execute('pragma synchronous = FULL');
+    await connection.execute('pragma foreign_keys = ON');
+    return connection;
   }
 
   async execute(sql: string, params: readonly unknown[] = []): Promise<void> {

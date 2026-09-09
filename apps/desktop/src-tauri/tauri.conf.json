@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.carl.pos",
   "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
@@ -20,8 +22,10 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
-      "capabilities": ["default"],
+      "csp": "default-src 'self'; connect-src 'self' https://app.carl.africa https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "capabilities": [
+        "default"
+      ],
       "assetProtocol": {
         "enable": false,
         "scope": []
@@ -30,8 +34,15 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis", "dmg", "app"],
-    "icon": ["icons/icon.png"],
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "app"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
     "publisher": "Carl",
     "category": "Business",
     "shortDescription": "Point of sale, inventory and business management",

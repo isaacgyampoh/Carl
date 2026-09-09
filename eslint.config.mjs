@@ -108,6 +108,41 @@ export default tseslint.config(
     },
   },
 
+  /*
+   * ---- The Tauri boundary ---------------------------------------------------
+   *
+   * `@tauri-apps/*` exists only inside the desktop application. Everywhere else it is a
+   * build error.
+   *
+   * This is not tidiness. The Tauri modules are bare specifiers that only resolve when
+   * bundled for a WebView; imported from the web application they would either break the
+   * Vercel build or, worse, survive into a browser bundle that cannot resolve them at
+   * runtime — which is precisely the failure that shipped inside a release `.app`:
+   *
+   *     Module name, '@tauri-apps/plugin-sql' does not resolve to a valid URL
+   *
+   * The shared packages define `SqliteConnection` as a port. The desktop supplies a Tauri
+   * adapter, the tests supply a Node one, and nothing above that line knows either exists.
+   */
+  {
+    files: ['apps/web/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tauri-apps/*', '@tauri-apps'],
+              message:
+                'Tauri modules belong in apps/desktop only. Depend on the SqliteConnection ' +
+                'port instead, and let the desktop supply the adapter.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // ---- Layer boundaries -----------------------------------------------------
   {
     files: ['packages/domain/**/*.ts', 'packages/application/**/*.ts'],

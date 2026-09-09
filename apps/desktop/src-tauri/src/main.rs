@@ -11,6 +11,17 @@
 
 mod credentials;
 
+/// The local database.
+///
+/// Resolved by the SQL plugin against the platform's application-data directory —
+/// `~/Library/Application Support/com.carl.pos` on macOS, `%APPDATA%\\com.carl.pos` on
+/// Windows — so it survives restarts and updates, and is never inside the bundle.
+///
+/// This string must match the one the frontend passes to `Database.load`, because the
+/// plugin keys registered migrations by it. A mismatch means the migrations never run
+/// against the database that is actually opened.
+const DB_URL: &str = "sqlite:carl.db";
+
 /// Stores the secret issued by `activate_device`.
 ///
 /// Called once, immediately after activation succeeds. The secret is passed straight from
@@ -56,8 +67,34 @@ fn main() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_sql::Builder::default()
-                // Migrations are applied by the plugin on startup, so a terminal updated
-                // after months offline brings its local database forward before it is used.
+                /*
+                 * The local schema, applied on first connection.
+                 *
+                 * This registration is the whole reason the terminal has any tables. Without
+                 * it `Builder::default()` runs no migrations at all, `Database.load` returns
+                 * an empty database, and the first query fails with "no such table:
+                 * device_config" — after the application has already told the user it
+                 * started.
+                 *
+                 * `include_str!` embeds the schema into the binary, so a terminal carries
+                 * its own migrations and does not need to fetch anything to come up. A
+                 * terminal updated after months offline brings its database forward before
+                 * it is used.
+                 *
+                 * Adding to the schema means adding a NEW migration with the next version
+                 * number, never editing this one: sqlx records which versions have run, and
+                 * an edited migration is silently skipped on every terminal that already
+                 * applied it.
+                 */
+                .add_migrations(
+                    DB_URL,
+                    vec![tauri_plugin_sql::Migration {
+                        version: 1,
+                        description: "carl local schema",
+                        sql: include_str!("../schema.sql"),
+                        kind: tauri_plugin_sql::MigrationKind::Up,
+                    }],
+                )
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())

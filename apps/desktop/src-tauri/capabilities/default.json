@@ -1,14 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The minimum a till needs: its own window, its own local database, and a file dialog for exporting a report.",
-  "windows": ["main"],
+  "description": "The minimum a till needs: its own window, its own local database, and a file dialog for exporting a report. No filesystem, no shell, no HTTP plugin \u2014 the frontend reaches Carl through ordinary fetch, which the CSP already confines to the Supabase and Carl origins.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
-    "sql:default",
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
+    "sql:allow-close",
     "dialog:allow-save"
   ]
 }
