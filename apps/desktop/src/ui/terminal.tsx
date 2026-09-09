@@ -377,7 +377,12 @@ export function Terminal({
         <PaymentPanel
           runtime={runtime}
           config={config}
+          cashierName={cashier.displayName}
           total={totals.total}
+          subtotal={totals.subtotal}
+          discountTotal={totals.orderDiscount}
+          taxTotal={totals.tax}
+          lines={cart.lines}
           payload={toSalePayload(cart)}
           onCancel={() => setPaying(false)}
           onCompleted={async () => {

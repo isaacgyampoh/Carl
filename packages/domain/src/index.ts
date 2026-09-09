@@ -10,3 +10,4 @@
 export * from './access/permissions';
 export * from './access/roles';
 export * from './sales/cart';
+export * from './sales/receipt';

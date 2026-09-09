@@ -11,7 +11,7 @@
  */
 
 import { useState } from 'react';
-import type { SaleItemPayload } from '@carl/domain';
+import { receiptText, type CartLine, type SaleItemPayload } from '@carl/domain';
 
 import type { Runtime } from '../app';
 import type { DeviceConfig } from '../lib/device-store';
@@ -31,14 +31,24 @@ const money = (minor: number, currency: string): string =>
 export function PaymentPanel({
   runtime,
   config,
+  cashierName,
   total,
+  subtotal,
+  discountTotal,
+  taxTotal,
+  lines,
   payload,
   onCancel,
   onCompleted,
 }: {
   runtime: Runtime;
   config: DeviceConfig;
+  cashierName: string;
   total: number;
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  lines: readonly CartLine[];
   payload: { items: SaleItemPayload[] };
   onCancel: () => void;
   onCompleted: () => void | Promise<void>;
@@ -77,6 +87,52 @@ export function PaymentPanel({
           tier: 'RETAIL',
         },
       } as never);
+
+      /*
+       * The receipt, stored against the queued sale.
+       *
+       * Kept locally so a customer who comes back an hour later can have it reprinted even
+       * though the sale has not reached the server. It is marked as not yet synced, because
+       * a shop reconciling its day has to be able to tell which receipts represent sales
+       * the server has not seen.
+       *
+       * Failing to store it must not fail the sale: the money has been taken and the sale
+       * is already on disk. A missing reprint is an inconvenience; a lost sale is not.
+       */
+      try {
+        const body = receiptText(
+          {
+            businessName: config.tenantName,
+            branchName: config.branchName,
+            saleNumber: `LOCAL-${idempotencyKey.slice(0, 8).toUpperCase()}`,
+            soldAt: new Date(soldAt),
+            cashierName,
+            lines: lines.map((line) => ({
+              name: line.name,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              lineTotal: line.unitPrice * (line.quantity / 1000),
+            })),
+            subtotal,
+            discountTotal,
+            taxTotal,
+            total,
+            payments: [{ method, amount: total }],
+            amountPaid: method === 'CASH' ? given : total,
+            changeGiven: method === 'CASH' && change > 0 ? change : 0,
+            currencyCode: `${config.currencyCode} `,
+            pendingSync: true,
+          },
+          32,
+        );
+        await runtime.connection.execute(
+          `insert into local_receipts (queue_id, receipt_body) values (?, ?)
+           on conflict (queue_id) do update set receipt_body = excluded.receipt_body`,
+          [idempotencyKey, body],
+        );
+      } catch {
+        // The sale is safe. A receipt that cannot be stored is not a reason to fail it.
+      }
 
       // Only now is the cashier told. The sale is on disk.
       await onCompleted();
