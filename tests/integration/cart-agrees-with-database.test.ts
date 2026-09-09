@@ -227,7 +227,22 @@ describe('the cart agrees with the database', () => {
     });
   }
 
-  it('agrees across a hundred randomly generated baskets', async () => {
+  /*
+   * How many random baskets to generate.
+   *
+   * A hundred against the in-process database takes a couple of seconds. The same hundred
+   * against a remote Supabase project is a hundred sequential sales, each several network
+   * round-trips — minutes, not seconds. The remote run is a pre-release gate, not something
+   * run on every save, so it uses a smaller sample by default and the full hundred still
+   * runs locally on every commit.
+   *
+   * Override with CARL_PROPERTY_ITERATIONS to run the full sample anywhere.
+   */
+  const iterations = Number(
+    process.env.CARL_PROPERTY_ITERATIONS ?? (process.env.CARL_TEST_DB_DRIVER === 'pg' ? 15 : 100),
+  );
+
+  it(`agrees across ${iterations} randomly generated baskets`, async () => {
     // Property-based rather than example-based: the cases above are the ones a person
     // thinks of, and rounding bugs hide in the ones nobody does.
     const seed = Number(process.env.CARL_TEST_SEED ?? Date.now() % 2_147_483_647);
@@ -251,7 +266,7 @@ describe('the cart agrees with the database', () => {
       });
     }
 
-    for (let attempt = 0; attempt < 100; attempt += 1) {
+    for (let attempt = 0; attempt < iterations; attempt += 1) {
       const lineCount = 1 + Math.floor(random() * 4);
       const chosen = [...products].sort(() => random() - 0.5).slice(0, lineCount);
 

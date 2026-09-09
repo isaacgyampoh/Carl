@@ -7,4 +7,5 @@
 
 export * from './primitives';
 export * from './sales';
+export * from './catalogue';
 export { z } from 'zod';

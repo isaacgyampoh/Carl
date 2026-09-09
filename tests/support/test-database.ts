@@ -45,7 +45,10 @@ const SEEDED_REFERENCE_TABLES = [
   'permissions',
   'role_templates',
   'role_template_permissions',
-  'subscription_plans',
+  // `subscription_plans` is deliberately NOT preserved. Only permissions and role
+  // templates are needed by provision_tenant(); plans are ordinary data that tests insert,
+  // and preserving them made a second run collide on the unique key against a persistent
+  // database.
 ] as const;
 
 export interface QueryResult<T> {
@@ -79,6 +82,20 @@ export interface TestDatabase {
 
   /** Runs `fn` as the trusted server role, which bypasses RLS. Use only to arrange fixtures. */
   asServiceRole<T>(fn: () => Promise<T>): Promise<T>;
+
+  /**
+   * Runs `fn` as the connection's own role, with no role assumed.
+   *
+   * For setup that in production is not a database operation at all. Creating an account is
+   * the clearest case: on real Supabase `auth.users` is owned by `supabase_auth_admin` and
+   * accounts are created through the Auth admin API — `service_role` has no privileges on
+   * it whatsoever.
+   *
+   * An earlier version of the fixtures created users inside `asServiceRole`, which worked
+   * locally because the shim granted it and failed against a real project with "permission
+   * denied for table users" on forty tests. The shim has since been corrected to match.
+   */
+  asAdmin<T>(fn: () => Promise<T>): Promise<T>;
 
   /**
    * Asserts a statement is refused.
@@ -190,6 +207,21 @@ class PgliteTestDatabase implements TestDatabase {
     return this.withIdentity('service_role', { role: 'service_role' }, fn);
   }
 
+  async asAdmin<T>(fn: () => Promise<T>): Promise<T> {
+    // Whatever role is currently assumed is dropped for the duration and restored after,
+    // so this works whether or not the caller is already inside an identity block.
+    const { rows } = await this.query<{ role: string }>('select current_user as role');
+    const previous = rows[0]?.role;
+    await this.db.exec('reset role');
+    try {
+      return await fn();
+    } finally {
+      if (previous && previous !== 'postgres') {
+        await this.db.exec(`set role ${previous}`);
+      }
+    }
+  }
+
   async expectDenied(sql: string, params: readonly unknown[] = []): Promise<void> {
     try {
       await this.query(sql, params);
@@ -263,11 +295,17 @@ export async function createTestDatabase(
   options: CreateTestDatabaseOptions = {},
 ): Promise<TestDatabase> {
   const driver = process.env.CARL_TEST_DB_DRIVER ?? 'pglite';
+
+  if (driver === 'pg') {
+    // The identical suite, against a real Supabase project. Loaded lazily so the default
+    // in-process path never pulls in a PostgreSQL client it will not use.
+    const { createPgTestDatabase } = await import('./pg-database.js');
+    return createPgTestDatabase();
+  }
+
   if (driver !== 'pglite') {
     throw new Error(
-      `CARL_TEST_DB_DRIVER="${driver}" is not supported yet. ` +
-        'The `pg` driver is wired up in Phase 15 for pre-release verification against a real ' +
-        'Supabase instance; until then use the default in-process PGlite driver.',
+      `CARL_TEST_DB_DRIVER="${driver}" is not recognised. Use "pglite" (default) or "pg".`,
     );
   }
 

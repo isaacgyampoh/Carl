@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { Permission } from '@carl/domain';
 import { hasPermission } from '@carl/application';
 import { formatMoney } from '@carl/shared';
-import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR } from '@carl/ui';
+import Link from 'next/link';
+import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, buttonClasses } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -47,6 +48,13 @@ export default async function CustomersPage({
       <PageHeader
         title="Customers"
         description="Customers a cashier can attach to a sale. A walk-in needs no record."
+        action={
+          hasPermission(auth, Permission.CUSTOMERS_CREATE) ? (
+            <Link href="/customers/new" className={buttonClasses()}>
+              Add customer
+            </Link>
+          ) : null
+        }
       />
 
       <Card className="overflow-hidden">
@@ -74,7 +82,12 @@ export default async function CustomersPage({
                 {customers.rows.map((customer) => (
                   <TR key={customer.id}>
                     <TD>
-                      <span className="font-medium">{customer.name}</span>
+                      <Link
+                        href={`/customers/${customer.id}`}
+                        className="font-medium hover:text-[color:var(--color-brand)]"
+                      >
+                        {customer.name}
+                      </Link>
                       {!customer.is_active && (
                         <Badge tone="neutral" className="ml-2">
                           Inactive

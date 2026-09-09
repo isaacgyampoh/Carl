@@ -17,6 +17,9 @@ describe('database test harness', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
+    // Dropped first: against a real project the database persists between runs, so a
+    // bare CREATE fails on the second run with "already exists".
+    await db.exec('drop table if exists public.harness_note cascade');
     await db.exec(`
       create table public.harness_note (
         id       uuid primary key default gen_random_uuid(),

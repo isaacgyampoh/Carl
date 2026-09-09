@@ -7,8 +7,11 @@ export function PageHeader({
   action,
 }: {
   title: string;
-  description?: string;
-  action?: ReactNode;
+  // `| undefined` is required under exactOptionalPropertyTypes: callers legitimately pass
+  // a value that may be undefined, and without this they would have to spread-conditionally
+  // at every call site.
+  description?: string | undefined;
+  action?: ReactNode | undefined;
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">

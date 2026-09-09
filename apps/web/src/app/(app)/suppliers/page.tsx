@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { Permission } from '@carl/domain';
 import { formatMoney } from '@carl/shared';
-import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR } from '@carl/ui';
+import Link from 'next/link';
+import { hasPermission } from '@carl/application';
+import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, buttonClasses } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -27,7 +29,7 @@ export default async function SuppliersPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requirePermission(Permission.SUPPLIERS_VIEW);
+  const auth = await requirePermission(Permission.SUPPLIERS_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
 
@@ -45,7 +47,17 @@ export default async function SuppliersPage({
 
   return (
     <>
-      <PageHeader title="Suppliers" description="Who the business buys from, and what it owes." />
+      <PageHeader
+        title="Suppliers"
+        description="Who the business buys from, and what it owes."
+        action={
+          hasPermission(auth, Permission.SUPPLIERS_MANAGE) ? (
+            <Link href="/suppliers/new" className={buttonClasses()}>
+              Add supplier
+            </Link>
+          ) : null
+        }
+      />
 
       <Card className="overflow-hidden">
         {suppliers.rows.length === 0 ? (
@@ -68,7 +80,12 @@ export default async function SuppliersPage({
                 {suppliers.rows.map((supplier) => (
                   <TR key={supplier.id}>
                     <TD>
-                      <span className="font-medium">{supplier.name}</span>
+                      <Link
+                        href={`/suppliers/${supplier.id}`}
+                        className="font-medium hover:text-[color:var(--color-brand)]"
+                      >
+                        {supplier.name}
+                      </Link>
                       {!supplier.is_active && (
                         <Badge tone="neutral" className="ml-2">
                           Inactive

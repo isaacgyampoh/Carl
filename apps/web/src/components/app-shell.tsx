@@ -39,7 +39,11 @@ const NAV_SECTIONS: readonly { heading: string; items: readonly NavItem[] }[] = 
     items: [
       { href: '/products', label: 'Products', permissions: [Permission.PRODUCTS_VIEW] },
       { href: '/inventory', label: 'Inventory', permissions: [Permission.INVENTORY_VIEW] },
-      { href: '/transfers', label: 'Transfers', permissions: [Permission.INVENTORY_VIEW] },
+      {
+        href: '/transfers',
+        label: 'Transfers',
+        permissions: [Permission.INVENTORY_VIEW],
+      },
       { href: '/purchases', label: 'Purchases', permissions: [Permission.PURCHASES_VIEW] },
       { href: '/suppliers', label: 'Suppliers', permissions: [Permission.SUPPLIERS_VIEW] },
     ],

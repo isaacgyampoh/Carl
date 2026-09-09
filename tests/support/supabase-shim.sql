@@ -42,8 +42,12 @@ create schema if not exists auth;
 
 -- Supabase's own users table. Carl never writes to it directly; `public.profiles` mirrors
 -- the subset Carl needs and is what every foreign key points at.
+-- NOTE: `id` deliberately has NO default, matching real Supabase, where GoTrue supplies
+-- it. An earlier version of this shim defaulted to gen_random_uuid(); fixtures then relied
+-- on that and worked locally while failing against a real project. A shim that is more
+-- permissive than production hides exactly the bugs it exists to catch.
 create table if not exists auth.users (
-  id            uuid primary key default gen_random_uuid(),
+  id            uuid primary key,
   email         text unique,
   raw_user_meta_data jsonb not null default '{}'::jsonb,
   created_at    timestamptz not null default now()
@@ -102,22 +106,37 @@ $$;
 
 grant usage on schema auth to anon, authenticated, service_role;
 grant usage on schema extensions to anon, authenticated, service_role;
--- On hosted Supabase, accounts are created through the Auth admin API rather than by
--- writing to auth.users. In the harness the service role stands in for that API, so it is
--- granted write access here. `authenticated` deliberately gets read-only access, matching
--- production: an end user can never mint an account.
+-- Grants on auth.users deliberately mirror a real Supabase project, where the table is
+-- owned by `supabase_auth_admin` and accounts are created through the Auth admin API:
+--
+--   authenticated  SELECT only
+--   service_role   NOTHING — it has no privileges on auth.users at all
+--
+-- An earlier version granted service_role full access "so fixtures could create users".
+-- Fixtures then did exactly that, which worked locally and failed on forty tests against a
+-- real project with "permission denied for table users". The harness now creates accounts
+-- through `asAdmin`, which runs as the connection owner — the closest local equivalent of
+-- the Auth admin API.
 grant select on auth.users to authenticated;
-grant select, insert, update, delete on auth.users to service_role;
 
 -- Supabase grants the API roles usage on public and default privileges on new objects.
--- Without this, a table created by a migration would be unreadable by `authenticated`
--- for reasons unrelated to RLS, and an RLS test would pass for the wrong reason.
+-- Without this, a table created by a migration would be unreadable by `authenticated` for
+-- reasons unrelated to RLS, and an RLS test would pass for the wrong reason.
+--
+-- Note that `anon` is included. That is what a real Supabase project does, and an earlier
+-- version of this shim omitted it — which made the "anon holds no table privileges"
+-- assertion pass locally while failing against production, where `anon` held 364 grants.
+-- A shim more restrictive than production hides exactly the findings it exists to surface,
+-- so it now grants what Supabase grants and lets migration 0025 take them away.
 grant usage on schema public to anon, authenticated, service_role;
+
 alter default privileges in schema public
-  grant select, insert, update, delete on tables to authenticated;
+  grant select, insert, update, delete, truncate, references, trigger on tables
+  to anon, authenticated, service_role;
 alter default privileges in schema public
-  grant select, insert, update, delete on tables to service_role;
-alter default privileges in schema public grant usage, select on sequences to authenticated, service_role;
+  grant usage, select on sequences to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant execute on functions to anon, authenticated, service_role;
 
 
 -- =============================================================================

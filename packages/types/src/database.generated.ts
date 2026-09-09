@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 51 relations, 27 enums, 31 functions.
+ * 51 relations, 27 enums, 35 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -3716,6 +3716,15 @@ export interface Database {
     approved_expense_id: string | null;
   }[];
       };
+      cancel_stock_transfer: {
+        Args: {
+          p_transfer_id: string;
+          p_reason: string;
+        };
+        Returns: {
+    cancelled_transfer_id: string | null;
+  }[];
+      };
       carl_test_reset: {
         Args: {
           p_preserve: string[];
@@ -3759,6 +3768,32 @@ export interface Database {
     amount_paid: number | null;
     change_given: number | null;
     was_replayed: boolean | null;
+  }[];
+      };
+      create_purchase: {
+        Args: {
+          p_branch_id: string;
+          p_items: Json;
+          p_supplier_id?: string | undefined;
+          p_supplier_invoice_no?: string | undefined;
+          p_notes?: string | undefined;
+          p_expected_at?: string | undefined;
+        };
+        Returns: {
+    purchase_id: string | null;
+    reference: string | null;
+  }[];
+      };
+      create_stock_transfer: {
+        Args: {
+          p_from_branch_id: string;
+          p_to_branch_id: string;
+          p_items: Json;
+          p_notes?: string | undefined;
+        };
+        Returns: {
+    transfer_id: string | null;
+    reference: string | null;
   }[];
       };
       device_sync_state: {
@@ -4074,6 +4109,33 @@ export interface Database {
     quantity_sold: number | null;
     revenue: number | null;
     profit: number | null;
+  }[];
+      };
+      upsert_product: {
+        Args: {
+          p_branch_id: string;
+          p_name: string;
+          p_sku: string;
+          p_retail_price: number;
+          p_product_id?: string | undefined;
+          p_category_id?: string | undefined;
+          p_description?: string | undefined;
+          p_unit?: string | undefined;
+          p_allow_fractional?: boolean | undefined;
+          p_is_stock_tracked?: boolean | undefined;
+          p_is_active?: boolean | undefined;
+          p_wholesale_price?: number | undefined;
+          p_cost_price?: number | undefined;
+          p_reorder_level?: number | undefined;
+          p_min_stock?: number | undefined;
+          p_tax_mode?: Database['public']['Enums']['tax_mode'] | undefined;
+          p_tax_rate?: number | undefined;
+          p_barcode?: string | undefined;
+          p_image_url?: string | undefined;
+        };
+        Returns: {
+    product_id: string | null;
+    was_created: boolean | null;
   }[];
       };
       void_sale: {

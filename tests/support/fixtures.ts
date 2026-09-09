@@ -38,21 +38,26 @@ export async function createUser(
   const suffix = nextSuffix();
   const email = options.email ?? `user-${suffix}@example.test`;
 
-  const { rows } = await db.query<{ id: string }>(
-    `insert into auth.users (email) values ($1) returning id`,
-    [email],
-  );
-  const userId = rows[0]!.id;
+  // Creating an account is not a tenant operation. On real Supabase `auth.users` is owned
+  // by `supabase_auth_admin` and accounts come from the Auth admin API — `service_role`
+  // has no privileges on it. `asAdmin` stands in for that, and works whether or not the
+  // caller is already inside an identity block.
+  //
+  // The id is supplied rather than defaulted, because real Supabase has no default on
+  // `auth.users.id`; GoTrue provides it.
+  const userId = randomUUID();
 
-  await db.query(`insert into profiles (id, email, full_name) values ($1, $2, $3)`, [
-    userId,
-    email,
-    options.fullName ?? `Test User ${suffix}`,
-  ]);
-
-  if (options.isPlatformAdmin) {
-    await db.query(`insert into platform_admins (user_id) values ($1)`, [userId]);
-  }
+  await db.asAdmin(async () => {
+    await db.query(`insert into auth.users (id, email) values ($1, $2)`, [userId, email]);
+    await db.query(`insert into profiles (id, email, full_name) values ($1, $2, $3)`, [
+      userId,
+      email,
+      options.fullName ?? `Test User ${suffix}`,
+    ]);
+    if (options.isPlatformAdmin) {
+      await db.query(`insert into platform_admins (user_id) values ($1)`, [userId]);
+    }
+  });
 
   return userId;
 }
