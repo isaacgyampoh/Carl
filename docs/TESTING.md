@@ -45,8 +45,50 @@ the `auth` schema, `auth.uid()`, and the `anon` / `authenticated` / `service_rol
 migrations apply unchanged and policies are exercised exactly as written. The shim is applied
 only by the harness and never reaches a deployed database.
 
-Before a release, the identical suite is pointed at a real Supabase instance
-(`CARL_TEST_DB_DRIVER=pg`, wired up in Phase 15). The assertions do not change.
+### Running against real Supabase
+
+The identical suite runs against a real project. The assertions do not change; only where
+they execute does.
+
+```bash
+export SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@<region>.pooler.supabase.com:5432/postgres'
+export CARL_TEST_DB_DRIVER=pg
+export CARL_ALLOW_DESTRUCTIVE_DB_TESTS=yes
+pnpm test:db
+```
+
+Three things about that command matter.
+
+**Use the session-mode pooler (port 5432), not transaction mode (6543).** The suite relies
+on `SET ROLE` and explicit transactions persisting across statements; transaction-mode
+pooling hands each statement to a different backend and the identity is lost between them.
+
+**`CARL_ALLOW_DESTRUCTIVE_DB_TESTS=yes` is not a formality.** The suite truncates every
+application table. The driver refuses to start without it, so a mistyped connection string
+cannot quietly destroy a real database. Point it at a disposable verification project.
+
+**It is slow.** Every query is a network round-trip; a run that takes 50 seconds locally
+takes around 35 minutes remotely. It is a pre-release gate, not something to run on save.
+The property test's sample size drops automatically on this driver and can be restored with
+`CARL_PROPERTY_ITERATIONS`.
+
+### What only the real driver can prove
+
+Two things, and both matter:
+
+**Concurrency.** PGlite is an embedded single-connection engine, so two tills contending
+for the same stock row cannot be expressed at all. `tests/db/real-concurrency.test.ts` opens
+two genuine sessions and asserts the _final database state_, not merely that both requests
+returned.
+
+**Supabase itself.** The `auth` schema, the API roles and the extension layout are
+recreated locally by `supabase-shim.sql`. A shim is a model, and a model can be wrong — the
+first real run surfaced four cases where it was more permissive than production, including
+`anon` holding 364 table grants that the shim never issued. Each has been corrected so the
+local suite would now catch the same thing.
+
+**If the shim is ever more permissive than production, it hides the bugs it exists to
+catch.** That is the single rule to keep in mind when editing it.
 
 ### Writing one
 

@@ -38,6 +38,21 @@ import pg from 'pg';
 
 import type { QueryResult, TestDatabase } from './test-database.js';
 
+/**
+ * Whether a failure means the connection is gone rather than the statement was bad.
+ *
+ * Deliberately narrow. Treating a constraint violation as retryable would re-run a write
+ * that may already have committed.
+ */
+function isConnectionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /Connection terminated|not queryable|Client has encountered a connection error|ECONNRESET|EPIPE|server closed the connection/i.test(
+      message,
+    ) && !(error as { code?: string }).code?.startsWith('2')
+  );
+}
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(HERE, '..', '..', 'supabase', 'migrations');
 
@@ -59,21 +74,72 @@ const SEEDED_REFERENCE_TABLES = [
 class PgTestDatabase implements TestDatabase {
   readonly supportsConcurrency = true;
 
+  /**
+   * Set when the connection dies underneath us.
+   *
+   * A full run takes the better part of an hour, and a pooled connection held open that
+   * long will eventually be recycled or dropped. When that happened the first time, the
+   * in-flight test timed out and every remaining test in the file failed with "Client has
+   * encountered a connection error and is not queryable" — fifteen failures from one
+   * network event, which reads like a code defect and is not one.
+   */
+  private dead = false;
+
   constructor(
-    private readonly client: pg.Client,
+    private client: pg.Client,
     private readonly connectionString: string,
-  ) {}
+  ) {
+    this.watch();
+  }
+
+  /** A dropped connection surfaces as an `error` event, not as a rejected query. */
+  private watch(): void {
+    this.client.on('error', () => {
+      this.dead = true;
+    });
+  }
+
+  private async reconnect(): Promise<void> {
+    try {
+      await this.client.end();
+    } catch {
+      // Already gone. Nothing to close.
+    }
+    this.client = new pg.Client({
+      connectionString: this.connectionString,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 15_000,
+      statement_timeout: 60_000,
+      keepAlive: true,
+    });
+    await this.client.connect();
+    this.watch();
+    this.dead = false;
+  }
 
   async query<T = Record<string, unknown>>(
     sql: string,
     params: readonly unknown[] = [],
   ): Promise<QueryResult<T>> {
-    const result = await this.client.query(sql, params as unknown[]);
-    return { rows: result.rows as T[], rowCount: result.rowCount ?? result.rows.length };
+    if (this.dead) await this.reconnect();
+
+    try {
+      const result = await this.client.query(sql, params as unknown[]);
+      return { rows: result.rows as T[], rowCount: result.rowCount ?? result.rows.length };
+    } catch (error) {
+      // Only a *connection* failure is retried. A statement that was refused, or that
+      // violated a constraint, must propagate — retrying it would turn a real failure into
+      // a confusing one, and could double-apply a write that had already committed.
+      if (!isConnectionError(error)) throw error;
+
+      await this.reconnect();
+      const result = await this.client.query(sql, params as unknown[]);
+      return { rows: result.rows as T[], rowCount: result.rowCount ?? result.rows.length };
+    }
   }
 
   async exec(sql: string): Promise<void> {
-    await this.client.query(sql);
+    await this.query(sql);
   }
 
   private async withIdentity<T>(
@@ -264,6 +330,8 @@ export async function createPgTestDatabase(options: PgDriverOptions = {}): Promi
     // timeout, which makes the cause much harder to see.
     connectionTimeoutMillis: 15_000,
     statement_timeout: 60_000,
+    // Keeps the pooler from recycling an idle connection during a long run.
+    keepAlive: true,
   });
 
   await client.connect();
