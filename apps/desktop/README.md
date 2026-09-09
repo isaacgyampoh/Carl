@@ -126,6 +126,21 @@ what the business pays its suppliers), customer balances and credit limits, ever
 branch's stock, and every other tenant's anything. Six tests in
 `tests/db/device-catalogue.test.ts` assert those absences.
 
+## Windows
+
+Windows is built by `.github/workflows/desktop.yml` on a `windows-latest` runner, which
+already carries the MSVC toolchain and the WebView2 runtime Tauri needs. That is the whole
+reason it runs there rather than being cross-compiled: a Windows installer produced by a
+machine that has never run Windows is not evidence that it works.
+
+The workflow produces `.msi` and NSIS `.exe` bundles and uploads them as the
+`carl-windows-x64` artifact, with `if-no-files-found: error` so a job that silently builds
+nothing fails rather than reporting green with nothing attached.
+
+**A successful CI build is not the same as a working installer.** Until the artifact has been
+downloaded, installed and run on Windows — SQLite initialising, a terminal activating, a
+sale completing offline — Windows stays untested, and this table will say so.
+
 ## Building
 
 ```bash
