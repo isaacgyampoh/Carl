@@ -1,0 +1,106 @@
+name: Desktop
+
+# Building the terminal on every platform it ships to.
+#
+# macOS is buildable on a developer machine; Windows is not, and pretending otherwise is
+# how an untested installer reaches a shop. This produces a real Windows artifact on a real
+# Windows runner, so "the Windows build works" is a downloadable file rather than a claim.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/**'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/**'
+      - '.github/workflows/desktop.yml'
+  # So a release build can be produced without waiting for a commit.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://ci.placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
+  # The terminal's build-time configuration. These are public by design — the anon key
+  # grants nothing on its own, because RLS decides what a signed-in user may do. No
+  # service-role key, database URL or pepper is available to this workflow, and
+  # verify-desktop-bundle.mjs fails the build if one ever appears in a bundle.
+  VITE_CARL_URL: https://app.carl.africa
+  VITE_SUPABASE_URL: https://ci.placeholder.supabase.co
+  VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
+
+jobs:
+  build:
+    name: ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      # One platform failing must not hide the other's result.
+      fail-fast: false
+      matrix:
+        platform:
+          - name: macOS (Apple silicon)
+            runner: macos-14
+            target: aarch64-apple-darwin
+            artifact: carl-macos-aarch64
+            # The bundles a shop would actually be handed.
+            paths: |
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app
+          - name: Windows (x64)
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: carl-windows-x64
+            paths: |
+              apps/desktop/src-tauri/target/release/bundle/msi/*.msi
+              apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The Windows runner already carries the MSVC toolchain and the WebView2 runtime that
+      # Tauri needs, so nothing beyond Rust has to be installed. That is the entire reason
+      # this job exists on a Windows runner rather than being cross-compiled.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      # Rust dominates the build time; without this every run compiles the whole tree.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # Fails the job before anything is bundled if the desktop code does not compile.
+      - name: Typecheck the desktop client
+        run: pnpm --filter @carl/desktop typecheck
+
+      - name: Desktop unit tests
+        run: pnpm vitest run --project unit apps/desktop
+
+      # Runs verify-desktop-bundle.mjs as part of `pnpm build`, so a bundle with a bare
+      # specifier, a missing SQL plugin, or an embedded secret never reaches an installer.
+      - name: Build
+        run: pnpm --filter @carl/desktop bundle
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact }}
+          path: ${{ matrix.platform.paths }}
+          if-no-files-found: error
+          retention-days: 14
