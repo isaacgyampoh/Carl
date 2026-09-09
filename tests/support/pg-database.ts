@@ -76,18 +76,50 @@ export function isConnectionError(error: unknown): boolean {
   return TRANSPORT_FAULT.test(code) || TRANSPORT_FAULT.test(message);
 }
 
+/** The client options every connection in this driver uses. */
+function clientOptions(connectionString: string): pg.ClientConfig {
+  return {
+    connectionString,
+    // Supabase terminates TLS at the pooler with a certificate chain Node does not carry
+    // by default. The connection is still encrypted; only chain verification is relaxed.
+    ssl: { rejectUnauthorized: false },
+    // A hung connection should fail the suite quickly rather than sit until the hook
+    // timeout, which makes the cause much harder to see.
+    connectionTimeoutMillis: 15_000,
+    statement_timeout: 60_000,
+    // Keeps the pooler from recycling an idle connection during a long run.
+    keepAlive: true,
+  };
+}
+
 /**
  * Opens a connection, tolerating a network that is briefly unavailable.
+ *
+ * ## A fresh client per attempt, which is the whole point
+ *
+ * A `pg.Client` is single-use. Once `connect()` has been called on one — even if it failed
+ * — that client is spent, and calling `connect()` again throws:
+ *
+ *     Client has already been connected. You cannot reuse a client.
+ *
+ * An earlier version of this function retried on the same client. The result was worse than
+ * having no retry at all: a momentary network fault became a hard failure with a message
+ * describing a bug in the harness rather than the network, and it took out ten tests across
+ * six suites in one run. So the client is constructed here, per attempt, and never handed in.
  *
  * Bounded on purpose: a genuinely wrong host or a rotated password must still fail, and
  * fail while the person who typed it is still watching.
  */
-async function connect(client: pg.Client, attempts = 4): Promise<void> {
+export async function connect(connectionString: string, attempts = 4): Promise<pg.Client> {
   for (let attempt = 1; ; attempt += 1) {
+    const client = new pg.Client(clientOptions(connectionString));
     try {
       await client.connect();
-      return;
+      return client;
     } catch (error) {
+      // Nothing reuses this one, but leaving a half-open socket behind would leak a
+      // connection slot on the pooler for every failed attempt.
+      await client.end().catch(() => undefined);
       // An authentication failure is an answer from the server, not a transport fault.
       if (attempt >= attempts || !isConnectionError(error)) throw error;
       await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
@@ -147,14 +179,8 @@ class PgTestDatabase implements TestDatabase {
     } catch {
       // Already gone. Nothing to close.
     }
-    this.client = new pg.Client({
-      connectionString: this.connectionString,
-      ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 15_000,
-      statement_timeout: 60_000,
-      keepAlive: true,
-    });
-    await connect(this.client);
+    // `connect` builds the client, because a spent one cannot be reconnected.
+    this.client = await connect(this.connectionString);
     this.watch();
     this.dead = false;
   }
@@ -280,12 +306,7 @@ class PgTestDatabase implements TestDatabase {
 
   /** A second, independent session against the same database. This is the point of this driver. */
   async concurrent(): Promise<TestDatabase> {
-    const client = new pg.Client({
-      connectionString: this.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
-    await connect(client);
-    return new PgTestDatabase(client, this.connectionString);
+    return new PgTestDatabase(await connect(this.connectionString), this.connectionString);
   }
 
   /**
@@ -360,11 +381,28 @@ class PgTestDatabase implements TestDatabase {
      * Failure is ignored: reclaiming space must never be the reason a suite reports red.
      */
     try {
+      /*
+       * Bounded, because reclaiming space must never be the reason a suite reports red.
+       *
+       * Without a timeout this ran under the driver's ordinary 60s statement limit but
+       * inside a 300s `afterAll` hook, and on a contended database it exhausted the hook —
+       * turning a housekeeping step into four failed suites whose stack traces pointed at
+       * `afterAll` and said nothing about vacuuming.
+       *
+       * 20 seconds is enough on an idle database and is abandoned without complaint on a
+       * busy one. The catalogue bloat it prevents accrues slowly; a red suite does not.
+       */
+      // Session-level, not `set local`: LOCAL only applies inside a transaction, and
+      // VACUUM cannot run in one — so `set local` here would be a silent no-op and the
+      // bound would not exist. The connection is closed immediately afterwards, so
+      // changing the session setting affects nothing else.
+      await this.client.query('set statement_timeout = 20000');
       await this.client.query('vacuum pg_class, pg_attribute, pg_depend, pg_type');
     } catch {
-      // Not permitted, or the connection is already gone. Neither affects the result.
+      // Not permitted, timed out, or the connection is already gone. None affects the
+      // result of the tests that just ran.
     }
-    await this.client.end();
+    await this.client.end().catch(() => undefined);
   }
 }
 
@@ -392,22 +430,9 @@ export async function createPgTestDatabase(options: PgDriverOptions = {}): Promi
     );
   }
 
-  const client = new pg.Client({
-    connectionString,
-    // Supabase terminates TLS at the pooler with a certificate chain Node does not carry
-    // by default. The connection is still encrypted; only chain verification is relaxed.
-    ssl: { rejectUnauthorized: false },
-    // A hung connection should fail the suite quickly rather than sit until the hook
-    // timeout, which makes the cause much harder to see.
-    connectionTimeoutMillis: 15_000,
-    statement_timeout: 60_000,
-    // Keeps the pooler from recycling an idle connection during a long run.
-    keepAlive: true,
-  });
-
   // Retrying: every suite file opens its own connection, so a momentary network blip
   // would otherwise fail eighteen `beforeAll` hooks at once.
-  await connect(client);
+  const client = await connect(connectionString);
   const db = new PgTestDatabase(client, connectionString);
 
   if (options.applyMigrations) {

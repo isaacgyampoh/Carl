@@ -77,12 +77,18 @@ describe('audit log', () => {
         ),
       );
 
+      // Identified by what it says, not by where it happens to appear.
+      //
+      // This previously selected without ORDER BY and took `.at(-1)`. SQL guarantees no
+      // ordering without one: PGlite returned insertion order, real PostgreSQL did not, and
+      // the test picked up the opening-stock entry instead. A position in an unordered
+      // result set is not a way to find a row.
       const { rows } = await db.asServiceRole(() =>
         db.query<{ metadata: { reason: string } }>(
           `select metadata from audit_logs where action = 'STOCK_ADJUSTED'`,
         ),
       );
-      expect(rows.at(-1)!.metadata.reason).toBe('Broken in the store room');
+      expect(rows.map((r) => r.metadata.reason)).toContain('Broken in the store room');
     });
 
     it('records a sale', async () => {
@@ -257,14 +263,19 @@ describe('audit log', () => {
         ]),
       );
 
+      // Selected by its reason. This one passed before only by luck — the opening-stock
+      // entry shares this actor, branch and tenant, so picking the wrong row gave the right
+      // answer. It is still no way to find a row.
       const { rows } = await db.asServiceRole(() =>
         db.query<{ actor_id: string; branch_id: string; tenant_id: string }>(
-          `select actor_id, branch_id, tenant_id from audit_logs where action = 'STOCK_ADJUSTED'`,
+          `select actor_id, branch_id, tenant_id from audit_logs
+            where action = 'STOCK_ADJUSTED' and metadata ->> 'reason' = 'Attribution test'`,
         ),
       );
-      expect(rows.at(-1)!.actor_id).toBe(shop.ownerUserId);
-      expect(rows.at(-1)!.branch_id).toBe(shop.branchId);
-      expect(rows.at(-1)!.tenant_id).toBe(shop.tenantId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.actor_id).toBe(shop.ownerUserId);
+      expect(rows[0]!.branch_id).toBe(shop.branchId);
+      expect(rows[0]!.tenant_id).toBe(shop.tenantId);
     });
 
     it('keeps a departed employee’s actions attributable', async () => {
@@ -282,12 +293,17 @@ describe('audit log', () => {
 
       await db.asAdmin(() => db.query(`delete from auth.users where id = $1`, [userId]));
 
+      // Found by the reason recorded with it, so the assertion is about the departed
+      // employee's own entry rather than whichever row the database happened to return
+      // last. Without an ORDER BY there is no "last".
       const { rows } = await db.asServiceRole(() =>
         db.query<{ actor_id: string }>(
-          `select actor_id from audit_logs where action = 'STOCK_ADJUSTED'`,
+          `select actor_id from audit_logs
+            where action = 'STOCK_ADJUSTED' and metadata ->> 'reason' = 'Before leaving'`,
         ),
       );
-      expect(rows.at(-1)!.actor_id, 'the departed employee’s action lost its actor').toBe(userId);
+      expect(rows, 'the departed employee’s entry is gone entirely').toHaveLength(1);
+      expect(rows[0]!.actor_id, 'the departed employee’s action lost its actor').toBe(userId);
     });
   });
 

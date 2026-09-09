@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { isConnectionError } from '../support/pg-database.js';
+import { connect, isConnectionError } from '../support/pg-database.js';
 
 /**
  * The real-PostgreSQL driver retries a statement when the connection dies, because a run
@@ -81,4 +81,48 @@ describe('the retry discriminator', () => {
     expect(isConnectionError(new Error('expected 850 to equal 849'))).toBe(false);
     expect(isConnectionError(undefined)).toBe(false);
   });
+});
+
+/**
+ * Opening a connection, when the network is not there.
+ *
+ * A `pg.Client` is single-use: once `connect()` has been called on one, even unsuccessfully,
+ * calling it again throws "Client has already been connected. You cannot reuse a client."
+ *
+ * An earlier version of the retry helper reused the client, which was worse than having no
+ * retry at all — a momentary network fault became a hard failure whose message described a
+ * bug in the harness rather than the network. It cost ten tests across six suites in one
+ * run of the real-PostgreSQL suite, and every one of them pointed at the wrong thing.
+ */
+describe('connecting with retries', () => {
+  // A host that cannot resolve. Fails the same way a dropped network does, and fast.
+  const UNREACHABLE = 'postgresql://user:pw@carl-no-such-host.invalid:5432/postgres';
+
+  // Explicit timeouts: these deliberately exercise the backoff, which sleeps between
+  // attempts, so they take longer than the suite's default.
+  it('reports the real fault, not a reused-client error', async () => {
+    await expect(connect(UNREACHABLE, 2)).rejects.toThrow(/ENOTFOUND|EAI_AGAIN|getaddrinfo/i);
+  }, 20_000);
+
+  it('never reports that the client was already connected', async () => {
+    // The exact regression, asserted on the message rather than through `.rejects.not`,
+    // which does not mean what it looks like it means. If this string ever comes back, the
+    // helper is reusing a client again and every transient blip is once more being
+    // reported as a bug in the harness.
+    const error = await connect(UNREACHABLE, 3).then(
+      () => new Error('connect unexpectedly succeeded against an unreachable host'),
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toMatch(/already been connected/i);
+    expect((error as Error).message).toMatch(/ENOTFOUND|EAI_AGAIN|getaddrinfo/i);
+  }, 30_000);
+
+  it('gives up rather than retrying forever', async () => {
+    // Bounded on purpose: a wrong host must fail while the person who typed it is watching.
+    const started = Date.now();
+    await expect(connect(UNREACHABLE, 2)).rejects.toThrow();
+    // One backoff of ~2s between two attempts, and nothing like four attempts' worth.
+    expect(Date.now() - started).toBeLessThan(20_000);
+  }, 30_000);
 });
