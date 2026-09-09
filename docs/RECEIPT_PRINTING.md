@@ -2,15 +2,15 @@
 
 ## Status
 
-| Layer                                     | Status                                                      |
-| ----------------------------------------- | ----------------------------------------------------------- |
-| Receipt content (`renderReceipt`)         | ✅ **Implemented and tested** — 18 tests in `@carl/domain`   |
-| Stored for reprint on the terminal        | ✅ Implemented — `local_receipts`, written with the sale     |
-| Rendered on screen                        | ✅ Web receipt dialog                                        |
-| ESC/POS encoding                          | ⬜ **Not built**                                             |
-| USB / serial / network printer transport  | ⬜ **Not built**                                             |
-| Cash drawer kick                          | ⬜ **Not built**                                             |
-| Tested on a thermal printer               | ⬜ **Never** — no hardware has been connected                |
+| Layer                                    | Status                                                     |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| Receipt content (`renderReceipt`)        | ✅ **Implemented and tested** — 18 tests in `@carl/domain` |
+| Stored for reprint on the terminal       | ✅ Implemented — `local_receipts`, written with the sale   |
+| Rendered on screen                       | ✅ Web receipt dialog                                      |
+| ESC/POS encoding                         | ⬜ **Not built**                                           |
+| USB / serial / network printer transport | ⬜ **Not built**                                           |
+| Cash drawer kick                         | ⬜ **Not built**                                           |
+| Tested on a thermal printer              | ⬜ **Never** — no hardware has been connected              |
 
 Nothing below the first three rows exists. No printer has ever been attached to this
 system, and no claim here should be read as saying otherwise.
@@ -59,11 +59,11 @@ change, which is why the content layer was built first.
 **Transport.** A Tauri command holding the connection, since a browser cannot open a USB or
 serial device. Three cases in practice:
 
-| Connection      | Approach                                                     |
-| --------------- | ------------------------------------------------------------ |
-| USB             | A Rust command using `rusb`, or the OS spool queue            |
-| Network (9100)  | A raw TCP socket from Rust — the simplest and most reliable   |
-| Bluetooth       | Serial profile via the OS                                     |
+| Connection     | Approach                                                    |
+| -------------- | ----------------------------------------------------------- |
+| USB            | A Rust command using `rusb`, or the OS spool queue          |
+| Network (9100) | A raw TCP socket from Rust — the simplest and most reliable |
+| Bluetooth      | Serial profile via the OS                                   |
 
 Network printers are the most practical first target: no driver, no permissions dialog, and
 the same code path on macOS and Windows.
