@@ -37,6 +37,7 @@ import { SyncEngine, SyncState } from '@carl/sync';
 
 import type { Runtime } from '../app';
 import type { Cashier, CashierSession } from '../lib/cashier-session';
+import { CatalogueSync } from '../lib/catalogue-sync';
 import { DeviceSyncTransport } from '../lib/sync-transport';
 import type { CatalogueItem } from '../lib/catalogue-store';
 import type { DeviceConfig } from '../lib/device-store';
@@ -86,6 +87,31 @@ export function Terminal({
       }),
     [runtime, config.deviceId, secret, session],
   );
+
+  const catalogue = useMemo(
+    () =>
+      new CatalogueSync(runtime.api, runtime.catalogue, runtime.devices, {
+        deviceId: config.deviceId,
+        deviceSecret: secret,
+      }),
+    [runtime, config.deviceId, secret],
+  );
+
+  /**
+   * Refresh the catalogue on start and every ten minutes.
+   *
+   * Failure is deliberately silent. A catalogue that cannot be refreshed is a normal
+   * Tuesday in a shop with bad internet, and the till goes on selling yesterday's list —
+   * which is what it is for.
+   */
+  useEffect(() => {
+    // First run has no cursor, so this is a full download; afterwards it is incremental
+    // and transfers almost nothing.
+    const pull = () => void catalogue.run().catch(() => undefined);
+    pull();
+    const timer = setInterval(pull, 600_000);
+    return () => clearInterval(timer);
+  }, [catalogue]);
 
   const refreshPending = useCallback(async () => {
     const counts = await runtime.queue.counts();
@@ -178,7 +204,10 @@ export function Terminal({
         config={config}
         cashier={cashier}
         pendingCount={pending}
-        onSync={() => void engine.run()}
+        onSync={() => {
+          void engine.run();
+          void catalogue.run().catch(() => undefined);
+        }}
         onSignOut={onSignOut}
       />
 
