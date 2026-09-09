@@ -2,6 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { systemClock } from '@carl/shared';
 import {
   SyncEngine,
@@ -241,7 +243,8 @@ describe('a terminal that goes offline', () => {
   it('survives the terminal being killed mid-shift', async () => {
     // The property the durable queue exists for. Three sales, then the process dies —
     // no graceful shutdown, no flush.
-    const path = `/tmp/carl-offline-${randomUUID()}.db`;
+    // `os.tmpdir()`, not a hardcoded /tmp, which does not exist on Windows.
+    const path = join(tmpdir(), `carl-offline-${randomUUID()}.db`);
     const first = new NodeSqliteConnection(path);
     for (const statement of TILL_SCHEMA.split(';')) {
       if (statement.trim()) await first.execute(statement);
@@ -265,6 +268,9 @@ describe('a terminal that goes offline', () => {
     await engineFor(wire).run();
     expect(await serverSales()).toBe(2);
     second.close();
+    for (const suffix of ['', '-wal', '-shm']) {
+      rmSync(`${path}${suffix}`, { force: true });
+    }
     queue = saved;
   });
 

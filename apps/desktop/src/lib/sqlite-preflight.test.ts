@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { unlinkSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { NodeSqliteConnection } from '@carl/sync/sqlite/node-sqlite-adapter';
 
@@ -110,7 +111,8 @@ describe('verifyLocalDatabase', () => {
     it('confirms data survived once the terminal has been restarted', async () => {
       // The only check here that distinguishes a working file from a working *in-memory*
       // database — which is exactly the failure a POS cannot afford.
-      const path = `/tmp/carl-preflight-${randomUUID()}.db`;
+      // `os.tmpdir()`, not a hardcoded /tmp, which does not exist on Windows.
+      const path = join(tmpdir(), `carl-preflight-${randomUUID()}.db`);
       const first = new NodeSqliteConnection(path);
       await applySchema(first);
       expect((await verifyLocalDatabase(first)).bootCount).toBe(1);
@@ -126,7 +128,9 @@ describe('verifyLocalDatabase', () => {
         ok: true,
       });
       second.close();
-      unlinkSync(path);
+      for (const suffix of ['', '-wal', '-shm']) {
+        rmSync(`${path}${suffix}`, { force: true });
+      }
     });
   });
 });

@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fixedClock } from '@carl/shared';
 
 import { SyncEngine } from '../engine';
@@ -149,7 +153,10 @@ describe('SqliteSyncQueue', () => {
     it('survives closing and reopening the database', async () => {
       // The property the whole implementation exists for: a sale written before a crash is
       // still there afterwards.
-      const path = `/tmp/carl-queue-test-${Date.now()}.db`;
+      // `os.tmpdir()`, not a hardcoded /tmp: that directory does not exist on Windows, and
+      // this suite runs on a Windows runner precisely so a terminal built there is tested
+      // there. The Windows job caught this.
+      const path = join(tmpdir(), `carl-queue-test-${randomUUID()}.db`);
       const first = new NodeSqliteConnection(path);
       const persisted = new SqliteSyncQueue(first);
       await persisted.migrate();
@@ -169,6 +176,10 @@ describe('SqliteSyncQueue', () => {
       expect(recovered?.state).toBe(SyncState.PENDING);
       expect(recovered?.payload).toEqual({ total: 12345 });
       second.close();
+      // WAL leaves -wal and -shm beside the database.
+      for (const suffix of ['', '-wal', '-shm']) {
+        rmSync(`${path}${suffix}`, { force: true });
+      }
     });
 
     it('rejects an unknown state at the database level', async () => {
