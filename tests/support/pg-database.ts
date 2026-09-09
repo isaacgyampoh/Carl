@@ -39,18 +39,58 @@ import pg from 'pg';
 import type { QueryResult, TestDatabase } from './test-database.js';
 
 /**
+ * Node socket and DNS faults. These mean the statement never reached PostgreSQL.
+ *
+ * `ENOTFOUND` and `EADDRNOTAVAIL` are here because a definitive run lost DNS resolution
+ * 37 minutes in: eighteen suites failed at `beforeAll` with `getaddrinfo ENOTFOUND`, which
+ * reads exactly like a schema regression and was a laptop losing its network.
+ */
+const TRANSPORT_FAULT =
+  /Connection terminated|not queryable|Client has encountered a connection error|server closed the connection|getaddrinfo|ECONNRESET|EPIPE|ENOTFOUND|EADDRNOTAVAIL|ECONNREFUSED|ENETUNREACH|ENETDOWN|ETIMEDOUT|EHOSTUNREACH|socket hang up/i;
+
+/**
  * Whether a failure means the connection is gone rather than the statement was bad.
  *
- * Deliberately narrow. Treating a constraint violation as retryable would re-run a write
- * that may already have committed.
+ * The discriminator is `pg.DatabaseError`: PostgreSQL only produces one after it has
+ * received, parsed and refused the statement. So a constraint violation, a permission
+ * denial, or a RAISE from a function is never retried, no matter what its message says —
+ * which matters because these tests assert that writes *fail*, and a retry that turned a
+ * refusal into a pass would be a security test lying.
+ *
+ * Everything retried here is a fault below the protocol, where the server never saw the
+ * statement at all.
  */
-function isConnectionError(error: unknown): boolean {
+export function isConnectionError(error: unknown): boolean {
+  // The server answered. Whatever it said, it is the answer.
+  if (error instanceof pg.DatabaseError) return false;
+
+  // Not every rejection is an object. Reading `.code` off a thrown null would replace the
+  // real failure with a TypeError from inside the error handler, which is how a plain bug
+  // ends up reported as something unrelated.
+  if (typeof error !== 'object' || error === null) return false;
+
+  const code = (error as { code?: string }).code ?? '';
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    /Connection terminated|not queryable|Client has encountered a connection error|ECONNRESET|EPIPE|server closed the connection/i.test(
-      message,
-    ) && !(error as { code?: string }).code?.startsWith('2')
-  );
+  return TRANSPORT_FAULT.test(code) || TRANSPORT_FAULT.test(message);
+}
+
+/**
+ * Opens a connection, tolerating a network that is briefly unavailable.
+ *
+ * Bounded on purpose: a genuinely wrong host or a rotated password must still fail, and
+ * fail while the person who typed it is still watching.
+ */
+async function connect(client: pg.Client, attempts = 4): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await client.connect();
+      return;
+    } catch (error) {
+      // An authentication failure is an answer from the server, not a transport fault.
+      if (attempt >= attempts || !isConnectionError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+    }
+  }
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -112,7 +152,7 @@ class PgTestDatabase implements TestDatabase {
       statement_timeout: 60_000,
       keepAlive: true,
     });
-    await this.client.connect();
+    await connect(this.client);
     this.watch();
     this.dead = false;
   }
@@ -147,17 +187,25 @@ class PgTestDatabase implements TestDatabase {
     claims: Record<string, unknown> | null,
     fn: () => Promise<T>,
   ): Promise<T> {
-    await this.client.query(`select set_config('request.jwt.claims', $1, false)`, [
+    // Through `query()`, not the raw client: these run at the start of every test, so a
+    // connection that died between tests must be rebuilt here rather than turning the next
+    // suite red. Setting a role and a claim is idempotent, so a retry is always safe.
+    await this.query(`select set_config('request.jwt.claims', $1, false)`, [
       claims === null ? '' : JSON.stringify(claims),
     ]);
-    await this.client.query(`set role ${role}`);
+    await this.query(`set role ${role}`);
     try {
       return await fn();
     } finally {
       // Restored even when the body throws, so one failing test cannot leave the
       // connection impersonating someone else for every test after it.
-      await this.client.query('reset role');
-      await this.client.query(`select set_config('request.jwt.claims', '', false)`);
+      //
+      // A reconnect resets the role by itself, so failing to reset it on a dead connection
+      // is not a leak — and must not mask the error that killed it.
+      await this.query('reset role').catch(() => undefined);
+      await this.query(`select set_config('request.jwt.claims', '', false)`).catch(
+        () => undefined,
+      );
     }
   }
 
@@ -184,12 +232,12 @@ class PgTestDatabase implements TestDatabase {
   async asAdmin<T>(fn: () => Promise<T>): Promise<T> {
     const { rows } = await this.query<{ role: string }>('select current_user as role');
     const previous = rows[0]?.role;
-    await this.client.query('reset role');
+    await this.query('reset role');
     try {
       return await fn();
     } finally {
       if (previous && previous !== 'postgres') {
-        await this.client.query(`set role ${previous}`);
+        await this.query(`set role ${previous}`).catch(() => undefined);
       }
     }
   }
@@ -236,7 +284,7 @@ class PgTestDatabase implements TestDatabase {
       connectionString: this.connectionString,
       ssl: { rejectUnauthorized: false },
     });
-    await client.connect();
+    await connect(client);
     return new PgTestDatabase(client, this.connectionString);
   }
 
@@ -254,13 +302,16 @@ class PgTestDatabase implements TestDatabase {
    * because the tables being checked are empty.
    */
   async reset(): Promise<void> {
-    await this.client.query('reset role').catch(() => undefined);
+    await this.query('reset role').catch(() => undefined);
     // A DO block is not a prepared statement and cannot take bind parameters, so the
     // preserved-table list is inlined. These are compile-time constants in this file, not
     // caller input, and each is quoted as a literal regardless.
     const preserved = SEEDED_REFERENCE_TABLES.map((t) => `'${t}'`).join(', ');
 
-    await this.client.query(
+    // Through `query()`: `reset()` runs in `beforeEach`, and this is the exact statement
+    // that failed on a dead connection in the run that lost DNS — one network event, 242
+    // skipped tests. Truncation is idempotent, so a reconnect-and-retry is safe.
+    await this.query(
       `do $$
        declare
          r         record;
@@ -293,6 +344,26 @@ class PgTestDatabase implements TestDatabase {
   }
 
   async close(): Promise<void> {
+    /*
+     * Reclaim catalogue churn before disconnecting.
+     *
+     * Even truncating only populated tables, a full run rewrites enough of pg_class to add
+     * roughly 370 kB per pass — down from twelve times that, but not zero. Left alone
+     * across many runs it eventually fills a small project's disk, which is how this suite
+     * once died with "No space left on device".
+     *
+     * A transaction-per-test rollback would avoid the churn entirely and is the better
+     * long-term answer. It is not done here because it requires a SAVEPOINT around every
+     * statement that is expected to fail, and a mishandled savepoint makes a security test
+     * pass for the wrong reason — a worse outcome than some catalogue bloat.
+     *
+     * Failure is ignored: reclaiming space must never be the reason a suite reports red.
+     */
+    try {
+      await this.client.query('vacuum pg_class, pg_attribute, pg_depend, pg_type');
+    } catch {
+      // Not permitted, or the connection is already gone. Neither affects the result.
+    }
     await this.client.end();
   }
 }
@@ -334,7 +405,9 @@ export async function createPgTestDatabase(options: PgDriverOptions = {}): Promi
     keepAlive: true,
   });
 
-  await client.connect();
+  // Retrying: every suite file opens its own connection, so a momentary network blip
+  // would otherwise fail eighteen `beforeAll` hooks at once.
+  await connect(client);
   const db = new PgTestDatabase(client, connectionString);
 
   if (options.applyMigrations) {

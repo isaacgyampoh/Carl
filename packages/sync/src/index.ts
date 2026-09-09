@@ -10,3 +10,4 @@ export * from './ports';
 export * from './backoff';
 export * from './engine';
 export * from './memory-queue';
+export * from './sqlite/sqlite-queue';
