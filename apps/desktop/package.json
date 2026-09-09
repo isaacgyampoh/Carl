@@ -4,19 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"@carl/desktop is built with: pnpm --filter @carl/desktop bundle\"",
+    "build": "vite build",
     "bundle": "tauri build",
-    "dev": "tauri dev",
+    "dev": "vite",
     "check": "cd src-tauri && cargo check",
-    "typecheck": "echo \"@carl/desktop has no TypeScript of its own yet\"",
-    "tauri": "tauri"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "tauri": "tauri",
+    "dev:desktop": "tauri dev"
   },
   "dependencies": {
     "@carl/sync": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-sql": "^2.0.0"
+    "@tauri-apps/plugin-sql": "^2.0.0",
+    "@carl/domain": "workspace:*",
+    "@carl/shared": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "6.0.3",
+    "vite": "^8.0.0"
   }
 }

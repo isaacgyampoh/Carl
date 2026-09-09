@@ -20,6 +20,9 @@ export default defineConfig({
           include: [
             'packages/*/src/**/*.test.ts',
             'packages/*/src/**/*.test.tsx',
+            // The desktop client's own logic. It runs here rather than needing a compiled
+            // Tauri binary, which is the only way it gets run at all.
+            'apps/desktop/src/**/*.test.ts',
             'tests/unit/**/*.test.ts',
           ],
         },

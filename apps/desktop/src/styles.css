@@ -1,0 +1,75 @@
+/*
+ * Deliberately plain and deliberately large.
+ *
+ * A till is used at arm's length, often standing, sometimes in poor light, by someone who
+ * is also handling money and talking to a customer. Small targets and low contrast are not
+ * a style choice here; they are mistakes that cost the shop money.
+ */
+:root {
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-raised: #1f242d;
+  --border: #2a303b;
+  --text: #f2f4f8;
+  --muted: #9aa4b2;
+  --accent: #3d7dfa;
+  --danger: #e5484d;
+  --warning: #f5a524;
+  --ok: #30a46c;
+
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 17px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  /* A till is not a document. Selecting text with a barcode scanner attached is never
+     intended, and a highlighted receipt looks broken to a cashier. */
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* 44px minimum: a fingertip target, because these are used on touch screens. */
+  min-height: 44px;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  width: 100%;
+  user-select: text;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

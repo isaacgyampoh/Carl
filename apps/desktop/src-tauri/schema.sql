@@ -48,6 +48,21 @@ create table if not exists device_config (
 );
 
 -- -----------------------------------------------------------------------------
+-- Local settings.
+--
+-- Durable key/value for the handful of things a terminal must remember before it has a
+-- `device_config` row at all. The install id is the reason this exists: it is generated on
+-- first run and is what makes a retried activation idempotent, so it must survive both a
+-- failed activation and a cleared webview store. Browser storage would not.
+--
+-- Not a place for credentials. Those are in the OS credential store.
+-- -----------------------------------------------------------------------------
+create table if not exists local_settings (
+  key   text primary key,
+  value text not null
+);
+
+-- -----------------------------------------------------------------------------
 -- Catalogue cache
 -- -----------------------------------------------------------------------------
 create table if not exists products (

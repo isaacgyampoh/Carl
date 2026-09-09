@@ -220,8 +220,8 @@ describe('SqliteSyncQueue', () => {
           payload: { n: index },
           occurredAt,
         };
-        await queue.enqueue(entry as never);
-        await memory.enqueue(entry as never);
+        await queue.enqueue(entry);
+        await memory.enqueue(entry);
       }
 
       const sqliteEngine = new SyncEngine({

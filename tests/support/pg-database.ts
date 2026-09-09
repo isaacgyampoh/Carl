@@ -70,7 +70,9 @@ export function isConnectionError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
 
   const code = (error as { code?: string }).code ?? '';
-  const message = error instanceof Error ? error.message : String(error);
+  // Only Errors carry a usable message; anything else is judged on its code alone rather
+  // than stringified into "[object Object]" and matched against that.
+  const message = error instanceof Error ? error.message : '';
   return TRANSPORT_FAULT.test(code) || TRANSPORT_FAULT.test(message);
 }
 

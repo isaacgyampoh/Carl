@@ -24,7 +24,7 @@ describe('the retry discriminator', () => {
   }
 
   describe('never retries anything the server answered', () => {
-    const refusals: ReadonlyArray<readonly [string, string, string]> = [
+    const refusals: readonly (readonly [string, string, string])[] = [
       ['42501', 'permission denied for table sales', 'an RLS or grant denial'],
       ['23505', 'duplicate key value violates unique constraint', 'an idempotency claim'],
       ['23514', 'new row violates check constraint "sales_total_positive"', 'a CHECK'],
@@ -50,7 +50,7 @@ describe('the retry discriminator', () => {
   });
 
   describe('retries faults below the protocol, where the server never saw the statement', () => {
-    const faults: ReadonlyArray<readonly [string, string]> = [
+    const faults: readonly (readonly [string, string])[] = [
       ['ENOTFOUND', 'getaddrinfo ENOTFOUND aws-0-eu-west-2.pooler.supabase.com'],
       ['EADDRNOTAVAIL', 'read EADDRNOTAVAIL'],
       ['ECONNRESET', 'read ECONNRESET'],

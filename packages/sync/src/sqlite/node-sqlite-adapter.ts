@@ -26,11 +26,14 @@ export class NodeSqliteConnection implements SqliteConnection {
   // `async` deliberately: node:sqlite is synchronous, so a constraint violation would
   // otherwise escape as a synchronous throw. The interface promises a Promise, and callers
   // that `await` a write must see a rejection — not an exception thrown before the await.
+  // A test asserting `rejects.toThrow` on a CHECK constraint fails without this.
+  // eslint-disable-next-line @typescript-eslint/require-await -- see above
   async execute(sql: string, params: readonly unknown[] = []): Promise<void> {
     // node:sqlite rejects `undefined`; the queue uses null for absent values throughout.
     this.db.prepare(sql).run(...(params.map((p) => p ?? null) as never[]));
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- symmetry with execute()
   async select<T>(sql: string, params: readonly unknown[] = []): Promise<T[]> {
     return this.db.prepare(sql).all(...(params.map((p) => p ?? null) as never[])) as T[];
   }
