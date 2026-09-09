@@ -40,8 +40,21 @@ env:
   # device-secret pepper. verify-desktop-bundle.mjs fails the build if any of them appears
   # in a bundle, so this is enforced rather than trusted.
   VITE_CARL_URL: https://carl-red.vercel.app
-  VITE_SUPABASE_URL: https://nkbqqxahvytvutjrsqom.supabase.co
-  VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rYnFxeGFodnl0dnV0anJzcW9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzkzMzksImV4cCI6MjEwNDQ1NTMzOX0.tSPjwVdSanykUXfW0ulx8KhgG-4-a3fjXUateAJRfTI
+  VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://unset.supabase.co' }}
+  # Supplied by a repository variable, not committed.
+  #
+  # The anon key is public by design -- it ships in the browser bundle of every
+  # Supabase application, Carl's own web deployment included -- but committing it
+  # here trips the secret scanner, and silencing a scanner to keep a key in a file
+  # is how a real secret eventually gets committed. The scanner is right; the key
+  # moves.
+  #
+  # Set VITE_SUPABASE_ANON_KEY and VITE_SUPABASE_URL as repository *variables*
+  # (Settings -> Secrets and variables -> Actions -> Variables). Until then the
+  # fallback below still builds and still verifies the bundle, but the installers
+  # cannot sign a cashier in -- they are build-verification artifacts rather than
+  # something a shop can install.
+  VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'unset-build-verification-only' }}
 
 jobs:
   build:
