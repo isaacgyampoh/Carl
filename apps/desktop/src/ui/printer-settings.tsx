@@ -41,7 +41,24 @@ export function PrinterSettings({
   async function choose(name: string): Promise<void> {
     setSelected(name);
     setMessage(null);
-    await setPrinterSelection(runtime.connection, name);
+    try {
+      await setPrinterSelection(runtime.connection, name);
+    } catch {
+      /*
+       * The selection is held in memory as well as on disk, so the choice works for this
+       * shift either way. What fails silently otherwise is the *next* shift: the till comes
+       * back tomorrow having forgotten its printer, receipts stop, and nobody connects that
+       * to a settings screen used once yesterday.
+       *
+       * The promise was previously discarded with `void`, so this failure produced an
+       * unhandled rejection in a WebView, which is to say nothing at all.
+       */
+      setMessage(
+        'That printer is selected for now, but it could not be saved — the till will forget it ' +
+          'when it restarts. Choose it again after restarting, and tell whoever supports this ' +
+          'machine.',
+      );
+    }
   }
 
   async function testPrint(): Promise<void> {
@@ -67,8 +84,9 @@ export function PrinterSettings({
       footer: 'Printer test — not a real sale',
     };
 
-    const result = await runtime.printer.print(receiptText(sample, 32).split('\n'));
-    setBusy(false);
+    const result = await runtime.printer
+      .print(receiptText(sample, 32).split('\n'))
+      .finally(() => setBusy(false));
     // "Sent" rather than "printed": Windows confirms the spooler took the job, not that
     // paper came out. Saying otherwise sends a cashier looking for a receipt that is not
     // there without telling them why.
@@ -83,8 +101,9 @@ export function PrinterSettings({
     if (!runtime.printer) return;
     setBusy(true);
     setMessage(null);
-    const result = await runtime.printer.openDrawer();
-    setBusy(false);
+    // `finally`, so an unexpected throw cannot leave both buttons disabled with no way back
+    // except closing the screen.
+    const result = await runtime.printer.openDrawer().finally(() => setBusy(false));
     setMessage(
       result.ok
         ? 'Drawer signal sent through the printer.'
