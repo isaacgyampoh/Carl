@@ -8,30 +8,52 @@ import { signInWithPin } from '@/server/platform-auth-actions';
 const LENGTH = 4;
 
 /**
- * A four-digit PIN entry.
+ * What the owner is told when something goes wrong.
  *
- * ## Why there is no on-screen keypad
+ * An ALLOWLIST, deliberately, not a list of things to hide. Only two conditions have a
+ * message of their own; everything else — a dropped connection, an expired key, a database
+ * that is not answering, an error nobody has thought of yet — becomes the same neutral
+ * sentence.
  *
- * The owner uses a phone, a tablet and a Mac. A rendered keypad is a worse version of the
- * keyboard every one of those already has: it cannot be typed on, it fights password
- * managers, and on a phone it duplicates the numeric keyboard `inputMode` already brings
- * up. So this is a real input — typed, pasted, or filled by the device — styled as four
- * boxes.
+ * Written the other way round, as a set of technical errors to suppress, the first
+ * unanticipated failure would put "The database could not be reached." in front of a
+ * shopkeeper. That is exactly what happened before this existed.
  *
- * ## Why it submits itself
+ * The real cause is not lost: the server action logs it.
+ */
+function messageFor(
+  code: string | undefined,
+  serverMessage: string,
+): {
+  text: string;
+  retryable: boolean;
+} {
+  switch (code) {
+    case undefined:
+      // No code at all is the same unknown condition as an unrecognised one.
+      return { text: 'We’re having trouble connecting right now.', retryable: true };
+    case 'INVALID_PIN':
+      return { text: 'That PIN is not correct.', retryable: false };
+    case 'PIN_LOCKED':
+      return { text: serverMessage, retryable: false };
+    default:
+      return { text: 'We’re having trouble connecting right now.', retryable: true };
+  }
+}
+
+/**
+ * Four digits.
  *
- * Four digits is the whole credential; a Confirm button would add a tap that carries no
- * decision. It submits on the fourth digit and never before, so a partial PIN is never
- * sent anywhere.
- *
- * The PIN is held in component state for the moment it takes to submit and is cleared on
- * failure. It is never written to localStorage, never put in the URL, and never logged.
+ * A real input styled as four boxes rather than a rendered keypad: a keypad cannot be typed
+ * on, fights password managers, and on a phone duplicates the numeric keyboard `inputMode`
+ * already raises. It submits on the fourth digit, so a partial PIN never leaves the device,
+ * and there is no Confirm button because four digits is the whole credential.
  */
 export function PinPad() {
   const router = useRouter();
   const [digits, setDigits] = useState('');
-  const [status, setStatus] = useState<'idle' | 'checking' | 'error' | 'locked'>('idle');
-  const [message, setMessage] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'checking' | 'error'>('idle');
+  const [error, setError] = useState<{ text: string; retryable: boolean } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const submitted = useRef(false);
 
@@ -43,31 +65,36 @@ export function PinPad() {
     if (digits.length !== LENGTH || submitted.current) return;
     submitted.current = true;
     setStatus('checking');
-    setMessage(null);
+    setError(null);
 
     void (async () => {
       const result = await signInWithPin({ pin: digits });
       if (result.ok) {
-        // The session cookie is already set by the server action.
         router.replace(result.data.mustChangePin ? '/platform/settings?change_pin=1' : '/platform');
         router.refresh();
         return;
       }
-      setStatus(result.code === 'PIN_LOCKED' ? 'locked' : 'error');
-      setMessage(result.message);
+      setStatus('error');
+      setError(messageFor(result.code, result.message));
       setDigits('');
       submitted.current = false;
       inputRef.current?.focus();
     })();
   }, [digits, router]);
 
-  const filled = digits.length;
+  function retry() {
+    setStatus('idle');
+    setError(null);
+    setDigits('');
+    submitted.current = false;
+    inputRef.current?.focus();
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="relative" onClick={() => inputRef.current?.focus()} role="presentation">
-        {/* The real field. Visually hidden rather than display:none, so the device keyboard,
-            password managers and assistive technology all still reach it. */}
+        {/* Visually hidden rather than removed, so the device keyboard, password managers
+            and assistive technology all still reach the real field. */}
         <input
           ref={inputRef}
           type="password"
@@ -79,50 +106,58 @@ export function PinPad() {
           disabled={status === 'checking'}
           onChange={(event) => {
             const next = event.target.value.replace(/\D/g, '').slice(0, LENGTH);
-            if (status === 'error' || status === 'locked') {
+            if (status === 'error') {
               setStatus('idle');
-              setMessage(null);
+              setError(null);
             }
             setDigits(next);
           }}
           className="absolute inset-0 h-full w-full cursor-default opacity-0"
         />
-        <div
-          className={`flex justify-center gap-3 ${status === 'error' ? 'animate-[shake_0.3s]' : ''}`}
-          aria-hidden="true"
-        >
+        <div className="flex justify-center gap-3 sm:gap-4" aria-hidden="true">
           {Array.from({ length: LENGTH }, (_, index) => {
-            const active = index === filled && status !== 'checking';
-            const done = index < filled;
+            const done = index < digits.length;
+            const active = index === digits.length && status !== 'checking';
             return (
               <div
                 key={index}
                 className={[
-                  'flex h-16 w-14 items-center justify-center rounded-xl border text-2xl transition-colors',
+                  'flex h-[4.5rem] w-16 items-center justify-center rounded-2xl border text-3xl',
+                  'transition-[border-color,box-shadow] duration-150',
                   done
-                    ? 'border-[color:var(--color-brand)] bg-[color:var(--color-surface)]'
+                    ? 'border-[color:var(--color-text)] bg-[color:var(--color-surface)]'
                     : 'border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]',
-                  active ? 'ring-2 ring-[color:var(--color-brand)]' : '',
-                  status === 'error' || status === 'locked'
-                    ? 'border-[color:var(--color-danger)]'
-                    : '',
+                  active ? 'ring-2 ring-[color:var(--color-text)] ring-offset-2' : '',
+                  status === 'error' ? 'border-[color:var(--color-danger)]' : '',
+                  status === 'checking' ? 'opacity-60' : '',
                 ].join(' ')}
               >
-                {done ? <span className="text-[color:var(--color-text)]">•</span> : null}
+                {done ? <span aria-hidden>•</span> : null}
               </div>
             );
           })}
         </div>
       </div>
 
-      <p className="min-h-10 text-center text-sm" role="status" aria-live="polite">
+      <div className="min-h-16 text-center" role="status" aria-live="polite">
         {status === 'checking' && (
-          <span className="text-[color:var(--color-text-muted)]">Checking…</span>
+          <span className="text-sm text-[color:var(--color-text-muted)]">Checking…</span>
         )}
-        {message && <span className="text-[color:var(--color-danger)]">{message}</span>}
-      </p>
-
-      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}`}</style>
+        {error && (
+          <div className="space-y-3">
+            <p className="text-sm text-[color:var(--color-danger)]">{error.text}</p>
+            {error.retryable && (
+              <button
+                type="button"
+                onClick={retry}
+                className="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[color:var(--color-surface-muted)]"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

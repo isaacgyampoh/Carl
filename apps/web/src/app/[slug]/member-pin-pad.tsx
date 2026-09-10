@@ -8,6 +8,36 @@ import { signInWithMemberPin } from '@/server/member-auth-actions';
 const LENGTH = 4;
 
 /**
+ * What a shopkeeper is told when something goes wrong.
+ *
+ * An ALLOWLIST, not a list of things to suppress. Three conditions have their own message;
+ * everything else becomes one neutral sentence, so an error nobody anticipated cannot put
+ * "The database could not be reached." in front of a cashier mid-shift.
+ *
+ * The real cause is logged server-side.
+ */
+function messageFor(
+  code: string | undefined,
+  serverMessage: string,
+): {
+  text: string;
+  retryable: boolean;
+} {
+  switch (code) {
+    case undefined:
+      // No code at all is the same unknown condition as an unrecognised one.
+      return { text: 'We’re having trouble connecting right now.', retryable: true };
+    case 'INVALID_PIN':
+      return { text: 'That PIN is not correct.', retryable: false };
+    case 'PIN_LOCKED':
+    case 'TENANT_SUSPENDED':
+      return { text: serverMessage, retryable: false };
+    default:
+      return { text: 'We’re having trouble connecting right now.', retryable: true };
+  }
+}
+
+/**
  * Four digits, and nothing else.
  *
  * The same input as the owner's: a real field styled as four boxes, not a rendered keypad.
@@ -21,7 +51,7 @@ export function MemberPinPad({ slug }: { slug: string }) {
   const router = useRouter();
   const [digits, setDigits] = useState('');
   const [status, setStatus] = useState<'idle' | 'checking' | 'error'>('idle');
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; retryable: boolean } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const submitted = useRef(false);
 
@@ -33,7 +63,7 @@ export function MemberPinPad({ slug }: { slug: string }) {
     if (digits.length !== LENGTH || submitted.current) return;
     submitted.current = true;
     setStatus('checking');
-    setMessage(null);
+    setError(null);
 
     void (async () => {
       const result = await signInWithMemberPin({ slug, pin: digits });
@@ -47,7 +77,7 @@ export function MemberPinPad({ slug }: { slug: string }) {
         return;
       }
       setStatus('error');
-      setMessage(result.message);
+      setError(messageFor(result.code, result.message));
       setDigits('');
       submitted.current = false;
       inputRef.current?.focus();
@@ -72,7 +102,7 @@ export function MemberPinPad({ slug }: { slug: string }) {
             const next = event.target.value.replace(/\D/g, '').slice(0, LENGTH);
             if (status === 'error') {
               setStatus('idle');
-              setMessage(null);
+              setError(null);
             }
             setDigits(next);
           }}
@@ -101,12 +131,31 @@ export function MemberPinPad({ slug }: { slug: string }) {
         </div>
       </div>
 
-      <p className="min-h-10 text-center text-sm" role="status" aria-live="polite">
+      <div className="min-h-16 text-center" role="status" aria-live="polite">
         {status === 'checking' && (
-          <span className="text-[color:var(--color-text-muted)]">Checking…</span>
+          <span className="text-sm text-[color:var(--color-text-muted)]">Checking…</span>
         )}
-        {message && <span className="text-[color:var(--color-danger)]">{message}</span>}
-      </p>
+        {error && (
+          <div className="space-y-3">
+            <p className="text-sm text-[color:var(--color-danger)]">{error.text}</p>
+            {error.retryable && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus('idle');
+                  setError(null);
+                  setDigits('');
+                  submitted.current = false;
+                  inputRef.current?.focus();
+                }}
+                className="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[color:var(--color-surface-muted)]"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
