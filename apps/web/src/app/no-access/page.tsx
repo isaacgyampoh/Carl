@@ -24,7 +24,7 @@ export default async function NoAccessPage() {
             : 'Your account is not yet attached to a business. Contact whoever manages Carl for your organisation.'}
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <Link href="/" className={buttonClasses({ variant: 'secondary' })}>
+          <Link href="/dashboard" className={buttonClasses({ variant: 'secondary' })}>
             Back to dashboard
           </Link>
         </div>

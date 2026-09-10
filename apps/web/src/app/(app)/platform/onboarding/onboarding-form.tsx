@@ -100,6 +100,8 @@ export function OnboardingForm({
         nextBillingAt={result.nextBillingAt}
         ownerEmail={watch('ownerEmail')}
         appUrl={appUrl}
+        slug={result.slug}
+        initialPin={result.initialPin}
         downloads={downloads}
       />
     );

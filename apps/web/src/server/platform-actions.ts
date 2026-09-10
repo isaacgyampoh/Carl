@@ -58,6 +58,9 @@ export interface OnboardedClient {
   subscriptionId: string;
   status: string;
   nextBillingAt: string;
+  /** The customer's starting PIN. Shown once, never stored in plaintext, never logged. */
+  initialPin: string | null;
+  slug: string;
 }
 
 /**
@@ -142,12 +145,33 @@ export async function onboardClient(input: unknown): Promise<ActionResult<Onboar
     if (!row.branch_id || !row.subscription_id || !row.status || !row.next_billing_at) {
       throw new Error('onboard_client returned an incomplete client');
     }
+
+    /*
+     * The customer's starting PIN, issued straight after provisioning.
+     *
+     * Deliberately allowed to fail without failing the onboarding: the business, its
+     * branch, its owner and its subscription are already created and correct. A missing
+     * PIN is fixed by issuing another from the client's page. A rolled-back customer is
+     * not fixed by anything.
+     */
+    let initialPin: string | null = null;
+    try {
+      const { data: pinRows } = await client.rpc('issue_initial_pin', {
+        p_tenant_id: row.tenant_id,
+      });
+      initialPin = pinRows?.[0]?.out_pin ?? null;
+    } catch {
+      initialPin = null;
+    }
+
     return actionOk({
       tenantId: row.tenant_id,
       branchId: row.branch_id,
       subscriptionId: row.subscription_id,
       status: row.status,
       nextBillingAt: row.next_billing_at,
+      initialPin,
+      slug: parsed.slug,
     });
   } catch (error) {
     return toActionResult(error);

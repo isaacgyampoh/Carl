@@ -28,7 +28,7 @@ const NAV_SECTIONS: readonly { heading: string; items: readonly NavItem[] }[] = 
   {
     heading: 'Trade',
     items: [
-      { href: '/', label: 'Dashboard', permissions: [] },
+      { href: '/dashboard', label: 'Dashboard', permissions: [] },
       { href: '/pos', label: 'Point of sale', permissions: [Permission.SALES_CREATE] },
       { href: '/sales', label: 'Sales', permissions: [Permission.SALES_VIEW] },
       { href: '/customers', label: 'Customers', permissions: [Permission.CUSTOMERS_VIEW] },
@@ -82,7 +82,7 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
       {/* Sidebar: a fixed rail on desktop, where it is always in reach without a tap. */}
       <aside className="hidden w-60 shrink-0 border-r border-[color:var(--color-border)] bg-[color:var(--color-surface)] lg:flex lg:flex-col">
         <div className="border-b border-[color:var(--color-border)] px-5 py-4">
-          <Link href="/" className="text-lg font-semibold tracking-tight">
+          <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
             Carl
           </Link>
           {tenant && (

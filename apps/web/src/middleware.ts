@@ -105,6 +105,13 @@ export async function middleware(request: NextRequest) {
     // The owner console's manifest. A browser fetches it before any session exists, and
     // behind the session check it returns a redirect, so the app cannot be installed.
     pathname === '/platform.webmanifest' ||
+    /*
+     * The public site.
+     *
+     * Exactly `/` and nothing under it: a prefix match here would make the entire
+     * application public, which is the opposite of what this list is for.
+     */
+    pathname === '/' ||
     // Browsers post CSP violation reports themselves, without cookies, often for the
     // sign-in page where there is no session at all. Behind the session check the reports
     // would be redirected and silently lost.
@@ -113,7 +120,51 @@ export async function middleware(request: NextRequest) {
     pathname === '/sw.js' ||
     pathname === '/manifest.webmanifest';
 
-  if (!user && !isPublic) {
+  /*
+   * A shop's own front door: `/{slug}`.
+   *
+   * Matched by shape, because slugs are customers' business names created at runtime and
+   * cannot be listed ahead of time. It has to be reachable without a session for the same
+   * reason the owner's PIN page does: it is how a session is obtained.
+   *
+   * RESERVED is what makes that safe. Without it every single-segment route in the
+   * application — /pos, /products, /inventory, /reports — matches the shape of a slug and
+   * would be served to anyone, unauthenticated. That is not a subtle failure: it is the
+   * whole merchant application becoming public. `middleware-public-paths.test.ts` fails if
+   * a new top-level route is added and not listed here.
+   *
+   * `/{slug}/new-pin` is deliberately not covered: it requires a session, and the page
+   * guards itself.
+   */
+  const RESERVED = new Set([
+    'api',
+    'auth',
+    'branches',
+    'customers',
+    'dashboard',
+    'devices',
+    'expenses',
+    'inventory',
+    'no-access',
+    'offline',
+    'platform',
+    'pos',
+    'products',
+    'purchases',
+    'register',
+    'reports',
+    'sales',
+    'settings',
+    'sign-in',
+    'staff',
+    'suppliers',
+    'transfers',
+  ]);
+  const segment = pathname.slice(1);
+  const isShopEntry =
+    /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(segment) && !RESERVED.has(segment) && !isPublic;
+
+  if (!user && !isPublic && !isShopEntry) {
     const signIn = request.nextUrl.clone();
     /*
      * The owner console has its own way in.
@@ -131,7 +182,7 @@ export async function middleware(request: NextRequest) {
 
   if (user && pathname.startsWith('/sign-in')) {
     const home = request.nextUrl.clone();
-    home.pathname = '/';
+    home.pathname = '/dashboard';
     home.search = '';
     return NextResponse.redirect(home);
   }

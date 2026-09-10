@@ -21,6 +21,8 @@ export function ClientHandover({
   nextBillingAt,
   ownerEmail,
   appUrl,
+  slug,
+  initialPin,
   downloads,
 }: {
   businessName: string;
@@ -30,8 +32,11 @@ export function ClientHandover({
   nextBillingAt: string;
   ownerEmail: string;
   appUrl: string;
+  slug: string;
+  initialPin: string | null;
   downloads: DownloadTarget[];
 }) {
+  const shopUrl = `${appUrl.replace(/\/$/, '')}/${slug}`;
   const [copied, setCopied] = useState<string | null>(null);
 
   async function copy(label: string, value: string) {
@@ -54,23 +59,51 @@ export function ClientHandover({
       </Alert>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium">Where they sign in</h3>
+        <h3 className="text-sm font-medium">Their Carl address</h3>
         <div className="flex items-stretch gap-2">
           <code className="min-w-0 flex-1 truncate rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-3 py-3 text-sm">
-            {appUrl}
+            {shopUrl}
           </code>
           <button
             type="button"
-            onClick={() => void copy('url', appUrl)}
+            onClick={() => void copy('url', shopUrl)}
             className={buttonClasses({ variant: 'secondary' })}
           >
             {copied === 'url' ? 'Copied' : 'Copy'}
           </button>
         </div>
-        <p className="text-sm text-[color:var(--color-text-muted)]">
-          They sign in as <span className="font-medium">{ownerEmail}</span>. Send them a password
-          reset from that page — Carl never sets a password on their behalf.
-        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">Their PIN</h3>
+        {initialPin ? (
+          <>
+            <div className="flex items-stretch gap-2">
+              <code className="flex-1 rounded-lg border border-[color:var(--color-brand)] bg-[color:var(--color-surface)] px-3 py-3 text-center text-2xl tracking-[0.5em]">
+                {initialPin}
+              </code>
+              <button
+                type="button"
+                onClick={() => void copy('pin', initialPin)}
+                className={buttonClasses({ variant: 'secondary' })}
+              >
+                {copied === 'pin' ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            {/* Said plainly, because it is true and it is the one thing the owner must not
+                assume they can look up later. */}
+            <p className="text-sm text-[color:var(--color-text-muted)]">
+              Shown once. Carl stores it hashed, so it cannot be read back — write it down or read
+              it to {ownerEmail} now. Carl will ask them to choose their own the first time they
+              sign in.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-[color:var(--color-danger)]">
+            The starting PIN could not be issued. Open the client below and issue one from their
+            page — the business itself was created correctly.
+          </p>
+        )}
       </section>
 
       <section className="space-y-2">

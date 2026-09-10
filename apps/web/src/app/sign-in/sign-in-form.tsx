@@ -94,9 +94,9 @@ export function SignInForm({ redirectTo }: { redirectTo?: string | undefined }) 
  * password into a page that genuinely was Carl.
  */
 function sanitizeRedirect(target: string | undefined): string {
-  if (!target) return '/';
+  if (!target) return '/dashboard';
   // Must be a path, not a URL, and not a protocol-relative "//host" which browsers treat
   // as absolute.
-  if (!target.startsWith('/') || target.startsWith('//')) return '/';
+  if (!target.startsWith('/') || target.startsWith('//')) return '/dashboard';
   return target;
 }
