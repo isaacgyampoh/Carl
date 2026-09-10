@@ -81,6 +81,7 @@ export default async function PlatformPage() {
             ['Invoices', '/platform/invoices'],
             ['Terminals', '/platform/devices'],
             ['Activity', '/platform/audit'],
+            ['Settings', '/platform/settings'],
           ] as const
         ).map(([label, href]) => (
           <Link key={href} href={href} className={buttonClasses({ variant: 'secondary' })}>

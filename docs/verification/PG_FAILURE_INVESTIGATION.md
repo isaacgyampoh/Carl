@@ -18,17 +18,17 @@ Test Files  13 failed | 14 passed (27)
 
 All six named failures were in `tests/db/pricing.test.ts > pricing > product search`:
 
-| # | Test | Asserts |
-| - | ---- | ------- |
-| 1 | returns an exact barcode match on its own | `rows` length 1, `rows[0]` fields |
-| 2 | multiplies a case barcode by its pack size | `rows[0].pack_size`, `rows[0].unit_price` |
-| 3 | finds a product from a partial name | `rows.map(name)` contains |
-| 4 | excludes inactive products | `rows` length 0 |
-| 5 | never returns another tenant's products | `rows` length 0 |
-| 6 | reports current stock alongside each result | `rows[0].quantity` |
+| #   | Test                                        | Asserts                                   |
+| --- | ------------------------------------------- | ----------------------------------------- |
+| 1   | returns an exact barcode match on its own   | `rows` length 1, `rows[0]` fields         |
+| 2   | multiplies a case barcode by its pack size  | `rows[0].pack_size`, `rows[0].unit_price` |
+| 3   | finds a product from a partial name         | `rows.map(name)` contains                 |
+| 4   | excludes inactive products                  | `rows` length 0                           |
+| 5   | never returns another tenant's products     | `rows` length 0                           |
+| 6   | reports current stock alongside each result | `rows[0].quantity`                        |
 
-Two tests in the same `describe` did **not** fail: *"tolerates a typo"* and *"returns nothing
-for an empty query"*.
+Two tests in the same `describe` did **not** fail: _"tolerates a typo"_ and _"returns nothing
+for an empty query"_.
 
 ## What has been established, with evidence
 
@@ -44,13 +44,13 @@ for an empty query"*.
 
 Measured, not assumed. Neither is claimed to be the cause.
 
-| | Production | PGlite harness |
-| - | ---------- | -------------- |
-| Version | PostgreSQL 17.6 (aarch64-linux) | PostgreSQL 18.3 (wasm32) |
-| `datcollate` | `en_US.UTF-8` | `C` |
-| `similarity('Coca-Cola 500ml','coca')` | 0.357143 | 0.35714287 |
-| `similarity('Coca Cola','cocacola')` | 0.7 | 0.7 |
-| `pg_trgm.similarity_threshold` | 0.3 | 0.3 |
+|                                        | Production                      | PGlite harness           |
+| -------------------------------------- | ------------------------------- | ------------------------ |
+| Version                                | PostgreSQL 17.6 (aarch64-linux) | PostgreSQL 18.3 (wasm32) |
+| `datcollate`                           | `en_US.UTF-8`                   | `C`                      |
+| `similarity('Coca-Cola 500ml','coca')` | 0.357143                        | 0.35714287               |
+| `similarity('Coca Cola','cocacola')`   | 0.7                             | 0.7                      |
+| `pg_trgm.similarity_threshold`         | 0.3                             | 0.3                      |
 
 **The collation difference is real and worth correcting regardless of this investigation.**
 `search_products` ends with:
@@ -64,7 +64,7 @@ and case in particular. Three of the six failures assert on `rows[0]` specifical
 harness that sorts differently from production cannot prove an ordering-sensitive assertion
 either way.
 
-**The major-version difference is also notable**: the harness runs a *newer* PostgreSQL than
+**The major-version difference is also notable**: the harness runs a _newer_ PostgreSQL than
 production, so it can accept syntax and behaviour that 17.6 rejects.
 
 ## Hypotheses NOT established

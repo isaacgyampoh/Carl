@@ -237,3 +237,157 @@ export async function platformOverview(): Promise<{
     recent: clients.slice(0, 6),
   };
 }
+
+/**
+ * Cross-client operational reads.
+ *
+ * These exist because the client profile answers "how is this business doing" and the
+ * platform owner also needs "which invoices are unpaid across everyone" — a question no
+ * per-client page can answer. Each is one query plus one lookup, never one per row.
+ */
+
+export interface InvoiceRow {
+  id: string;
+  invoiceNumber: string;
+  tenantId: string;
+  tenantName: string;
+  amount: number;
+  currencyCode: string;
+  status: string;
+  issuedAt: string | null;
+  dueAt: string;
+  paidAt: string | null;
+  periodStart: string;
+  periodEnd: string;
+}
+
+export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+
+export async function listInvoices(status?: InvoiceStatus | 'ALL'): Promise<InvoiceRow[]> {
+  await requirePlatformAdmin();
+  const client = await supabase();
+
+  let query = client
+    .from('subscription_invoices')
+    .select(
+      'id, invoice_number, tenant_id, amount, currency_code, status, issued_at, due_at, paid_at, period_start, period_end, tenants(name)',
+    )
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (status && status !== 'ALL') query = query.eq('status', status);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data ?? []).map((i) => ({
+    id: i.id,
+    invoiceNumber: i.invoice_number,
+    tenantId: i.tenant_id,
+    tenantName: (i.tenants as { name?: string } | null)?.name ?? 'Unknown',
+    amount: i.amount,
+    currencyCode: i.currency_code,
+    status: i.status,
+    issuedAt: i.issued_at,
+    dueAt: i.due_at,
+    paidAt: i.paid_at,
+    periodStart: i.period_start,
+    periodEnd: i.period_end,
+  }));
+}
+
+export interface DeviceRow {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+  tenantId: string;
+  tenantName: string;
+  branchName: string;
+  activatedAt: string | null;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+  pendingActivation: boolean;
+}
+
+export type DeviceStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
+
+export async function listDevices(status?: DeviceStatus | 'ALL'): Promise<DeviceRow[]> {
+  await requirePlatformAdmin();
+  const client = await supabase();
+
+  let query = client
+    .from('devices')
+    .select(
+      'id, name, code, status, tenant_id, branch_id, activated_at, last_seen_at, revoked_at, tenants(name), branches(name)',
+    )
+    .order('created_at', { ascending: false })
+    .limit(300);
+  if (status && status !== 'ALL') query = query.eq('status', status);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const ids = (data ?? []).map((d) => d.id);
+  // One query for every outstanding activation, rather than one per terminal.
+  const { data: pending } = ids.length
+    ? await client
+        .from('device_activations')
+        .select('device_id')
+        .in('device_id', ids)
+        .is('consumed_at', null)
+    : { data: [] };
+  const awaiting = new Set((pending ?? []).map((p) => p.device_id));
+
+  return (data ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    code: d.code,
+    status: d.status,
+    tenantId: d.tenant_id,
+    tenantName: (d.tenants as { name?: string } | null)?.name ?? 'Unknown',
+    branchName: (d.branches as { name?: string } | null)?.name ?? '—',
+    activatedAt: d.activated_at,
+    lastSeenAt: d.last_seen_at,
+    revokedAt: d.revoked_at,
+    pendingActivation: awaiting.has(d.id),
+  }));
+}
+
+export interface AuditRow {
+  id: string;
+  action: string;
+  tenantId: string | null;
+  tenantName: string;
+  actorName: string;
+  occurredAt: string;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Platform activity.
+ *
+ * The RLS policy already restricts a platform administrator to platform-operated actions —
+ * a merchant's own trading history is not readable here and needs a support grant. This
+ * query does not widen that; it reads what the policy allows.
+ */
+export async function listPlatformAudit(limit = 100): Promise<AuditRow[]> {
+  await requirePlatformAdmin();
+  const client = await supabase();
+
+  const { data, error } = await client
+    .from('audit_logs')
+    .select('id, action, tenant_id, actor_name, actor_email, occurred_at, metadata, tenants(name)')
+    .order('occurred_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  return (data ?? []).map((a) => ({
+    id: a.id,
+    action: a.action,
+    tenantId: a.tenant_id,
+    tenantName: (a.tenants as { name?: string } | null)?.name ?? '—',
+    actorName: a.actor_name ?? a.actor_email ?? 'System',
+    occurredAt: a.occurred_at,
+    metadata: (a.metadata ?? {}) as Record<string, unknown>,
+  }));
+}
