@@ -212,7 +212,19 @@ export function App(): React.JSX.Element {
       session={state.session}
       cashier={state.cashier}
       onSignOut={() => {
-        void state.session.signOut().then(() => start());
+        /*
+         * `finally`, not `then`.
+         *
+         * Clearing the stored session writes to SQLite and can fail. With `then` that
+         * rejection was unhandled and `start()` never ran, so pressing Sign out did nothing
+         * at all — no error, no change of screen. The cashier walks away believing the shift
+         * ended, and the next person's sales are filed under their name.
+         *
+         * Restarting either way is the honest outcome: if the session really could not be
+         * cleared, the status bar shows the old cashier still signed in, which is a problem
+         * somebody can see and act on.
+         */
+        void state.session.signOut().finally(() => start());
       }}
     />
   );

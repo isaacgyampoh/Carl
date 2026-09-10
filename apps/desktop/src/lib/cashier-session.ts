@@ -77,7 +77,24 @@ export class CashierSession {
    * nobody could sign into.
    */
   async signInWithPin(pin: string): Promise<SignInResult> {
-    const secret = await this.options.deviceSecret();
+    /*
+     * This method's contract is that it ANSWERS. It never throws.
+     *
+     * The sign-in screen disables the PIN pad while a check is in flight and re-enables it
+     * from the result. A rejected promise skips that, so the pad stays disabled with a
+     * cashier standing in front of it and no way back except restarting the till. Reading
+     * the OS keychain is a Tauri call that can fail, and it used to sit outside the only
+     * try in here.
+     */
+    let secret: string | null;
+    try {
+      secret = await this.options.deviceSecret();
+    } catch {
+      return {
+        ok: false,
+        detail: 'This terminal could not read its stored credentials. Restart it, then try again.',
+      };
+    }
     if (!secret) {
       return { ok: false, detail: 'This terminal is not activated.' };
     }
@@ -110,15 +127,32 @@ export class CashierSession {
       return { ok: false, detail: 'That PIN is not correct.' };
     }
 
-    const { data, error } = await this.client.auth.setSession({
-      access_token: payload.accessToken,
-      refresh_token: payload.refreshToken,
-    });
+    let session: Awaited<ReturnType<typeof this.client.auth.setSession>>;
+    try {
+      session = await this.client.auth.setSession({
+        access_token: payload.accessToken,
+        refresh_token: payload.refreshToken,
+      });
+    } catch {
+      return { ok: false, detail: 'Could not start the shift. Try again.' };
+    }
+    const { data, error } = session;
     if (error || !data.session || !data.user) {
       return { ok: false, detail: 'Could not start the shift. Try again.' };
     }
 
-    await storeCashierToken(this.options.deviceId, data.session.refresh_token);
+    /*
+     * Storing the token must not fail the sign-in that already succeeded.
+     *
+     * The cashier is authenticated at this point. Rejecting here would strand them on a
+     * disabled PIN pad after a sign-in that worked; the only thing actually lost is the
+     * shift surviving a restart of the till.
+     */
+    try {
+      await storeCashierToken(this.options.deviceId, data.session.refresh_token);
+    } catch {
+      // Nothing to tell the cashier: they are signed in and can sell.
+    }
     return { ok: true, cashier: toCashier(data.user) };
   }
 
@@ -129,16 +163,32 @@ export class CashierSession {
    * mean the same thing to the caller — show the sign-in screen.
    */
   async restore(): Promise<Cashier | null> {
-    const refreshToken = await readCashierToken(this.options.deviceId);
-    if (!refreshToken) return null;
+    /*
+     * Null, never a throw — the doc comment above says so, and the caller relies on it.
+     *
+     * Startup treats a rejection here as "Carl could not open its local database", which is
+     * both wrong and unactionable when what actually happened is a keychain read failing.
+     * Every outcome that is not a usable session means the same thing: show the PIN screen.
+     */
+    try {
+      const refreshToken = await readCashierToken(this.options.deviceId);
+      if (!refreshToken) return null;
 
-    const { data, error } = await this.client.auth.refreshSession({ refresh_token: refreshToken });
-    if (error || !data.session || !data.user) return null;
+      const { data, error } = await this.client.auth.refreshSession({
+        refresh_token: refreshToken,
+      });
+      if (error || !data.session || !data.user) return null;
 
-    // Refresh tokens rotate: the old one is spent, and failing to store the new one would
-    // sign the cashier out at the next restart for no visible reason.
-    await storeCashierToken(this.options.deviceId, data.session.refresh_token);
-    return toCashier(data.user);
+      // Refresh tokens rotate: the old one is spent, and failing to store the new one would
+      // sign the cashier out at the next restart for no visible reason. It is still not
+      // worth refusing a shift that is otherwise ready to start.
+      await storeCashierToken(this.options.deviceId, data.session.refresh_token).catch(
+        () => undefined,
+      );
+      return toCashier(data.user);
+    } catch {
+      return null;
+    }
   }
 
   /**

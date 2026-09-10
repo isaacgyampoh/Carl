@@ -135,7 +135,18 @@ export function Terminal({
       } catch {
         // Already recorded against the operation. Nothing here should surface an alert.
       }
-      if (!cancelled) await refreshPending();
+      try {
+        if (!cancelled) await refreshPending();
+      } catch {
+        /*
+         * `refreshPending` reads SQLite and was outside the try above, so a failed read
+         * rejected `run()` itself — an unhandled rejection every thirty seconds, for the
+         * lifetime of the shift, reported nowhere.
+         *
+         * The count is a display of what is queued. It being briefly wrong is not worth
+         * interrupting a sale over, and the next tick recomputes it.
+         */
+      }
     };
     void run();
     const timer = setInterval(() => void run(), 30_000);
@@ -153,9 +164,24 @@ export function Terminal({
       setResults([]);
       return;
     }
-    void runtime.catalogue.search(term).then((found) => {
-      if (live) setResults(found);
-    });
+    runtime.catalogue
+      .search(term)
+      .then((found) => {
+        if (live) setResults(found);
+      })
+      .catch(() => {
+        /*
+         * Clearing is the safe failure, not keeping what was there.
+         *
+         * Without this the promise rejected unhandled and `setResults` was never called, so
+         * the list went on showing matches for whatever was typed before. A cashier typing a
+         * new product and tapping the first row would have added the previous customer's
+         * item at the previous customer's price.
+         */
+        if (!live) return;
+        setResults([]);
+        setNotice('Product search is not responding. Type the barcode, or restart the till.');
+      });
     return () => {
       live = false;
     };

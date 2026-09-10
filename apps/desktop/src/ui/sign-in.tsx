@@ -46,7 +46,18 @@ export function SignIn({
     setDetail(null);
 
     void (async () => {
-      const result = await session.signInWithPin(digits);
+      /*
+       * Defence at the caller as well as in the session.
+       *
+       * `signInWithPin` is written never to throw, and this catch exists because the cost of
+       * being wrong about that is a till nobody can sign into: the PIN pad is disabled while
+       * `status` is 'checking', and `submitted` blocks a second attempt, so an unhandled
+       * rejection leaves a cashier looking at a dead keypad with a queue in front of them.
+       * The only recovery is restarting the application.
+       */
+      const result = await session
+        .signInWithPin(digits)
+        .catch(() => ({ ok: false as const, detail: 'Sign-in failed unexpectedly. Try again.' }));
       if (result.ok) {
         onSignedIn(result.cashier);
         return;
