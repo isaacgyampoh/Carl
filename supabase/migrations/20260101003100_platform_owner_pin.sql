@@ -55,7 +55,25 @@ insert into platform_pin_throttle (id) values (true) on conflict do nothing;
 
 alter table platform_pin_throttle enable row level security;
 alter table platform_pin_throttle force row level security;
--- No policy at all: nothing reaches this table except the SECURITY DEFINER functions below.
+
+/*
+ * An explicit refusal, rather than no policy at all.
+ *
+ * The effect is identical — RLS with no policy denies everyone — but the intent is not.
+ * A table with no policy reads as an oversight, and the RLS coverage gate treats it as one,
+ * correctly: nobody looking at this later can tell whether the author meant it. Saying
+ * `false` says it.
+ *
+ * The functions in this migration are SECURITY DEFINER and owned by the schema owner, so
+ * they bypass RLS and are the only route to this table.
+ */
+create policy platform_pin_throttle_no_direct_access on platform_pin_throttle
+  for all to authenticated, anon
+  using (false)
+  with check (false);
+
+comment on table platform_pin_throttle is
+  'Brute-force throttle for the owner PIN. Reachable only through verify_platform_pin.';
 
 -- -----------------------------------------------------------------------------
 -- app.verify_platform_pin
@@ -64,7 +82,12 @@ alter table platform_pin_throttle force row level security;
 -- therefore executable only by service_role — never by anon or authenticated, which would
 -- turn it into a public brute-force oracle.
 -- -----------------------------------------------------------------------------
-create or replace function app.verify_platform_pin(p_pin text)
+-- In `public` rather than `app` so the server can reach it through PostgREST, which only
+-- exposes `public`. That is safe precisely because EXECUTE is granted to service_role and
+-- to nobody else: PostgREST enforces the grant, so an anonymous or merchant caller is
+-- refused before the function runs. Without that grant this would be a public
+-- brute-force oracle.
+create or replace function verify_platform_pin(p_pin text)
 returns table (status text, user_id uuid, email text, is_default boolean)
 language plpgsql
 volatile
@@ -150,8 +173,11 @@ begin
 end;
 $$;
 
-revoke execute on function app.verify_platform_pin(text) from public, anon, authenticated;
-grant execute on function app.verify_platform_pin(text) to service_role;
+revoke execute on function verify_platform_pin(text) from public, anon, authenticated;
+grant execute on function verify_platform_pin(text) to service_role;
+
+comment on function verify_platform_pin(text) is
+  'Verifies the owner PIN and records the attempt. Returns a status; never raises on a bad PIN, because raising would roll back the failed-attempt counter. service_role only.';
 
 -- -----------------------------------------------------------------------------
 -- change_platform_pin

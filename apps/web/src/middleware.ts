@@ -94,6 +94,14 @@ export async function middleware(request: NextRequest) {
      * terminal in the estate can reach Carl at all.
      */
     pathname.startsWith('/api/device/') ||
+    /*
+     * The owner's PIN prompt.
+     *
+     * It has to be reachable without a session for the obvious reason: it is how the
+     * session is obtained. Behind the session check it would redirect to the merchant
+     * sign-in page, which asks for an email and password the platform owner does not use.
+     */
+    pathname === '/platform/sign-in' ||
     // Browsers post CSP violation reports themselves, without cookies, often for the
     // sign-in page where there is no session at all. Behind the session check the reports
     // would be redirected and silently lost.

@@ -50,10 +50,12 @@ describe('platform owner PIN', () => {
    */
   async function verify(pin: string) {
     const { rows } = await db.asServiceRole(() =>
-      db.query<{ status: string; user_id: string | null; email: string | null; is_default: boolean | null }>(
-        `select * from app.verify_platform_pin($1)`,
-        [pin],
-      ),
+      db.query<{
+        status: string;
+        user_id: string | null;
+        email: string | null;
+        is_default: boolean | null;
+      }>(`select * from verify_platform_pin($1)`, [pin]),
     );
     return rows[0]!;
   }
@@ -153,16 +155,14 @@ describe('platform owner PIN', () => {
       // The difference between a throttled server-side check and a public brute-force
       // oracle is exactly this grant.
       await expect(
-        db.asAnon(() => db.query(`select * from app.verify_platform_pin('1024')`)),
+        db.asAnon(() => db.query(`select * from verify_platform_pin('1024')`)),
       ).rejects.toThrow(/permission denied|does not exist/i);
     });
 
     it('is not callable by a signed-in merchant', async () => {
       const shop = await createTenant(db);
       await expect(
-        db.asUser(shop.ownerUserId, () =>
-          db.query(`select * from app.verify_platform_pin('1024')`),
-        ),
+        db.asUser(shop.ownerUserId, () => db.query(`select * from verify_platform_pin('1024')`)),
       ).rejects.toThrow(/permission denied|does not exist/i);
     });
   });

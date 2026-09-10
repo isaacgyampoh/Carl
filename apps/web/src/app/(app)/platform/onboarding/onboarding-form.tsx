@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from '@carl/validation';
 import { Alert, Field, buttonClasses } from '@carl/ui';
 import { Currency, formatMoney } from '@carl/shared';
 
+import type { DownloadTarget } from '@/lib/downloads';
 import { onboardClient, type OnboardedClient } from '@/server/platform-actions';
+import { ClientHandover } from './client-handover';
 
 export interface PlanOption {
   id: string;
@@ -49,7 +50,15 @@ const schema = z.object({
 type FormValues = z.input<typeof schema>;
 type FormOutput = z.output<typeof schema>;
 
-export function OnboardingForm({ plans }: { plans: PlanOption[] }) {
+export function OnboardingForm({
+  plans,
+  appUrl,
+  downloads,
+}: {
+  plans: PlanOption[];
+  appUrl: string;
+  downloads: DownloadTarget[];
+}) {
   const [result, setResult] = useState<OnboardedClient | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -83,42 +92,16 @@ export function OnboardingForm({ plans }: { plans: PlanOption[] }) {
 
   if (result) {
     return (
-      <div className="space-y-4 p-4">
-        <Alert tone="positive" title="Client onboarded">
-          The business, its first branch, the owner&apos;s login and the subscription were all
-          created.
-        </Alert>
-        <dl className="grid gap-3 sm:grid-cols-2">
-          {[
-            ['Business', watch('businessName')],
-            ['Client ID', result.tenantId],
-            ['Branch', watch('branchName')],
-            ['Status', result.status.replace('_', ' ')],
-            ['Onboarded', new Date().toLocaleDateString('en-GB')],
-            ['Next billing', new Date(result.nextBillingAt).toLocaleDateString('en-GB')],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-sm text-[color:var(--color-text-muted)]">{label}</dt>
-              <dd className="break-words font-medium">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        <Alert tone="info" title="Next: set up their first terminal">
-          Issue an activation code from the client&apos;s page, then enter it on the terminal. The
-          owner signs in with {watch('ownerEmail')} using a password reset.
-        </Alert>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/platform/clients/${result.tenantId}`}
-            className={buttonClasses({ variant: 'primary' })}
-          >
-            Open client
-          </Link>
-          <Link href="/platform/onboarding" className={buttonClasses({ variant: 'secondary' })}>
-            Add another
-          </Link>
-        </div>
-      </div>
+      <ClientHandover
+        businessName={watch('businessName')}
+        tenantId={result.tenantId}
+        branchName={watch('branchName') ?? 'Main Branch'}
+        status={result.status}
+        nextBillingAt={result.nextBillingAt}
+        ownerEmail={watch('ownerEmail')}
+        appUrl={appUrl}
+        downloads={downloads}
+      />
     );
   }
 

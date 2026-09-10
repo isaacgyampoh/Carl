@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 53 relations, 28 enums, 42 functions.
+ * 53 relations, 28 enums, 43 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -4339,6 +4339,17 @@ export interface Database {
         Returns: {
     product_id: string | null;
     was_created: boolean | null;
+  }[];
+      };
+      verify_platform_pin: {
+        Args: {
+          p_pin: string;
+        };
+        Returns: {
+    status: string | null;
+    user_id: string | null;
+    email: string | null;
+    is_default: boolean | null;
   }[];
       };
       void_sale: {

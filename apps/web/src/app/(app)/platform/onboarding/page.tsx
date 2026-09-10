@@ -4,6 +4,7 @@ import { Card, CardHeader } from '@carl/ui';
 import { PageHeader } from '@/components/page-header';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { clientAppUrl, desktopDownloads } from '@/lib/downloads';
 import { OnboardingForm } from './onboarding-form';
 
 export const metadata: Metadata = { title: 'Add client · Carl platform' };
@@ -29,7 +30,11 @@ export default async function OnboardingPage() {
           title="New business"
           description="Everything here is created together. If anything fails, nothing is created."
         />
-        <OnboardingForm plans={plans ?? []} />
+        <OnboardingForm
+          plans={plans ?? []}
+          appUrl={clientAppUrl()}
+          downloads={desktopDownloads()}
+        />
       </Card>
     </div>
   );

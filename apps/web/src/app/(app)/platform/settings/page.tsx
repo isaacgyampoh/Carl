@@ -5,6 +5,7 @@ import { Currency, formatMoney } from '@carl/shared';
 import { PageHeader } from '@/components/page-header';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { PinSection } from './pin-section';
 
 export const metadata: Metadata = { title: 'Settings · Carl platform' };
 export const dynamic = 'force-dynamic';
@@ -22,10 +23,11 @@ export const dynamic = 'force-dynamic';
  * current state and the change goes through a migration.
  */
 export default async function SettingsPage() {
-  await requirePlatformAdmin();
   const client = await supabase();
 
-  const [plans, admins] = await Promise.all([
+  const auth = await requirePlatformAdmin();
+
+  const [plans, admins, pin] = await Promise.all([
     client
       .from('subscription_plans')
       .select(
@@ -36,11 +38,26 @@ export default async function SettingsPage() {
       .from('platform_admins')
       .select('user_id, granted_at, note, profiles(full_name, email)')
       .order('granted_at'),
+    // Only whether the default is still in use. The hash itself is never selected: there is
+    // no reason for a page to hold it, and selecting it is how it ends up somewhere else.
+    client
+      .from('platform_admins')
+      .select('pin_is_default')
+      .eq('user_id', auth.user.userId)
+      .maybeSingle(),
   ]);
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Settings" description="Plans and platform access." />
+      <PageHeader title="Settings" description="Security, plans and platform access." />
+
+      <Card>
+        <CardHeader
+          title="Owner PIN"
+          description="Four digits, verified by the server and rate-limited. Never stored in plain text."
+        />
+        <PinSection isDefault={pin.data?.pin_is_default === true} />
+      </Card>
 
       <Card>
         <CardHeader

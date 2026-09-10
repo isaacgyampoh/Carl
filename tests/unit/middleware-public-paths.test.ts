@@ -33,6 +33,7 @@ describe('middleware public paths', () => {
     ['/auth', 'the OAuth callback'],
     ['/api/health', 'the liveness probe'],
     ['/api/device/', 'terminals, which have no browser session'],
+    ['/platform/sign-in', 'the owner PIN prompt, which is how a session is obtained'],
     ['/api/csp-report', 'browsers post violation reports without cookies'],
     ['/offline', 'the page shown when there is no connection'],
     ['/sw.js', 'the service worker'],
@@ -52,6 +53,7 @@ describe('middleware public paths', () => {
       '/auth',
       '/manifest.webmanifest',
       '/offline',
+      '/platform/sign-in',
       '/sign-in',
       '/sw.js',
     ]);

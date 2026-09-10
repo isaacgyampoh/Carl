@@ -59,7 +59,16 @@ export async function requirePermission(permission: Permission): Promise<TenantA
 }
 
 export async function requirePlatformAdmin(): Promise<AuthContext> {
-  const auth = await requireAuth();
+  /*
+   * Unauthenticated callers go to the owner's PIN prompt, not the merchant sign-in page.
+   * The platform owner has no email-and-password credential to offer there, so sending
+   * them to it is a dead end.
+   *
+   * A signed-in user who is not a platform administrator still gets /no-access: they have
+   * a working identity, it simply does not include this.
+   */
+  const auth = await currentAuth();
+  if (!auth) redirect('/platform/sign-in');
   if (!auth.user.isPlatformAdmin) redirect('/no-access');
   return auth;
 }

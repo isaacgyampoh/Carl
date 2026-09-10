@@ -391,3 +391,61 @@ export async function listPlatformAudit(limit = 100): Promise<AuditRow[]> {
     metadata: (a.metadata ?? {}) as Record<string, unknown>,
   }));
 }
+
+export interface BranchRow {
+  id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  tenantId: string;
+  tenantName: string;
+  tenantStatus: string;
+  createdAt: string;
+  deviceCount: number;
+  staffCount: number;
+}
+
+/** Every branch across every client. Three queries, not one per branch. */
+export async function listBranches(): Promise<BranchRow[]> {
+  await requirePlatformAdmin();
+  const client = await supabase();
+
+  const { data, error } = await client
+    .from('branches')
+    .select('id, name, code, is_active, tenant_id, created_at, tenants(name, status)')
+    .order('created_at', { ascending: false })
+    .limit(300);
+  if (error) throw error;
+
+  const tenantIds = [...new Set((data ?? []).map((b) => b.tenant_id))];
+  const [devices, staff] = tenantIds.length
+    ? await Promise.all([
+        client.from('devices').select('branch_id').in('tenant_id', tenantIds),
+        client.from('membership_branches').select('branch_id'),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const count = (rows: { branch_id: string }[] | null) => {
+    const map = new Map<string, number>();
+    for (const r of rows ?? []) map.set(r.branch_id, (map.get(r.branch_id) ?? 0) + 1);
+    return map;
+  };
+  const deviceCount = count(devices.data);
+  const staffCount = count(staff.data);
+
+  return (data ?? []).map((b) => {
+    const tenant = b.tenants as { name?: string; status?: string } | null;
+    return {
+      id: b.id,
+      name: b.name,
+      code: b.code,
+      isActive: b.is_active,
+      tenantId: b.tenant_id,
+      tenantName: tenant?.name ?? 'Unknown',
+      tenantStatus: tenant?.status ?? 'UNKNOWN',
+      createdAt: b.created_at,
+      deviceCount: deviceCount.get(b.id) ?? 0,
+      staffCount: staffCount.get(b.id) ?? 0,
+    };
+  });
+}

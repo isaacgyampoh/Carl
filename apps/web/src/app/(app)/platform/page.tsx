@@ -80,6 +80,7 @@ export default async function PlatformPage() {
             ['Billing', '/platform/billing'],
             ['Invoices', '/platform/invoices'],
             ['Terminals', '/platform/devices'],
+            ['Branches', '/platform/branches'],
             ['Activity', '/platform/audit'],
             ['Settings', '/platform/settings'],
           ] as const
