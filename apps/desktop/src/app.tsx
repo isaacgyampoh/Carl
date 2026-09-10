@@ -129,6 +129,10 @@ export function App(): React.JSX.Element {
         supabaseUrl: SUPABASE_URL,
         anonKey: SUPABASE_ANON_KEY,
         deviceId: config.deviceId,
+        carlUrl: CARL_URL,
+        // Read on demand from the OS credential store rather than captured here: a secret
+        // held for the life of the process is a secret in the next crash dump.
+        deviceSecret: () => readDeviceSecret(config.deviceId),
       });
 
       // Restores the previous shift if its token is still good, so a terminal restarted

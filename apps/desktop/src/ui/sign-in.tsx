@@ -1,100 +1,114 @@
-/**
- * Cashier sign-in.
- *
- * The device secret proves which till this is. This proves who is standing at it — and
- * both are required, because a sale is attributed to a person and the database checks that
- * person's permissions at that branch.
- *
- * Requires the network. Selling does not: once a shift has started, the connection can go
- * and the till keeps working.
- */
-
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Cashier, CashierSession } from '../lib/cashier-session';
 
+const LENGTH = 4;
+
+/**
+ * Starting a shift at the till.
+ *
+ * Four digits and nothing else. The terminal already knows which shop and branch it serves
+ * — `activate_device` bound it — so asking a cashier to also identify their employer would
+ * be a question the hardware can already answer, and a field to mistype during a queue.
+ *
+ * No rendered keypad: POS machines have a keyboard, a touchscreen that raises one, or a
+ * barcode scanner that behaves like a keyboard. A drawn keypad is a worse version of all
+ * three and cannot be typed on.
+ *
+ * The PIN is verified by Carl's server, never here. Verification needs the service-role key
+ * and the device pepper, and neither may sit in a bundle installed on a shop counter.
+ */
 export function SignIn({
   session,
-  branchName,
   tenantName,
+  branchName,
   onSignedIn,
 }: {
   session: CashierSession;
-  branchName: string;
   tenantName: string;
+  branchName: string;
   onSignedIn: (cashier: Cashier) => void;
 }): React.JSX.Element {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [digits, setDigits] = useState('');
+  const [status, setStatus] = useState<'idle' | 'checking' | 'error'>('idle');
+  const [detail, setDetail] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const submitted = useRef(false);
 
-  async function submit(): Promise<void> {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await session.signIn(email.trim(), password);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (digits.length !== LENGTH || submitted.current) return;
+    submitted.current = true;
+    setStatus('checking');
+    setDetail(null);
+
+    void (async () => {
+      const result = await session.signInWithPin(digits);
       if (result.ok) {
         onSignedIn(result.cashier);
         return;
       }
-      setError(result.detail);
-    } catch {
-      // Sign-in is the one thing that genuinely needs the network, so say that rather than
-      // showing a credential error for a connection problem.
-      setError('Carl could not be reached. Check the connection and try again.');
-    } finally {
-      setBusy(false);
-    }
-  }
+      setStatus('error');
+      setDetail(result.detail);
+      setDigits('');
+      submitted.current = false;
+      inputRef.current?.focus();
+    })();
+  }, [digits, session, onSignedIn]);
 
   return (
-    <main style={{ height: '100vh', display: 'grid', placeContent: 'center', padding: 32 }}>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!busy) void submit();
-        }}
-        style={{ display: 'grid', gap: 16, width: 380 }}
-      >
-        <div>
-          <h1 style={{ fontSize: 24, margin: '0 0 4px' }}>Sign in</h1>
-          <p style={{ color: 'var(--muted)', margin: 0 }}>
-            {tenantName} · {branchName}
-          </p>
-        </div>
+    <main className="signin">
+      <header className="signin__header">
+        {/* Shown before anything is sold: a terminal activated against the wrong branch is
+            otherwise invisible until the takings land in the wrong place. */}
+        <h1>{tenantName}</h1>
+        <p>{branchName}</p>
+      </header>
 
-        <label htmlFor="email">Email</label>
+      <div className="signin__pin" onClick={() => inputRef.current?.focus()} role="presentation">
         <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          autoComplete="username"
-          autoFocus
-          disabled={busy}
-        />
-
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
+          ref={inputRef}
           type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-          disabled={busy}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          aria-label="PIN"
+          maxLength={LENGTH}
+          value={digits}
+          disabled={status === 'checking'}
+          onChange={(event) => {
+            const next = event.target.value.replace(/\D/g, '').slice(0, LENGTH);
+            if (status === 'error') {
+              setStatus('idle');
+              setDetail(null);
+            }
+            setDigits(next);
+          }}
+          className="signin__field"
         />
+        <div className="signin__boxes" aria-hidden="true">
+          {Array.from({ length: LENGTH }, (_, index) => (
+            <div
+              key={index}
+              className={[
+                'signin__box',
+                index < digits.length ? 'signin__box--filled' : '',
+                status === 'error' ? 'signin__box--error' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              {index < digits.length ? '•' : ''}
+            </div>
+          ))}
+        </div>
+      </div>
 
-        {error ? (
-          <p role="alert" style={{ color: 'var(--danger)', margin: 0 }}>
-            {error}
-          </p>
-        ) : null}
-
-        <button type="submit" className="primary" disabled={busy || !email || !password}>
-          {busy ? 'Signing in…' : 'Start shift'}
-        </button>
-      </form>
+      <p className="signin__status" role="status" aria-live="polite">
+        {status === 'checking' ? 'Checking…' : (detail ?? 'Enter your PIN to start selling')}
+      </p>
     </main>
   );
 }

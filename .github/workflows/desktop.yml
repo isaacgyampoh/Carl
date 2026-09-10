@@ -1,10 +1,14 @@
 name: Desktop
 
-# Building the terminal on every platform it ships to.
+# Building the terminal.
 #
-# macOS is buildable on a developer machine; Windows is not, and pretending otherwise is
-# how an untested installer reaches a shop. This produces a real Windows artifact on a real
-# Windows runner, so "the Windows build works" is a downloadable file rather than a claim.
+# WINDOWS IS THE RELEASE TARGET. Carl runs on physical Windows POS machines, where Tauri
+# uses WebView2 — the till launches straight into Carl with no browser and no address bar.
+# The Windows job produces the .msi and .exe a shop actually installs.
+#
+# The macOS job is kept as a build check, not a release: it compiles the Rust host on a
+# Unix runner and catches regressions a Windows-only pipeline would surface days later. Its
+# artifacts are not shipped to customers.
 on:
   push:
     branches: [main]

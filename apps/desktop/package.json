@@ -10,7 +10,8 @@
     "check": "cd src-tauri && cargo check",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "tauri": "tauri",
-    "dev:desktop": "tauri dev"
+    "dev:desktop": "tauri dev",
+    "bundle:windows": "tauri build --target x86_64-pc-windows-msvc"
   },
   "dependencies": {
     "@carl/sync": "workspace:*",

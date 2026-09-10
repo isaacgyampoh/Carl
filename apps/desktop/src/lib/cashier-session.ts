@@ -32,6 +32,16 @@ export interface CashierSessionOptions {
   readonly supabaseUrl: string;
   readonly anonKey: string;
   readonly deviceId: string;
+  /**
+   * Proves which till is asking.
+   *
+   * Supplied as a function rather than a value because the secret lives in the OS
+   * credential store, and reading it is asynchronous. Holding it in memory for the life of
+   * the application would put it in a crash dump.
+   */
+  readonly deviceSecret: () => Promise<string | null>;
+  /** Where Carl's server lives. PIN verification happens there, never on the till. */
+  readonly carlUrl: string;
 }
 
 export type SignInResult =
@@ -54,12 +64,58 @@ export class CashierSession {
     });
   }
 
-  async signIn(email: string, password: string): Promise<SignInResult> {
-    const { data, error } = await this.client.auth.signInWithPassword({ email, password });
+  /**
+   * Signs a cashier in with their four-digit PIN.
+   *
+   * The till sends its own device secret and the PIN to Carl's server, which verifies both
+   * against the database and returns a session. Verification cannot happen here: it needs
+   * the service-role key and the device pepper, and neither may ever sit in a bundle
+   * installed on a shop counter.
+   *
+   * The till previously asked for an email and a password. Carl's staff have neither —
+   * they are issued PINs — so the one client that actually sells things was the one client
+   * nobody could sign into.
+   */
+  async signInWithPin(pin: string): Promise<SignInResult> {
+    const secret = await this.options.deviceSecret();
+    if (!secret) {
+      return { ok: false, detail: 'This terminal is not activated.' };
+    }
+
+    let payload: {
+      status?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      cashierName?: string | null;
+    };
+    try {
+      const response = await fetch(`${this.options.carlUrl}/api/device/staff-pin`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ deviceId: this.options.deviceId, deviceSecret: secret, pin }),
+      });
+      payload = (await response.json()) as typeof payload;
+    } catch {
+      // Signing in needs the network; selling does not. Said plainly, because a cashier
+      // seeing "failed to fetch" mid-queue has no idea whether to keep trying.
+      return { ok: false, detail: 'Carl cannot be reached. Check the internet connection.' };
+    }
+
+    if (payload.status === 'LOCKED') {
+      return { ok: false, detail: 'Too many incorrect PINs. Try again shortly.' };
+    }
+    if (payload.status !== 'OK' || !payload.accessToken || !payload.refreshToken) {
+      // The same answer for a wrong PIN and an unknown one: a till stands in a public
+      // place, and the difference is a way to work out who does and does not work here.
+      return { ok: false, detail: 'That PIN is not correct.' };
+    }
+
+    const { data, error } = await this.client.auth.setSession({
+      access_token: payload.accessToken,
+      refresh_token: payload.refreshToken,
+    });
     if (error || !data.session || !data.user) {
-      // Deliberately not distinguishing "no such account" from "wrong password": a till
-      // stands in a public place, and the difference is a way to enumerate staff.
-      return { ok: false, detail: 'That email address and password were not recognised.' };
+      return { ok: false, detail: 'Could not start the shift. Try again.' };
     }
 
     await storeCashierToken(this.options.deviceId, data.session.refresh_token);

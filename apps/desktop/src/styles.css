@@ -84,3 +84,83 @@ button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+ * Starting a shift.
+ *
+ * Large, centred, and readable at arm's length: this is the first thing a cashier
+ * touches each morning, often before the shop lights are fully on.
+ * ------------------------------------------------------------------------- */
+
+.signin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  gap: 2.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.signin__header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.signin__header p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.signin__pin {
+  position: relative;
+}
+
+/* The real field. Kept in the layout rather than removed, so the on-screen keyboard,
+   a physical keyboard and a barcode scanner all still reach it. */
+.signin__field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: default;
+}
+
+.signin__boxes {
+  display: flex;
+  gap: 1rem;
+}
+
+.signin__box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Comfortably bigger than a fingertip: a mistyped PIN in front of a queue is the
+     cost of a small target. */
+  width: 4.5rem;
+  height: 5.5rem;
+  border: 2px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.signin__box--filled {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.signin__box--error {
+  border-color: var(--danger);
+}
+
+.signin__status {
+  margin: 0;
+  min-height: 1.5rem;
+  color: var(--muted);
+  font-size: 1rem;
+}
