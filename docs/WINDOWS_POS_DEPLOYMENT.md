@@ -12,6 +12,8 @@ never been tested.
 | No secret in the installer or bundle         | ✅ Verified against real secret values |
 | Barcode scanner logic                        | ✅ 15 automated tests                  |
 | Receipt layout and ESC/POS commands          | ✅ 42 automated tests                  |
+| Printer transport compiles for Windows       | ✅ Verified in CI on a Windows runner  |
+| Printing grants no new Tauri capability      | ✅ Asserted by test                    |
 | Offline queue, sync, idempotency             | ✅ Automated tests                     |
 | **Installed on a Windows machine**           | ❌ **Never**                           |
 | **A cashier completing a sale on a till**    | ❌ **Never**                           |
@@ -98,18 +100,27 @@ verification — pulling the network cable mid-shift — remains outstanding.
 
 ## Receipt printers
 
-Carl generates receipt content and ESC/POS commands. **It cannot yet send them to a
-printer.**
+Carl sends receipts to a printer through the Windows print spooler.
 
 - ✅ Receipt layout, 32 and 42 column
 - ✅ ESC/POS: initialise, align, cut, drawer pulse, ASCII transliteration
-- ❌ **Transport** — no USB, serial or network adapter is implemented
+- ✅ Transport — Win32 spooler, submitted as a `RAW` job
+- ❌ **Never tested on a physical printer** — none has been connected to this project
 
-The remaining work is a Tauri command that opens the device and writes the bytes. Network
-printers on port 9100 are the most practical first target: no driver, no permission prompt,
-identical on every Windows machine.
+Install the printer with the manufacturer's Windows driver first and confirm Windows' own
+test page prints. Then, in Carl, use **Printer** in the status bar, pick it from the list,
+and press **Test print**. The choice is stored on that machine. A drawer on the printer's
+RJ11 port is confirmed with **Test drawer**.
 
-No printer model is supported, because none has been tested. Do not tell a client otherwise.
+The spooler is used rather than USB because the shop has already installed a driver, and
+claiming the USB interface would take the device away from it.
+
+No printer model is _supported_, because none has been tested. The transport is
+model-independent by design — it is the same path Windows uses for any RAW job — but do not
+tell a client a particular printer is known to work until one has.
+
+A successful send means the spooler accepted the job. It does not mean paper came out. The
+interface says "sent to the printer" for that reason.
 
 ### Character set
 
@@ -120,8 +131,14 @@ readable receipt matters more than a faithful one.
 ## Cash drawers
 
 A POS drawer is a solenoid wired to the printer's RJ11 socket and fired by a printer
-command. Carl generates that command (`ESC p`, pin 0 or 1, a short pulse). It cannot send
-it, for the same reason it cannot print.
+command. Carl generates that command (`ESC p`, pin 0 or 1, a short pulse) and sends it down
+the same spooler path as a receipt, so the drawer needs no separate connection or driver.
+
+It fires for cash payments only. A drawer that springs open on every card sale is a security
+problem in a busy shop.
+
+Like printing, this has never been tried on physical hardware, and a solenoid reports
+nothing back even when it has.
 
 The pulse is capped so a solenoid is never asked to hold: an overheated drawer is somebody's
 property.
@@ -160,4 +177,10 @@ activation code.
 and retries; they are not lost. If it says a sale needs attention, that sale hit a rule the
 server refused, and somebody has to look at it.
 
-**Nothing prints** — expected today. Printer transport is not implemented.
+**Nothing prints** — check, in order: that Windows' own test page prints; that a printer is
+selected under **Printer** in the status bar; and that **Test print** reports it was sent.
+If Carl says the receipt was sent and no paper appears, the job reached the spooler and the
+problem is between the spooler and the device — the Windows print queue will say more.
+
+Sales are never lost to a printing failure. Carl saves the sale first and the receipt can be
+reprinted.
