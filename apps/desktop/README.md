@@ -178,3 +178,67 @@ from the one on the shop floor.
 pnpm vitest run --project unit apps/desktop
 pnpm vitest run --project db tests/integration/offline-terminal.test.ts
 ```
+
+## Windows is the release target
+
+Carl runs on physical Windows POS machines. Tauri uses **WebView2** there, so the till
+launches straight into Carl — no browser, no address bar, no Chrome to open first.
+
+### The WebView2 decision, and what it costs
+
+`webviewInstallMode` is set to **`offlineInstaller`**. The default,
+`downloadBootstrapper`, fetches the runtime during installation, which means an installer
+that fails on a shop counter with poor connectivity — and fails with a message about
+WebView2 that means nothing to a shopkeeper.
+
+| Mode                             | Installer size | Needs internet to install             |
+| -------------------------------- | -------------- | ------------------------------------- |
+| `downloadBootstrapper` (default) | +~2 MB         | **Yes**                               |
+| `embedBootstrapper`              | +~2 MB         | **Yes**                               |
+| **`offlineInstaller`** (chosen)  | **+~130 MB**   | No                                    |
+| `fixedVersion`                   | +~180 MB       | No, but updates become ours to manage |
+
+130 MB is a large download for us and a non-issue for the client: it is copied to a till
+once, often from a USB stick. Recent Windows 10 and all Windows 11 machines already carry
+WebView2, so the embedded runtime is usually never used — it is there for the machine that
+does not have it, which is exactly the machine nobody can diagnose remotely.
+
+`fixedVersion` was rejected: pinning a runtime means shipping our own security updates for
+a browser engine, which is a worse job than we are equipped to do.
+
+### Installing
+
+The installer is `perMachine`: a till is a shared appliance, and a per-user install would
+leave Carl missing for anyone who signs into Windows differently.
+
+### Building it
+
+`.github/workflows/windows-release.yml` builds on a Windows runner and produces
+`Carl-POS-Windows-x64-Setup.exe` with a `SHA256SUMS.txt`. Nobody on this project owns a
+Windows machine; the runner is how a real installer exists at all.
+
+**Build verified is not hardware verified.** CI proves the installer exists, is a valid PE
+executable and contains no secret. It cannot prove a cashier can sell on a particular till.
+
+### Signing
+
+**BLOCKED — no Authenticode certificate.** The installer is unsigned and SmartScreen will
+warn on first run. A self-signed certificate was deliberately not used: it would still trip
+SmartScreen while _looking_ signed, which is worse than being honestly unsigned.
+
+When a certificate exists, add `WINDOWS_CERTIFICATE` (base64 `.pfx`) and
+`WINDOWS_CERTIFICATE_PASSWORD` as repository secrets. Tauri signs automatically; no
+application change is needed.
+
+### Hardware
+
+|                                          | Status                                                        |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Barcode scanner (USB/HID keyboard-wedge) | Implemented, 15 tests — **no hardware tested**                |
+| Receipt content                          | Implemented, 18 tests                                         |
+| Thermal printer transport (ESC/POS)      | **Not built** — see `docs/RECEIPT_PRINTING.md`                |
+| Cash drawer                              | **Not built** (normally opened via the printer's drawer port) |
+| Touchscreen                              | Controls are 44px+; **no POS screen tested**                  |
+
+No hardware of any kind has been connected to this system. Nothing above marked "no
+hardware tested" should be read as working on a specific device.

@@ -42,8 +42,19 @@
     ],
     "publisher": "Carl",
     "category": "Business",
-    "shortDescription": "Point of sale, inventory and business management",
-    "longDescription": "Carl \u2014 point of sale, inventory and business management for multi-branch retail. Keeps selling when the connection does not."
+    "shortDescription": "Point of sale for Windows",
+    "longDescription": "Carl point of sale. Sells offline when the connection drops and synchronises when it returns.",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      },
+      "nsis": {
+        "installMode": "perMachine",
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "startMenuFolder": "Carl POS"
+      }
+    }
   },
   "plugins": {
     "updater": {

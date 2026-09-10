@@ -1,0 +1,162 @@
+name: Windows release
+
+# The path from a Mac to a shop counter.
+#
+# Carl runs on physical Windows POS machines, and nobody on this project owns one. That is
+# not a reason to hand a client an unbuilt product: a Windows runner builds the real
+# installer, so what the client downloads is the same artifact CI produced, byte for byte,
+# with a checksum they can verify.
+#
+# BUILD VERIFIED IS NOT HARDWARE VERIFIED. This workflow proves the installer exists and is
+# well formed. It cannot prove a cashier can sell on a particular till — that needs the till.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Attach the installer to a GitHub Release'
+        type: boolean
+        default: false
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Public by design: the anon key grants nothing on its own because RLS decides what a
+  # signed-in user may do. No service-role key, database URL or device pepper is available
+  # to this workflow, and verify-desktop-bundle.mjs fails the build if one appears.
+  VITE_CARL_URL: https://carl-red.vercel.app
+  VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+
+jobs:
+  installer:
+    name: Build Windows installer
+    runs-on: windows-latest
+    permissions:
+      contents: write # only used to create the Release below
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The Windows runner already carries the MSVC toolchain and the WebView2 runtime, so
+      # only Rust needs installing. That is the whole reason this runs on Windows rather
+      # than cross-compiling.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the desktop client
+        run: pnpm --filter @carl/desktop typecheck
+
+      - name: Desktop unit tests
+        run: pnpm vitest run --project unit apps/desktop
+
+      # Runs verify-desktop-bundle.mjs via beforeBuildCommand, so an installer can never
+      # contain a bare module specifier, a missing SQL plugin, or an embedded secret.
+      - name: Build installer
+        run: pnpm --filter @carl/desktop bundle
+
+      # Named for a human. Tauri emits Carl_0.1.0_x64-setup.exe; a shopkeeper being told to
+      # run that has to guess. The checksum is what lets them confirm the download is the
+      # artifact CI built.
+      - name: Name the artifact and checksum it
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nsis = Get-ChildItem -Recurse -Filter '*-setup.exe' `
+            -Path 'apps/desktop/src-tauri/target/release/bundle/nsis' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $nsis) { throw 'No NSIS installer was produced.' }
+
+          New-Item -ItemType Directory -Force -Path dist-release | Out-Null
+          $out = 'dist-release/Carl-POS-Windows-x64-Setup.exe'
+          Copy-Item $nsis.FullName $out
+
+          $msi = Get-ChildItem -Recurse -Filter '*.msi' `
+            -Path 'apps/desktop/src-tauri/target/release/bundle/msi' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if ($msi) { Copy-Item $msi.FullName 'dist-release/Carl-POS-Windows-x64.msi' }
+
+          Get-ChildItem dist-release | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)" | Out-File -Append -Encoding ascii dist-release/SHA256SUMS.txt
+            Write-Host "$($_.Name)  $([math]::Round($_.Length/1MB,1)) MB  $h"
+          }
+
+      # Proves the installer is a real PE executable rather than a truncated or empty file
+      # that would fail only on a client's machine.
+      - name: Verify the artifact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = 'dist-release/Carl-POS-Windows-x64-Setup.exe'
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1MB) { throw "Installer is only $size bytes." }
+          $bytes = [System.IO.File]::ReadAllBytes($exe)[0..1]
+          if ([char]$bytes[0] + [char]$bytes[1] -ne 'MZ') { throw 'Not a Windows executable.' }
+          Write-Host "Installer verified: $([math]::Round($size/1MB,1)) MB, valid PE header"
+
+      # ---------------------------------------------------------------------
+      # Code signing
+      #
+      # Deliberately absent, not forgotten. Signing needs an Authenticode certificate this
+      # project does not have, and a self-signed one would produce an installer that still
+      # trips SmartScreen while looking signed — worse than being honestly unsigned.
+      #
+      # When a certificate exists, add WINDOWS_CERTIFICATE (base64 .pfx) and
+      # WINDOWS_CERTIFICATE_PASSWORD as repository secrets. Tauri signs automatically when
+      # both are present; no application change is needed.
+      # ---------------------------------------------------------------------
+      - name: Report signing status
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_CERTIFICATE) {
+            Write-Host 'Signing: certificate present'
+          } else {
+            Write-Host 'Signing: BLOCKED — no Authenticode certificate configured.'
+            Write-Host 'The installer is UNSIGNED. Windows SmartScreen will warn on first run.'
+          }
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Carl-POS-Windows-x64
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-release/*
+          draft: true # a human decides when a shop can download it
+          body: |
+            Carl POS for Windows.
+
+            **This installer is unsigned.** Windows SmartScreen will warn on first run until
+            an Authenticode certificate is configured.
+
+            Verify your download against `SHA256SUMS.txt` before installing.
+
+            Requires Windows 10 1809 or later. The WebView2 runtime is included in the
+            installer, so no internet connection is needed to install.
