@@ -25,18 +25,17 @@ describe('platform owner PIN', () => {
 
   beforeEach(async () => {
     await db.reset();
+    /*
+     * Created exactly the way production creates one: an insert into `platform_admins` and
+     * nothing else. The PIN now arrives from the BEFORE INSERT trigger in migration 0035.
+     *
+     * This fixture used to hand-set the hash here, with a comment noting that the migration's
+     * seeding UPDATE had already run. That workaround is why the defect survived: the suite
+     * granted every test administrator a PIN that a real one never received, so
+     * `verify_platform_pin` always had a candidate row and the tests passed against a
+     * production path that could not work.
+     */
     owner = await createUser(db, { isPlatformAdmin: true });
-    // The seeding UPDATE in the migration ran before this fixture existed, so give this
-    // administrator the documented default explicitly.
-    await db.asServiceRole(() =>
-      db.query(
-        `update platform_admins
-            set pin_hash = extensions.crypt('1024', extensions.gen_salt('bf', 4)),
-                pin_set_at = now(), pin_is_default = true
-          where user_id = $1`,
-        [owner],
-      ),
-    );
     // Deliberately NOT re-inserting the throttle row: the harness truncates it, and the
     // function is required to recreate it. See 'survives the throttle row going missing'.
     await db.asServiceRole(() =>
@@ -244,6 +243,125 @@ describe('platform owner PIN', () => {
       await expect(
         db.asAnon(() => db.query(`select change_platform_pin('1024', '7391')`)),
       ).rejects.toThrow(/permission denied|PERMISSION_DENIED/i);
+    });
+  });
+
+  describe('an administrator created the way production creates one', () => {
+    /*
+     * The regression test for a live production defect: the owner could not sign in with
+     * the documented default PIN, and was told "That PIN is not correct".
+     *
+     * Migration 0031 seeded the default with a one-time
+     * `update ... where pin_hash is null`, which only ever touched rows that existed when
+     * that migration ran. docs/DEPLOYMENT.md tells an operator to insert the administrator
+     * AFTER deploying the schema, so the real row got `pin_hash = NULL` — and
+     * `verify_platform_pin` skips administrators without a hash. No candidate rows, no
+     * successful PIN, for any input.
+     *
+     * These tests deliberately do NOT set a PIN themselves. Setting one is precisely the
+     * workaround that let this ship. Remove the trigger from 0035 and every assertion in
+     * this block fails.
+     */
+    let fresh: string;
+
+    beforeEach(async () => {
+      // The documented deployment step, and nothing more.
+      fresh = await createUser(db, { isPlatformAdmin: true });
+      await db.asServiceRole(() =>
+        db.query(`update platform_pin_throttle set consecutive_failures = 0, locked_until = null`),
+      );
+    });
+
+    it('is given a PIN at all', async () => {
+      const { rows } = await db.asServiceRole(() =>
+        db.query<{ has_hash: boolean; is_default: boolean }>(
+          `select pin_hash is not null as has_hash, pin_is_default as is_default
+             from platform_admins where user_id = $1`,
+          [fresh],
+        ),
+      );
+      // Asserted on presence, never on the value: the hash is a credential.
+      expect(rows[0]!.has_hash, 'the administrator has no PIN and can never sign in').toBe(true);
+      expect(rows[0]!.is_default, 'the console will not insist the default be changed').toBe(true);
+    });
+
+    it('signs in with the documented default PIN', async () => {
+      const result = await verify('1024');
+      expect(result.status, 'the default PIN was rejected for a real administrator').toBe('OK');
+      expect(result.user_id).not.toBeNull();
+      expect(result.email).not.toBeNull();
+      // Drives the redirect to the change-PIN screen.
+      expect(result.is_default).toBe(true);
+    });
+
+    it('refuses an incorrect PIN', async () => {
+      expect((await verify('7391')).status).toBe('INVALID');
+    });
+
+    it('refuses a PIN of the wrong length', async () => {
+      for (const bad of ['1', '102', '10245', '12345678']) {
+        expect((await verify(bad)).status, `accepted ${bad}`).toBe('INVALID');
+      }
+    });
+
+    it('refuses an empty PIN and a non-numeric one', async () => {
+      for (const bad of ['', '    ', 'abcd', '10a4']) {
+        expect((await verify(bad)).status, `accepted ${JSON.stringify(bad)}`).toBe('INVALID');
+      }
+    });
+
+    it('never returns the stored hash to the caller', async () => {
+      // The function's result shape is part of the security boundary.
+      const result = await verify('1024');
+      expect(Object.keys(result).sort()).toEqual(['email', 'is_default', 'status', 'user_id']);
+    });
+
+    it('still signs in after the PIN has been changed away from the default', async () => {
+      await db.asUser(fresh, () => db.query(`select change_platform_pin('1024', '7391')`));
+
+      const changed = await verify('7391');
+      expect(changed.status).toBe('OK');
+      expect(changed.user_id).toBe(fresh);
+      expect(changed.is_default, 'still flagged as the default').toBe(false);
+
+      /*
+       * Asserted on identity, not on status.
+       *
+       * `verify_platform_pin` checks every administrator holding a PIN, deliberately — so
+       * that a second owner is not locked out of their own console. This suite's outer
+       * fixture creates one, and it legitimately still holds the default. The claim worth
+       * making is narrower and is the one that matters: the administrator who changed their
+       * PIN can no longer be reached with the old one.
+       */
+      const withOldPin = await verify('1024');
+      expect(withOldPin.user_id, 'the replaced default still signs this owner in').not.toBe(fresh);
+    });
+
+    it('does not overwrite a PIN that was supplied at insert time', async () => {
+      /*
+       * The trigger fills a gap; it must never replace a real credential with a published
+       * default. An administrator inserted with a chosen hash keeps it.
+       */
+      const chosen = await createUser(db);
+      await db.asServiceRole(() =>
+        db.query(
+          `insert into platform_admins (user_id, pin_hash, pin_is_default)
+           values ($1, extensions.crypt('7391', extensions.gen_salt('bf', 4)), false)`,
+          [chosen],
+        ),
+      );
+      await db.asServiceRole(() =>
+        db.query(`update platform_pin_throttle set consecutive_failures = 0, locked_until = null`),
+      );
+
+      expect((await verify('7391')).status).toBe('OK');
+      const { rows } = await db.asServiceRole(() =>
+        db.query<{ is_default: boolean }>(
+          `select pin_is_default as is_default from platform_admins where user_id = $1`,
+          [chosen],
+        ),
+      );
+      expect(rows[0]!.is_default, 'a chosen PIN was marked as the default').toBe(false);
     });
   });
 
