@@ -11,3 +11,5 @@ export * from './access/permissions';
 export * from './access/roles';
 export * from './sales/cart';
 export * from './sales/receipt';
+export * from './hardware/receipt-printer';
+export * from './hardware/escpos';
