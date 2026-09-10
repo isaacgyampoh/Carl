@@ -185,6 +185,25 @@ class PgTestDatabase implements TestDatabase {
     this.dead = false;
   }
 
+  /**
+   * Normalises what `pg` hands back.
+   *
+   * node-postgres returns a single result for one statement and an ARRAY of results when
+   * the text contains several — which `exec()` routinely sends, for a seed file or a batch
+   * of DDL. Reading `.rows` off the array yields `undefined`, and `.rows.length` then
+   * throws `Cannot read properties of undefined`, taking down the whole file in a hook.
+   *
+   * The last statement's result is the meaningful one: a caller running several statements
+   * is asking about the outcome of the final one. PGlite returns a single result either
+   * way, which is why this only ever failed against the real driver.
+   */
+  private static normalise<T>(result: unknown): QueryResult<T> {
+    const last = Array.isArray(result) ? result[result.length - 1] : result;
+    const rows = ((last as { rows?: unknown[] } | undefined)?.rows ?? []) as T[];
+    const rowCount = (last as { rowCount?: number | null } | undefined)?.rowCount;
+    return { rows, rowCount: rowCount ?? rows.length };
+  }
+
   async query<T = Record<string, unknown>>(
     sql: string,
     params: readonly unknown[] = [],
@@ -192,8 +211,7 @@ class PgTestDatabase implements TestDatabase {
     if (this.dead) await this.reconnect();
 
     try {
-      const result = await this.client.query(sql, params as unknown[]);
-      return { rows: result.rows as T[], rowCount: result.rowCount ?? result.rows.length };
+      return PgTestDatabase.normalise<T>(await this.client.query(sql, params as unknown[]));
     } catch (error) {
       // Only a *connection* failure is retried. A statement that was refused, or that
       // violated a constraint, must propagate — retrying it would turn a real failure into
@@ -201,8 +219,7 @@ class PgTestDatabase implements TestDatabase {
       if (!isConnectionError(error)) throw error;
 
       await this.reconnect();
-      const result = await this.client.query(sql, params as unknown[]);
-      return { rows: result.rows as T[], rowCount: result.rowCount ?? result.rows.length };
+      return PgTestDatabase.normalise<T>(await this.client.query(sql, params as unknown[]));
     }
   }
 

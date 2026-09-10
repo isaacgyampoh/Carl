@@ -18,6 +18,14 @@ serde_json = "1"
 keyring = "3"
 thiserror = "2"
 
+# Windows only: the print spooler API. Not a vendor SDK and not a USB library — the shop
+# installs the printer's own Windows driver, and the spooler passes raw ESC/POS through.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Printing",
+] }
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

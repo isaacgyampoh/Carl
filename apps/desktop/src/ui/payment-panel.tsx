@@ -11,7 +11,15 @@
  */
 
 import { useState } from 'react';
-import { receiptText, type CartLine, type SaleItemPayload } from '@carl/domain';
+import {
+  printFailureMessage,
+  printWithoutFailingTheSale,
+  renderReceipt,
+  type CartLine,
+  type ReceiptData,
+  type ReceiptPrinter,
+  type SaleItemPayload,
+} from '@carl/domain';
 
 import type { Runtime } from '../app';
 import type { DeviceConfig } from '../lib/device-store';
@@ -38,6 +46,7 @@ export function PaymentPanel({
   taxTotal,
   lines,
   payload,
+  printer,
   onCancel,
   onCompleted,
 }: {
@@ -50,10 +59,14 @@ export function PaymentPanel({
   taxTotal: number;
   lines: readonly CartLine[];
   payload: { items: SaleItemPayload[] };
+  /** Absent when no printer is configured; the till sells perfectly well without one. */
+  printer: ReceiptPrinter | null;
   onCancel: () => void;
   onCompleted: () => void | Promise<void>;
 }): React.JSX.Element {
   const [method, setMethod] = useState<Method>('CASH');
+  // Surfaced to the cashier after the sale has already succeeded, never instead of it.
+  const [printProblem, setPrintProblem] = useState<string | null>(null);
   const [tendered, setTendered] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,39 +112,62 @@ export function PaymentPanel({
        * Failing to store it must not fail the sale: the money has been taken and the sale
        * is already on disk. A missing reprint is an inconvenience; a lost sale is not.
        */
+      let receiptLines: string[] = [];
       try {
-        const body = receiptText(
-          {
-            businessName: config.tenantName,
-            branchName: config.branchName,
-            saleNumber: `LOCAL-${idempotencyKey.slice(0, 8).toUpperCase()}`,
-            soldAt: new Date(soldAt),
-            cashierName,
-            lines: lines.map((line) => ({
-              name: line.name,
-              quantity: line.quantity,
-              unitPrice: line.unitPrice,
-              lineTotal: line.unitPrice * (line.quantity / 1000),
-            })),
-            subtotal,
-            discountTotal,
-            taxTotal,
-            total,
-            payments: [{ method, amount: total }],
-            amountPaid: method === 'CASH' ? given : total,
-            changeGiven: method === 'CASH' && change > 0 ? change : 0,
-            currencyCode: `${config.currencyCode} `,
-            pendingSync: true,
-          },
-          32,
-        );
+        const receipt: ReceiptData = {
+          businessName: config.tenantName,
+          branchName: config.branchName,
+          saleNumber: `LOCAL-${idempotencyKey.slice(0, 8).toUpperCase()}`,
+          soldAt: new Date(soldAt),
+          cashierName,
+          lines: lines.map((line) => ({
+            name: line.name,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: line.unitPrice * (line.quantity / 1000),
+          })),
+          subtotal,
+          discountTotal,
+          taxTotal,
+          total,
+          payments: [{ method, amount: total }],
+          amountPaid: method === 'CASH' ? given : total,
+          changeGiven: method === 'CASH' && change > 0 ? change : 0,
+          currencyCode: `${config.currencyCode} `,
+          pendingSync: true,
+        };
+        // Rendered once and used twice: stored for reprinting, and sent to the printer.
+        // Two renderings would be two chances to disagree about what the customer paid.
+        receiptLines = renderReceipt(receipt, 32);
         await runtime.connection.execute(
           `insert into local_receipts (queue_id, receipt_body) values (?, ?)
            on conflict (queue_id) do update set receipt_body = excluded.receipt_body`,
-          [idempotencyKey, body],
+          [idempotencyKey, receiptLines.join('\n')],
         );
       } catch {
         // The sale is safe. A receipt that cannot be stored is not a reason to fail it.
+      }
+
+      /*
+       * Print, strictly after the sale is on disk and strictly outside the path that
+       * decides whether the sale succeeded.
+       *
+       * A paper jam, an unplugged printer or no printer at all must never roll back money
+       * that has been taken. `printWithoutFailingTheSale` swallows the throw; the outcome
+       * is surfaced to the cashier so they can retry, and the receipt is already stored
+       * for reprinting either way.
+       */
+      if (printer) {
+        const printed = await printWithoutFailingTheSale(printer, receiptLines);
+        if (!printed.ok && printed.failure) {
+          setPrintProblem(printFailureMessage(printed.failure));
+        }
+        // The drawer is fired only for cash. A card or mobile-money sale has no change to
+        // give, and a drawer that springs open on every sale is a security problem in a
+        // busy shop.
+        if (method === 'CASH') {
+          await printer.openDrawer().catch(() => undefined);
+        }
       }
 
       // Only now is the cashier told. The sale is on disk.
@@ -223,6 +259,14 @@ export function PaymentPanel({
         {error ? (
           <p role="alert" style={{ color: 'var(--danger)', margin: 0 }}>
             {error}
+          </p>
+        ) : null}
+
+        {/* A print problem is a warning, not an error: the sale succeeded and the money is
+            recorded. Coloured accordingly, so a cashier does not think the sale failed. */}
+        {printProblem ? (
+          <p role="status" style={{ color: 'var(--warning)', margin: 0 }}>
+            {printProblem} The sale is saved — you can reprint the receipt.
           </p>
         ) : null}
 

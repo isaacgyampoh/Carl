@@ -10,6 +10,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod credentials;
+mod printer;
 
 /// The local database.
 ///
@@ -27,6 +28,24 @@ const DB_URL: &str = "sqlite:carl.db";
 /// Called once, immediately after activation succeeds. The secret is passed straight from
 /// the activation response into the OS credential store and is not retained anywhere in
 /// between.
+/// The printers Windows knows about.
+///
+/// Empty off Windows, and empty on a machine with none installed — which the console shows
+/// as "no printer set up" rather than an error, because it is not one.
+#[tauri::command]
+fn list_printers() -> Result<Vec<printer::PrinterInfo>, String> {
+    printer::list()
+}
+
+/// Sends raw ESC/POS bytes to a named printer.
+///
+/// `Ok` means the spooler accepted the job. It does not mean paper came out — Windows does
+/// not report that, and the caller says "sent to the printer" rather than "printed".
+#[tauri::command]
+fn print_raw(printer_name: String, bytes: Vec<u8>) -> Result<(), String> {
+    printer::print_raw(&printer_name, &bytes)
+}
+
 #[tauri::command]
 fn store_device_secret(device_id: String, secret: String) -> Result<(), String> {
     credentials::store_device_secret(&device_id, &secret).map_err(|error| error.to_string())
@@ -99,6 +118,8 @@ fn main() {
         )
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            list_printers,
+            print_raw,
             store_device_secret,
             read_device_secret,
             clear_device_secret,

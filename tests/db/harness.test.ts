@@ -45,6 +45,41 @@ describe('database test harness', () => {
     `);
   });
 
+  it('runs a multi-statement script without losing its result', async () => {
+    /*
+     * A regression test for a real harness defect.
+     *
+     * node-postgres returns a single result for one statement and an ARRAY of results when
+     * the text contains several. The harness read `.rows` off that array, got `undefined`,
+     * and `.rows.length` threw — taking down every test in the file from inside a hook.
+     *
+     * It only ever failed against the real driver: PGlite returns a single result either
+     * way, so a full PGlite suite stayed green while two files died on real PostgreSQL.
+     * `exec()` sends multi-statement SQL routinely — the seed file, batches of DDL — so
+     * this was not an exotic path.
+     */
+    await db.exec(`
+      drop table if exists public.harness_multi cascade;
+      create table public.harness_multi (id int primary key, label text);
+      insert into public.harness_multi (id, label) values (1, 'first'), (2, 'second');
+    `);
+
+    const { rows } = await db.query<{ n: string }>(
+      'select count(*)::text as n from public.harness_multi',
+    );
+    expect(rows[0]!.n).toBe('2');
+
+    // The last statement's rows are what a caller of a multi-statement query is asking for.
+    const result = await db.query<{ label: string }>(`
+      select label from public.harness_multi where id = 1;
+      select label from public.harness_multi where id = 2;
+    `);
+    expect(result.rows[0]!.label).toBe('second');
+    expect(result.rowCount).toBe(1);
+
+    await db.exec('drop table if exists public.harness_multi cascade');
+  });
+
   afterAll(async () => {
     await db?.close();
   });

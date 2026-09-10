@@ -23,7 +23,10 @@ import { CatalogueStore } from './lib/catalogue-store';
 import { CARL_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './lib/env';
 import { DeviceApi } from './lib/device-api';
 import { DeviceStore, type DeviceConfig } from './lib/device-store';
+import type { ReceiptPrinter } from '@carl/domain';
 import { readDeviceSecret } from './lib/keychain';
+import { WindowsReceiptPrinter } from './lib/windows-printer';
+import { loadPrinterSelection, selectedPrinterName } from './lib/printer-selection';
 import { isDesktop } from './lib/runtime';
 import { verifyLocalDatabase } from './lib/sqlite-preflight';
 import { TauriSqliteConnection } from './lib/tauri-sqlite';
@@ -37,6 +40,13 @@ export interface Runtime {
   readonly catalogue: CatalogueStore;
   readonly devices: DeviceStore;
   readonly api: DeviceApi;
+  /**
+   * Null when no printer has been chosen.
+   *
+   * The till sells perfectly well without one — a shop that has not set a printer up yet,
+   * or whose printer died this morning, still needs to take money.
+   */
+  readonly printer: ReceiptPrinter | null;
 }
 
 type State =
@@ -89,6 +99,9 @@ export function App(): React.JSX.Element {
         catalogue: new CatalogueStore(connection),
         devices: new DeviceStore(connection),
         api: new DeviceApi({ baseUrl: CARL_URL }),
+        // Reads the selected name on every use, so changing it in settings takes effect
+        // on the next sale rather than at the next restart.
+        printer: new WindowsReceiptPrinter(selectedPrinterName),
       };
 
       /*
@@ -99,6 +112,10 @@ export function App(): React.JSX.Element {
        * silently broken that promise is void: the terminal looks fine, takes money, prints
        * receipts, and loses every transaction. Refusing to open is strictly better.
        */
+      // Restores the printer chosen on this machine. Absent is ordinary: a till with no
+      // printer still sells.
+      await loadPrinterSelection(connection);
+
       const preflight = await verifyLocalDatabase(connection);
       if (!preflight.ok) {
         setState({

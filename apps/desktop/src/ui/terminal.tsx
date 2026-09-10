@@ -384,6 +384,7 @@ export function Terminal({
           taxTotal={totals.tax}
           lines={cart.lines}
           payload={toSalePayload(cart)}
+          printer={runtime.printer}
           onCancel={() => setPaying(false)}
           onCompleted={async () => {
             setPaying(false);
