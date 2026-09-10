@@ -70,3 +70,38 @@ describe('PIN screens never leak technical errors', () => {
     });
   });
 });
+
+/**
+ * The error boundaries.
+ *
+ * Added after two owner pages threw during render with no boundary in place, so the browser
+ * showed its own "This page couldn't load". A boundary that prints the exception would
+ * simply move the leak, so these assert that neither renders error text, a digest, or a
+ * stack.
+ */
+describe('error boundaries reveal nothing technical', () => {
+  const read = (relative: string) =>
+    readFileSync(join(import.meta.dirname, '..', '..', relative), 'utf8');
+
+  const boundaries = [
+    ['route', join('apps', 'web', 'src', 'app', 'error.tsx')],
+    ['root', join('apps', 'web', 'src', 'app', 'global-error.tsx')],
+  ] as const;
+
+  it.each(boundaries)('the %s boundary exists', (_name, relative) => {
+    expect(read(relative).length).toBeGreaterThan(0);
+  });
+
+  it.each(boundaries)('the %s boundary renders no exception detail', (_name, relative) => {
+    const source = read(relative);
+    // Rendering `{error.message}`, `{error.digest}` or a stack would put server internals on
+    // a shop floor — which is the failure this whole boundary was added to prevent.
+    expect(source).not.toMatch(/\{\s*error\.(message|digest|stack)\s*\}/);
+    expect(source).not.toMatch(/\{\s*String\(error\)/);
+    expect(source).not.toMatch(/\{\s*error\s*\}/);
+  });
+
+  it.each(boundaries)('the %s boundary offers a way out', (_name, relative) => {
+    expect(read(relative)).toContain('Try again');
+  });
+});
