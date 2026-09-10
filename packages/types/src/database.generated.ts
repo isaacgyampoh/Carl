@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 52 relations, 28 enums, 41 functions.
+ * 53 relations, 28 enums, 42 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -1516,18 +1516,30 @@ export interface Database {
           granted_by: string | null;
           granted_at: string;
           note: string | null;
+          pin_hash: string | null;
+          pin_set_at: string | null;
+          pin_is_default: boolean;
+          last_login_at: string | null;
         };
         Insert: {
           user_id: string;
           granted_by?: string | null;
           granted_at?: string;
           note?: string | null;
+          pin_hash?: string | null;
+          pin_set_at?: string | null;
+          pin_is_default?: boolean;
+          last_login_at?: string | null;
         };
         Update: {
           user_id?: string;
           granted_by?: string | null;
           granted_at?: string;
           note?: string | null;
+          pin_hash?: string | null;
+          pin_set_at?: string | null;
+          pin_is_default?: boolean;
+          last_login_at?: string | null;
         };
         Relationships: [
           {
@@ -1545,6 +1557,27 @@ export interface Database {
             referencedColumns: ['id'];
           },
         ];
+      };
+      platform_pin_throttle: {
+        Row: {
+          id: boolean;
+          consecutive_failures: number;
+          locked_until: string | null;
+          last_attempt_at: string | null;
+        };
+        Insert: {
+          id?: boolean;
+          consecutive_failures?: number;
+          locked_until?: string | null;
+          last_attempt_at?: string | null;
+        };
+        Update: {
+          id?: boolean;
+          consecutive_failures?: number;
+          locked_until?: string | null;
+          last_attempt_at?: string | null;
+        };
+        Relationships: [];
       };
       product_barcodes: {
         Row: {
@@ -3798,6 +3831,13 @@ export interface Database {
       carl_test_reset: {
         Args: {
           p_preserve: string[];
+        };
+        Returns: unknown;
+      };
+      change_platform_pin: {
+        Args: {
+          p_current_pin: string;
+          p_new_pin: string;
         };
         Returns: unknown;
       };
