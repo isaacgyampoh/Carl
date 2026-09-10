@@ -1,207 +1,141 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  Card,
-  CardHeader,
-  EmptyState,
-  Stat,
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-  Badge,
-  statusTone,
-  buttonClasses,
-} from '@carl/ui';
+import { Badge, Card, CardHeader, EmptyState, Stat, buttonClasses, statusTone } from '@carl/ui';
+import { Currency, formatMoney } from '@carl/shared';
 
-import { requirePlatformAdmin } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/page-header';
+import { billingState, daysUntil, platformOverview } from '@/server/platform-queries';
 
 export const metadata: Metadata = { title: 'Carl platform' };
 export const dynamic = 'force-dynamic';
 
 /**
- * Platform administration.
+ * The platform owner's console.
+ *
+ * Built to answer the questions that decide a working day: who owes money, who is about
+ * to, and who is new. Everything else is a click away.
  *
  * Note what is *not* here: any customer's sales, stock or takings. Being a platform
- * administrator grants the platform — tenants, devices, subscriptions, support records —
- * and nothing about a business's own data. Reading that requires an explicit, time-boxed
- * support grant that the customer can see.
+ * administrator grants the platform — clients, devices, subscriptions, billing — and
+ * nothing about a business's own trade. Reading that needs an explicit, time-boxed
+ * support grant the customer can see.
  */
 export default async function PlatformPage() {
-  await requirePlatformAdmin();
-  const client = await supabase();
-
-  const [tenants, devices, installations, maintenance] = await Promise.all([
-    client
-      .from('tenants')
-      .select('id, name, slug, status, created_at')
-      .order('created_at', { ascending: false }),
-    client.from('devices_safe').select('id, status, health'),
-    client
-      .from('installations')
-      .select('id, reference, status, scheduled_for, tenants(name)')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    client
-      .from('maintenance_records')
-      .select('id, reference, issue, status, priority, reported_at, tenants(name)')
-      .neq('status', 'CLOSED')
-      .order('reported_at', { ascending: false })
-      .limit(5),
-  ]);
-
-  const allTenants = tenants.data ?? [];
-  const allDevices = devices.data ?? [];
-
-  const byStatus = (status: string) => allTenants.filter((t) => t.status === status).length;
+  const { overview, recent } = await platformOverview();
+  // The console shows one platform-wide currency. Carl's tenants are Ghanaian today, and
+  // a mixed-currency total would be a wrong number rather than a useful one.
+  const currency = (overview.currencyCode as Currency) ?? Currency.GHS;
+  const money = (minor: number) => formatMoney(minor, currency);
 
   return (
-    <>
+    <div className="space-y-6">
       <PageHeader
-        title="Carl platform"
-        description="The businesses running on Carl. This area does not show any customer's trading data."
+        title="Platform"
+        description="Carl's customers, their subscriptions and their terminals."
+        action={
+          <Link href="/platform/onboarding" className={buttonClasses({ variant: 'primary' })}>
+            Add client
+          </Link>
+        }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Businesses" value={allTenants.length.toLocaleString('en-GH')} />
-        <Stat label="Active" value={byStatus('ACTIVE').toLocaleString('en-GH')} tone="positive" />
+      {/* The money questions first, because they are the ones with a deadline. */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Stat label="Clients" value={overview.total.toLocaleString('en-GH')} />
+        <Stat label="Active" value={overview.active.toLocaleString('en-GH')} tone="positive" />
+        <Stat label="Trial" value={overview.trial.toLocaleString('en-GH')} />
+        <Stat
+          label="Due soon"
+          value={overview.dueSoon.toLocaleString('en-GH')}
+          tone={overview.dueSoon > 0 ? 'warning' : 'neutral'}
+        />
+        <Stat
+          label="Overdue"
+          value={overview.overdue.toLocaleString('en-GH')}
+          tone={overview.overdue > 0 ? 'danger' : 'neutral'}
+        />
         <Stat
           label="Suspended"
-          value={(byStatus('SUSPENDED') + byStatus('GRACE_PERIOD')).toLocaleString('en-GH')}
-          tone={byStatus('SUSPENDED') > 0 ? 'danger' : 'neutral'}
+          value={overview.suspended.toLocaleString('en-GH')}
+          tone={overview.suspended > 0 ? 'danger' : 'neutral'}
         />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Expected this month" value={money(overview.expectedThisMonth)} />
+        <Stat label="Branches" value={overview.branches.toLocaleString('en-GH')} />
         <Stat
-          label="Terminals online"
-          value={`${allDevices.filter((d) => d.health === 'ONLINE').length} / ${allDevices.length}`}
+          label="Terminals active"
+          value={overview.activeDevices.toLocaleString('en-GH')}
+          {...(overview.pendingActivations > 0
+            ? { hint: `${overview.pendingActivations} awaiting activation` }
+            : {})}
         />
-      </div>
+      </section>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Card className="overflow-hidden">
-          <CardHeader
-            title="Businesses"
-            action={
-              <Link
-                href="/platform/tenants"
-                className={buttonClasses({ variant: 'ghost', size: 'sm' })}
-              >
-                View all
-              </Link>
-            }
+      <nav className="flex flex-wrap gap-2">
+        {(
+          [
+            ['Clients', '/platform/clients'],
+            ['Billing', '/platform/billing'],
+            ['Invoices', '/platform/invoices'],
+            ['Terminals', '/platform/devices'],
+            ['Activity', '/platform/audit'],
+          ] as const
+        ).map(([label, href]) => (
+          <Link key={href} href={href} className={buttonClasses({ variant: 'secondary' })}>
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <Card>
+        <CardHeader
+          title="Recently onboarded"
+          action={
+            <Link href="/platform/clients" className="text-sm underline underline-offset-4">
+              All clients
+            </Link>
+          }
+        />
+        {recent.length === 0 ? (
+          <EmptyState
+            title="No clients yet"
+            description="Onboard the first business to start using Carl."
           />
-          {allTenants.length === 0 ? (
-            <EmptyState
-              title="No businesses yet"
-              description="Provision the first tenant to begin."
-            />
-          ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Business</TH>
-                  <TH>Status</TH>
-                  <TH>Since</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {allTenants.slice(0, 8).map((tenant) => (
-                  <TR key={tenant.id}>
-                    <TD>
-                      <span className="font-medium">{tenant.name}</span>
-                      <span className="block font-mono text-xs text-[color:var(--color-ink-muted)]">
-                        {tenant.slug}
+        ) : (
+          <ul className="divide-y divide-[color:var(--color-border)]">
+            {recent.map((c) => {
+              const state = billingState(c);
+              const days = daysUntil(c.nextBillingAt);
+              return (
+                <li key={c.tenantId}>
+                  <Link
+                    href={`/platform/clients/${c.tenantId}`}
+                    className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-[color:var(--color-surface-muted)]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{c.name}</span>
+                      <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                        {c.planName ?? 'No plan'}
+                        {c.price != null ? ` · ${money(c.price)}` : ''}
                       </span>
-                    </TD>
-                    <TD>
-                      <Badge tone={statusTone(tenant.status)}>
-                        {tenant.status.replace(/_/g, ' ').toLowerCase()}
-                      </Badge>
-                    </TD>
-                    <TD className="text-[color:var(--color-ink-muted)]">
-                      {new Date(tenant.created_at).toLocaleDateString('en-GH')}
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          )}
-        </Card>
-
-        <div className="flex flex-col gap-5">
-          <Card className="overflow-hidden">
-            <CardHeader title="Open maintenance" />
-            {(maintenance.data ?? []).length === 0 ? (
-              <EmptyState title="Nothing outstanding" />
-            ) : (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Issue</TH>
-                    <TH>Business</TH>
-                    <TH>Priority</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {(maintenance.data ?? []).map((record) => (
-                    <TR key={record.id}>
-                      <TD>
-                        <span className="font-medium">{record.issue}</span>
-                        <span className="block font-mono text-xs text-[color:var(--color-ink-muted)]">
-                          {record.reference}
-                        </span>
-                      </TD>
-                      <TD className="text-[color:var(--color-ink-muted)]">
-                        {record.tenants?.name ?? '—'}
-                      </TD>
-                      <TD>
-                        <Badge tone={record.priority === 'URGENT' ? 'danger' : 'neutral'}>
-                          {record.priority.toLowerCase()}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {(state === 'OVERDUE' || state === 'GRACE') && (
+                        <Badge tone="danger">
+                          {days != null && days < 0 ? `${Math.abs(days)}d overdue` : 'Overdue'}
                         </Badge>
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            )}
-          </Card>
-
-          <Card className="overflow-hidden">
-            <CardHeader title="Recent installations" />
-            {(installations.data ?? []).length === 0 ? (
-              <EmptyState title="No installations recorded" />
-            ) : (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Reference</TH>
-                    <TH>Business</TH>
-                    <TH>Status</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {(installations.data ?? []).map((record) => (
-                    <TR key={record.id}>
-                      <TD className="font-mono text-xs">{record.reference}</TD>
-                      <TD className="text-[color:var(--color-ink-muted)]">
-                        {record.tenants?.name ?? '—'}
-                      </TD>
-                      <TD>
-                        <Badge tone={statusTone(record.status)}>
-                          {record.status.replace(/_/g, ' ').toLowerCase()}
-                        </Badge>
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            )}
-          </Card>
-        </div>
-      </div>
-    </>
+                      )}
+                      <Badge tone={statusTone(c.status)}>{c.status.replace('_', ' ')}</Badge>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </div>
   );
 }
