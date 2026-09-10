@@ -50,6 +50,12 @@ only by the harness and never reaches a deployed database.
 The identical suite runs against a real project. The assertions do not change; only where
 they execute does.
 
+> **This suite destroys the database it runs against.** It requires a **separate Supabase
+> project that exists only for verification**. Never point it at the project serving shops,
+> and never at the project a deployment's `SUPABASE_URL` names. See _Why there are two
+> projects_ below — this is not a precaution, it is a recovery of something that already
+> went wrong.
+
 ```bash
 export SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@<region>.pooler.supabase.com:5432/postgres'
 export CARL_TEST_DB_DRIVER=pg
@@ -57,7 +63,7 @@ export CARL_ALLOW_DESTRUCTIVE_DB_TESTS=yes
 pnpm test:db
 ```
 
-Three things about that command matter.
+Four things about that command matter.
 
 **Use the session-mode pooler (port 5432), not transaction mode (6543).** The suite relies
 on `SET ROLE` and explicit transactions persisting across statements; transaction-mode
@@ -66,6 +72,41 @@ pooling hands each statement to a different backend and the identity is lost bet
 **`CARL_ALLOW_DESTRUCTIVE_DB_TESTS=yes` is not a formality.** The suite truncates every
 application table. The driver refuses to start without it, so a mistyped connection string
 cannot quietly destroy a real database. Point it at a disposable verification project.
+
+**The database must declare itself disposable.** The driver refuses to run unless the target
+carries a marker table. Create it once, on the verification project only:
+
+```sql
+create table if not exists public.carl_disposable_verification_marker ();
+```
+
+Nothing in the codebase creates that table. A guard that can arm itself will eventually arm
+itself against the wrong database.
+
+### Why there are two projects
+
+`reset()` runs before **every test** and executes, among other things:
+
+```sql
+truncate table auth.users cascade;
+```
+
+That deletes every authentication account in the project, cascading to `profiles` and
+`platform_admins`. It is correct for a throwaway database and catastrophic anywhere else.
+
+This is not hypothetical. The suite was pointed at the only Carl project — the one the
+deployed application used — and the platform owner's account was destroyed and replaced by
+`@example.test` fixtures. The owner was told "That PIN is not correct", which was true of an
+account that no longer existed, and the cause took a full authentication trace to find.
+
+`CARL_ALLOW_DESTRUCTIVE_DB_TESTS` did not prevent it and could not: it records that an
+operator consented once, in a shell, and it travels separately from the connection string.
+The marker lives inside the target instead, so a stale or mistyped `SUPABASE_DB_URL` fails
+closed rather than silently truncating.
+
+Two further things belong on any project holding real data: **point-in-time recovery
+enabled** (daily logical backups alone can be hours stale, and were), and a connection
+string that never sits in the same shell profile as the verification one.
 
 **It is slow.** Every query is a network round-trip; a run that takes 50 seconds locally
 takes around 35 minutes remotely. It is a pre-release gate, not something to run on save.
