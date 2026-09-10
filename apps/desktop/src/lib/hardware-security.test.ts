@@ -79,3 +79,36 @@ describe('hardware transport privileges', () => {
     expect(printer).not.toMatch(/password|secret|api[_-]?key|token/i);
   });
 });
+
+/**
+ * Whether a shop can reach the printer settings at all.
+ *
+ * A transport nobody can configure prints nothing. Every part of the chain below was
+ * built and tested before anything rendered the screen that chooses the printer, so
+ * `selectedPrinterName()` returned null forever and no receipt was ever sent. These
+ * assertions are deliberately about wiring rather than behaviour: they are the cheapest
+ * thing that would have caught it.
+ */
+describe('the printer settings are reachable', () => {
+  const root = join(import.meta.dirname, '..', '..');
+  const read = (relative: string) => readFileSync(join(root, relative), 'utf8');
+
+  it('is rendered from the till', () => {
+    const terminal = read(join('src', 'ui', 'terminal.tsx'));
+    expect(terminal).toContain("from './printer-settings'");
+    expect(terminal).toContain('<PrinterSettings');
+  });
+
+  it('has a control that opens it', () => {
+    // The status bar is permanently visible, which is what makes it the one place a
+    // cashier can always get to without abandoning a sale.
+    expect(read(join('src', 'ui', 'status-bar.tsx'))).toContain('onPrinterSettings');
+    expect(read(join('src', 'ui', 'terminal.tsx'))).toContain('onPrinterSettings={');
+  });
+
+  it('restores the chosen printer when the till starts', () => {
+    // Chosen once, on the machine, by whoever set the shop up. A till that forgets it
+    // overnight is a till that silently stops printing.
+    expect(read(join('src', 'app.tsx'))).toContain('loadPrinterSelection');
+  });
+});

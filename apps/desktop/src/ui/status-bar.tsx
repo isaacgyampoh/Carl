@@ -18,12 +18,14 @@ export function StatusBar({
   pendingCount,
   onSync,
   onSignOut,
+  onPrinterSettings,
 }: {
   config: DeviceConfig;
   cashier: Cashier;
   pendingCount: number;
   onSync: () => void;
   onSignOut: () => void;
+  onPrinterSettings: () => void;
 }): React.JSX.Element {
   const [online, setOnline] = useState(navigator.onLine);
 
@@ -88,6 +90,14 @@ export function StatusBar({
             the previous shift is still signed in will file their takings as someone
             else. */}
         <span style={{ color: 'var(--muted)' }}>{cashier.displayName}</span>
+
+        {/* The only way a shop can point Carl at its receipt printer. Without a way in,
+            no printer is ever chosen and nothing is ever sent, however well the transport
+            underneath works. */}
+        <button onClick={onPrinterSettings} title="Choose the receipt printer">
+          Printer
+        </button>
+
         <button onClick={onSignOut} title="End this shift">
           Sign out
         </button>

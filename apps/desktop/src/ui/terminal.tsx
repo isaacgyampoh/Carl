@@ -42,6 +42,7 @@ import { DeviceSyncTransport } from '../lib/sync-transport';
 import type { CatalogueItem } from '../lib/catalogue-store';
 import type { DeviceConfig } from '../lib/device-store';
 import { PaymentPanel } from './payment-panel';
+import { PrinterSettings } from './printer-settings';
 import { StatusBar } from './status-bar';
 
 const money = (minor: number, currency = 'GHS'): string =>
@@ -68,6 +69,7 @@ export function Terminal({
   const [paying, setPaying] = useState(false);
   const [pending, setPending] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [printerSetup, setPrinterSetup] = useState(false);
   const searchBox = useRef<HTMLInputElement>(null);
 
   const totals = useMemo(() => cartTotals(cart), [cart]);
@@ -209,6 +211,7 @@ export function Terminal({
           void catalogue.run().catch(() => undefined);
         }}
         onSignOut={onSignOut}
+        onPrinterSettings={() => setPrinterSetup(true)}
       />
 
       <main style={{ display: 'grid', gridTemplateColumns: '1fr 420px', minHeight: 0 }}>
@@ -371,6 +374,16 @@ export function Terminal({
         >
           {notice}
         </div>
+      ) : null}
+
+      {printerSetup ? (
+        <PrinterSettings
+          runtime={runtime}
+          tenantName={config.tenantName}
+          branchName={config.branchName}
+          currencyCode={config.currencyCode}
+          onClose={() => setPrinterSetup(false)}
+        />
       ) : null}
 
       {paying ? (
