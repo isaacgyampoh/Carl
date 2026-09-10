@@ -229,6 +229,56 @@ the build. That makes leaking it a compile error rather than a code-review conve
 
 ---
 
+## Browser-level defences
+
+Everything above concerns the database. These are the headers the web application sends,
+and they matter because a cashier signs in from a shop's own wifi.
+
+| Header                                | Value                              | Why                                                                   |
+| ------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| `Strict-Transport-Security`           | 2 years, `includeSubDomains`       | Without it the first request of the day is plaintext and downgradable |
+| `X-Content-Type-Options`              | `nosniff`                          | Stops an uploaded file being re-interpreted as script                 |
+| `X-Frame-Options`                     | `DENY`                             | Clickjacking                                                          |
+| `Referrer-Policy`                     | `strict-origin-when-cross-origin`  | A URL can name a tenant; it should not leak off-origin                |
+| `Permissions-Policy`                  | microphone and geolocation closed  | Carl needs neither                                                    |
+| `Content-Security-Policy`             | **enforcing**, partial — see below | Closes the injection vectors that can be closed without risk          |
+| `Content-Security-Policy-Report-Only` | the full policy                    | Measures the one directive that cannot yet be enforced                |
+
+`preload` is deliberately absent from HSTS: getting onto the preload list takes minutes and
+getting off it takes months, which is not a commitment to make before a custom domain is
+settled.
+
+### Why the CSP is split in two
+
+**Enforced today:** `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`,
+`frame-ancestors 'none'`. Each is enforced because breaking it would require the application
+to do something it verifiably does not do — there is no `<object>`, no `<embed>`, no
+`<base>`, and every form is a React Server Action, which is same-origin by construction.
+`base-uri` in particular is worth more than it looks: an injected `<base>` silently rewrites
+every relative URL on the page, including the one the sign-in form posts to.
+
+**Not enforced:** `script-src`. Next.js serves inline bootstrap scripts, so enforcing it
+needs either a nonce threaded through every response or `'unsafe-inline'` — and
+`'unsafe-inline'` is worse than omitting the directive, because it looks like protection.
+That policy stays Report-Only until the collected reports show a strict one would not blank
+a till mid-shift.
+
+So the honest summary is: **script execution is measured, not controlled.** That is a real
+remaining gap, and it is recorded as PARTIAL rather than as a control that is in place.
+
+Reports go to `/api/csp-report`, which is public by necessity — browsers send them without
+cookies, often from the sign-in page where there is no session. It stores nothing, always
+answers `204`, and deliberately does not log `script-sample`, which can contain a fragment
+of whatever the page was handling: on a POS, a customer's phone number or a payment
+reference. A security log that quietly accumulates fragments of real transactions is its own
+problem.
+
+`tests/unit/security-headers.test.ts` asserts all of the above, including that
+`'unsafe-inline'` never appears in the enforcing policy.
+
+The desktop application's WebView has a fully enforcing CSP. It serves a static bundle with
+no inline scripts, so it can.
+
 ## What the tests prove
 
 ```bash
