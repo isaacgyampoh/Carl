@@ -1,10 +1,36 @@
 # The six real-PostgreSQL failures
 
-Status: **UNRESOLVED — blocked on a database connection.**
+Status: **RESOLVED.** The cause was a defect in the test harness, not in Carl and not in
+collation. Fixed in `tests/support/pg-database.ts`; regression test in
+`tests/db/harness.test.ts`.
 
-This file is the durable record of what has and has not been established. It exists because
-the previous run's log was written to `/tmp` and removed by the OS temp sweeper between
-sessions, taking the only copy of the error output with it.
+This file is kept as the durable record of the investigation, including the hypotheses that
+turned out to be wrong. The conclusion is first; the evidence gathered along the way follows,
+unedited, because a record that quietly deletes its wrong turns teaches nothing.
+
+## The cause
+
+`exec()` and `query()` handed multi-statement SQL to node-postgres and read `.rows` off the
+result. **node-postgres returns a single result object for one statement and an ARRAY of
+result objects when the text contains several.** `.rows` on that array is `undefined`, and
+the subsequent `.rows.length` threw — from inside a `beforeAll`, which is why whole files
+died and their tests were reported as skipped.
+
+```ts
+const last = Array.isArray(result) ? result[result.length - 1] : result;
+```
+
+It could only ever fail against the real driver. PGlite returns a single result either way,
+so the entire local suite stayed green while two files died on real PostgreSQL — which is
+exactly the shape of the reported failure: 13 files failing but only 6 individual tests, and
+163 skipped.
+
+**The collation hypothesis below was wrong.** It was plausible, it was measured, and it was
+not the cause. It is left in place as written.
+
+Note also that the harness fix is what made the two genuine money defects visible — the
+till-versus-charge discrepancy and the price-window boundary — because until it was fixed
+those files never got far enough to report anything.
 
 ## What happened
 
@@ -78,19 +104,23 @@ Recorded so nobody mistakes them for findings:
 - Collation causing the ordering assertions to differ. Plausible, unproven.
 - Anything about test parallelism, resource exhaustion, or session state. Untested.
 
-## What is needed to finish this
+## How it was found
 
-A session-mode connection string in `~/.carl/db.env` (port **5432** — transaction mode on
-6543 hands each statement to a different backend, which breaks `SET ROLE` and transactions,
-and the RLS suite depends on both).
+A session-mode connection string (port **5432** — transaction mode on 6543 hands each
+statement to a different backend, which breaks `SET ROLE` and transactions, and the RLS
+suite depends on both), with output captured to `~/.carl/verification/` rather than `/tmp`.
 
-Then, in order:
+The decisive step was reading the actual error text rather than reasoning about which tests
+failed. The failing assertion was never about ordering; the hook had thrown before any
+assertion ran.
 
-1. Full suite, output captured to `~/.carl/results/` — outside `/tmp`, which is what was
-   lost last time.
-2. The six tests in isolation, then sequentially, then in file order, then with the full
-   suite's worker configuration.
-3. Timing correlation: whether failures cluster at a consistent elapsed time.
-4. `pricing.test.ts` alone, versus the same file after a long preceding run.
+## What this cost, and the lesson
 
-Until that is done Carl is **NOT RELEASE READY**, regardless of the local suite being green.
+Six failures were carried for a long time as "probably flaky" or "probably collation", and a
+real defect in the harness was invisible for as long as the local suite was believed. Two
+genuine money defects were sitting behind them.
+
+The harness now proves itself: `tests/db/harness.test.ts` asserts that `auth.uid()` resolves,
+that the connection is not silently superuser, that RLS actually filters, and that
+multi-statement SQL survives the shim. A security suite whose harness is unverified proves
+nothing, however green it is.
