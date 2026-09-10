@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 53 relations, 28 enums, 43 functions.
+ * 54 relations, 28 enums, 47 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -3537,6 +3537,10 @@ export interface Database {
           removed_at: string | null;
           created_at: string;
           updated_at: string;
+          pin_hash: string | null;
+          pin_set_at: string | null;
+          pin_must_change: boolean;
+          last_login_at: string | null;
         };
         Insert: {
           id?: string;
@@ -3553,6 +3557,10 @@ export interface Database {
           removed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          pin_hash?: string | null;
+          pin_set_at?: string | null;
+          pin_must_change?: boolean;
+          last_login_at?: string | null;
         };
         Update: {
           id?: string;
@@ -3569,6 +3577,10 @@ export interface Database {
           removed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          pin_hash?: string | null;
+          pin_set_at?: string | null;
+          pin_must_change?: boolean;
+          last_login_at?: string | null;
         };
         Relationships: [
           {
@@ -3590,6 +3602,35 @@ export interface Database {
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      tenant_pin_throttle: {
+        Row: {
+          tenant_id: string;
+          consecutive_failures: number;
+          locked_until: string | null;
+          last_attempt_at: string | null;
+        };
+        Insert: {
+          tenant_id: string;
+          consecutive_failures?: number;
+          locked_until?: string | null;
+          last_attempt_at?: string | null;
+        };
+        Update: {
+          tenant_id?: string;
+          consecutive_failures?: number;
+          locked_until?: string | null;
+          last_attempt_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tenant_pin_throttle_tenant_id_fkey';
+            columns: ['tenant_id'];
+            isOneToOne: true;
+            referencedRelation: 'tenants';
             referencedColumns: ['id'];
           },
         ];
@@ -3834,6 +3875,14 @@ export interface Database {
         };
         Returns: unknown;
       };
+      change_my_pin: {
+        Args: {
+          p_tenant_id: string;
+          p_current_pin: string;
+          p_new_pin: string;
+        };
+        Returns: unknown;
+      };
       change_platform_pin: {
         Args: {
           p_current_pin: string;
@@ -3946,6 +3995,15 @@ export interface Database {
         Returns: {
     code: string | null;
     expires_at: string | null;
+  }[];
+      };
+      issue_initial_pin: {
+        Args: {
+          p_tenant_id: string;
+        };
+        Returns: {
+    out_pin: string | null;
+    out_email: string | null;
   }[];
       };
       issue_invoice: {
@@ -4214,6 +4272,13 @@ export interface Database {
     pack_size: number | null;
   }[];
       };
+      set_member_pin: {
+        Args: {
+          p_membership_id: string;
+          p_pin: string;
+        };
+        Returns: unknown;
+      };
       set_product_price: {
         Args: {
           p_product_id: string;
@@ -4339,6 +4404,19 @@ export interface Database {
         Returns: {
     product_id: string | null;
     was_created: boolean | null;
+  }[];
+      };
+      verify_member_pin: {
+        Args: {
+          p_tenant_slug: string;
+          p_pin: string;
+        };
+        Returns: {
+    out_status: string | null;
+    out_user_id: string | null;
+    out_email: string | null;
+    out_tenant_id: string | null;
+    out_must_change: boolean | null;
   }[];
       };
       verify_platform_pin: {
