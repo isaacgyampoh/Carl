@@ -27,7 +27,9 @@ import {
   addMoney,
   assertPositiveQuantity,
   multiplyMoney,
-  roundHalfAwayFromZero,
+  divideRoundingHalfAwayFromZero,
+  taxOnTopOfPrice,
+  taxWithinPrice,
   subtractMoney,
 } from '@carl/shared';
 
@@ -113,16 +115,32 @@ export function lineTotals(line: CartLine): LineTotals {
   assertPositiveQuantity(line.quantity, 'line quantity');
 
   const gross = multiplyMoney(line.unitPrice, line.quantity / 1000);
-  const discount = discountAmount(gross, line.discount);
+  /*
+   * The discount comes off the UNROUNDED line value, not off `gross`.
+   *
+   * `complete_sale` computes `round(unit_price * quantity * pct/100)` from the exact
+   * product; rounding to `gross` first and discounting that gives a different base whenever
+   * the quantity is fractional, and the two answers differ by a minor unit. The till then
+   * shows one figure while the customer is charged another.
+   */
+  const discount = lineDiscountAmount(line.unitPrice, line.quantity, line.discount);
   const net = subtractMoney(gross, discount);
 
   let tax = 0;
   if (line.taxRate > 0 && line.taxMode !== TaxMode.EXEMPT) {
+    /*
+     * Computed in exact integer arithmetic, not floating point.
+     *
+     * PostgreSQL does this in `numeric`, which is exact decimal. Doing it in doubles here
+     * disagreed by a single minor unit whenever the true value landed on a rounding
+     * boundary — a till showing 303168 while the customer was charged 303167. The pesewa
+     * does not matter; a till that contradicts the receipt does.
+     */
     tax =
       line.taxMode === TaxMode.EXCLUSIVE
-        ? roundHalfAwayFromZero(net * (line.taxRate / 100))
+        ? taxOnTopOfPrice(net, line.taxRate)
         : // Inclusive: the tax is already inside `net`, so it is extracted rather than added.
-          roundHalfAwayFromZero(net - net / (1 + line.taxRate / 100));
+          taxWithinPrice(net, line.taxRate);
   }
 
   const total = line.taxMode === TaxMode.EXCLUSIVE ? addMoney(net, tax) : net;
@@ -153,15 +171,39 @@ export function cartTotals(cart: Cart): CartTotals {
   };
 }
 
+/**
+ * A line's discount, taken from the exact `unitPrice × quantity` rather than from the
+ * rounded line total.
+ *
+ * Quantity is in thousandths and the rate carries three decimals, so both are scaled into
+ * integers and divided once — exact arithmetic, matching what PostgreSQL's `numeric` does.
+ */
+function lineDiscountAmount(unitPrice: Minor, quantity: number, discount: Discount): Minor {
+  switch (discount.kind) {
+    case DiscountKind.NONE:
+      return 0;
+    case DiscountKind.PERCENTAGE: {
+      const scaledRate = Math.round(discount.value * 1000);
+      // unitPrice × (quantity/1000) × (scaledRate/1000) / 100
+      return divideRoundingHalfAwayFromZero(unitPrice * quantity * scaledRate, 100_000_000);
+    }
+    case DiscountKind.AMOUNT:
+      // Never more than the thing being discounted; a negative line total is meaningless
+      // and the server would refuse the sale anyway.
+      return Math.min(discount.value, multiplyMoney(unitPrice, quantity / 1000));
+  }
+}
+
+/** An order-level discount, taken from an already-rounded subtotal. */
 function discountAmount(base: Minor, discount: Discount): Minor {
   switch (discount.kind) {
     case DiscountKind.NONE:
       return 0;
-    case DiscountKind.PERCENTAGE:
-      return roundHalfAwayFromZero(base * (discount.value / 100));
+    case DiscountKind.PERCENTAGE: {
+      const scaledRate = Math.round(discount.value * 1000);
+      return divideRoundingHalfAwayFromZero(base * scaledRate, 100_000);
+    }
     case DiscountKind.AMOUNT:
-      // Never more than the thing being discounted; a negative line total is meaningless
-      // and the server would refuse the sale anyway.
       return Math.min(discount.value, base);
   }
 }

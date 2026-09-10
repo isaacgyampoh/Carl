@@ -194,6 +194,63 @@ describe('pricing', () => {
       expect(Number(current.rows[0]!.price)).toBe(11000);
     });
 
+    it('survives two price changes in the same instant', async () => {
+      /*
+       * A regression test for a real defect, made deterministic.
+       *
+       * The outgoing price was closed with `effective_to = now()`. In PostgreSQL `now()` is
+       * the TRANSACTION timestamp, so two price changes in one transaction closed a row at
+       * the exact instant it opened, and the window constraint refused it:
+       *
+       *   new row for relation "product_prices" violates check constraint
+       *   "product_prices_window_ordered"
+       *
+       * Both calls go in a single statement on purpose. Sequential calls usually land in
+       * different transactions and different microseconds, which is why the original
+       * property test only failed about one run in three — intermittent enough to be
+       * dismissed as a glitch, which is how it would have reached a shop.
+       */
+      const t = await createTenant(db);
+      const product = await createProduct(db, t.tenantId);
+
+      await expect(
+        db.asUser(t.ownerUserId, () =>
+          db.query(`select set_product_price($1, 1000), set_product_price($1, 1100)`, [product]),
+        ),
+        'two price changes in one transaction were refused',
+      ).resolves.toBeDefined();
+
+      const { rows } = await db.asServiceRole(() =>
+        db.query<{ live: number }>(
+          `select count(*) filter (where effective_to is null)::int as live
+             from product_prices where product_id = $1`,
+          [product],
+        ),
+      );
+      expect(rows[0]!.live).toBe(1);
+    });
+
+    it('leaves every closed window ordered', async () => {
+      // A window that ends before it starts, or at the instant it starts, makes "what did
+      // this cost at 14:32" ambiguous -- and the price history is what a dispute with a
+      // customer is settled from.
+      const t = await createTenant(db);
+      const product = await createProduct(db, t.tenantId);
+      for (const amount of [500, 600, 700, 800]) {
+        await setPrice(t.ownerUserId, product, amount);
+      }
+
+      const { rows } = await db.asServiceRole(() =>
+        db.query<{ bad: number }>(
+          `select count(*)::int as bad from product_prices
+            where product_id = $1 and effective_to is not null
+              and effective_to <= effective_from`,
+          [product],
+        ),
+      );
+      expect(rows[0]!.bad, 'a price window ends at or before it starts').toBe(0);
+    });
+
     it('never leaves two live prices for the same scope', async () => {
       const t = await createTenant(db);
       const product = await createProduct(db, t.tenantId);

@@ -12,6 +12,9 @@ import {
   subtractMoney,
   toMajor,
   toMinor,
+  divideRoundingHalfAwayFromZero,
+  taxOnTopOfPrice,
+  taxWithinPrice,
 } from './money';
 import { CarlError } from './errors';
 
@@ -135,5 +138,83 @@ describe('allocateByRatio', () => {
 
   it('falls back to an even split when all weights are zero', () => {
     expect(allocateByRatio(90, [0, 0, 0]).reduce((a, b) => a + b, 0)).toBe(90);
+  });
+});
+
+/**
+ * Exact integer arithmetic.
+ *
+ * These exist because floating point and PostgreSQL's `numeric` disagreed by one pesewa on
+ * a real basket — the till showed 303168 while the customer was charged 303167. A pesewa is
+ * nothing; a till contradicting the receipt is the cashier's problem at the counter.
+ */
+describe('divideRoundingHalfAwayFromZero', () => {
+  it('rounds a half up, away from zero', () => {
+    expect(divideRoundingHalfAwayFromZero(5, 2)).toBe(3);
+    expect(divideRoundingHalfAwayFromZero(7, 2)).toBe(4);
+  });
+
+  it('rounds a negative half away from zero too', () => {
+    // Symmetry matters: a refund must mirror the sale it reverses, not round toward it.
+    expect(divideRoundingHalfAwayFromZero(-5, 2)).toBe(-3);
+    expect(divideRoundingHalfAwayFromZero(5, -2)).toBe(-3);
+  });
+
+  it('rounds below the half down', () => {
+    expect(divideRoundingHalfAwayFromZero(4, 3)).toBe(1);
+    expect(divideRoundingHalfAwayFromZero(2, 3)).toBe(1);
+  });
+
+  it('divides exactly when it can', () => {
+    expect(divideRoundingHalfAwayFromZero(100, 4)).toBe(25);
+    expect(divideRoundingHalfAwayFromZero(0, 7)).toBe(0);
+  });
+
+  it('refuses inputs it cannot be exact about', () => {
+    expect(() => divideRoundingHalfAwayFromZero(1.5, 2)).toThrow();
+    expect(() => divideRoundingHalfAwayFromZero(1, 0)).toThrow();
+    // Past 2^53 the products stop being exact and the guarantee is gone.
+    expect(() => divideRoundingHalfAwayFromZero(Number.MAX_SAFE_INTEGER + 2, 3)).toThrow();
+  });
+});
+
+describe('tax arithmetic', () => {
+  it('extracts tax from a tax-inclusive price', () => {
+    // GHS 112.50 including 12.5% contains GHS 12.50 of tax.
+    expect(taxWithinPrice(11250, 12.5)).toBe(1250);
+    // GHS 115.00 including 15% contains GHS 15.00.
+    expect(taxWithinPrice(11500, 15)).toBe(1500);
+  });
+
+  it('adds tax on top of a tax-exclusive price', () => {
+    expect(taxOnTopOfPrice(10000, 12.5)).toBe(1250);
+    expect(taxOnTopOfPrice(10000, 15)).toBe(1500);
+  });
+
+  it('returns nothing for an exempt rate', () => {
+    expect(taxWithinPrice(11250, 0)).toBe(0);
+    expect(taxOnTopOfPrice(10000, 0)).toBe(0);
+  });
+
+  it('agrees with the algebraic definition on awkward amounts', () => {
+    /*
+     * `net − net/(1 + r/100)` and `net × r/(100 + r)` are the same real number. The first
+     * is what the database expresses and the second is what can be computed exactly in
+     * integers, so they must round identically on values that land near a boundary.
+     */
+    for (const rate of [12.5, 15, 3, 7.5]) {
+      for (const net of [1, 7, 33, 101, 999, 12_345, 303_167, 1_000_003]) {
+        const exact = taxWithinPrice(net, rate);
+        const viaReals = Math.round(net - net / (1 + rate / 100));
+        // Allowed to differ only where a float lands exactly on .5 and rounds the other way.
+        expect(Math.abs(exact - viaReals)).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('never returns more tax than the amount itself', () => {
+    for (const net of [1, 2, 5, 99, 100_000]) {
+      expect(taxWithinPrice(net, 15)).toBeLessThanOrEqual(net);
+    }
   });
 });

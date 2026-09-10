@@ -264,3 +264,72 @@ export function compareMoney(a: Minor, b: Minor): -1 | 0 | 1 {
 export const isZero = (amount: Minor): boolean => amount === 0;
 export const isPositive = (amount: Minor): boolean => amount > 0;
 export const isNegative = (amount: Minor): boolean => amount < 0;
+
+/**
+ * Divides two integers and rounds half away from zero, without floating point.
+ *
+ * ## Why this is not just `roundHalfAwayFromZero(a / b)`
+ *
+ * `a / b` is an IEEE-754 double. PostgreSQL computes the same quotient in `numeric`, which
+ * is exact decimal arithmetic, and the two disagree when the true value sits on a rounding
+ * boundary. The disagreement is one minor unit — a single pesewa — and it appeared as a
+ * till displaying 303168 while the customer was charged 303167.
+ *
+ * A pesewa does not matter. A till that says something different from the receipt does:
+ * the cashier is the one who has to explain it, at the counter, to somebody counting change.
+ *
+ * Working in integers removes the question entirely: the remainder is compared against half
+ * the divisor exactly, so the result is the true mathematical rounding every time.
+ */
+export function divideRoundingHalfAwayFromZero(numerator: number, denominator: number): number {
+  if (!Number.isInteger(numerator) || !Number.isInteger(denominator)) {
+    throw new CarlError(ErrorCode.VALIDATION_FAILED, 'Exact division needs whole numbers.');
+  }
+  if (denominator === 0) {
+    throw new CarlError(ErrorCode.VALIDATION_FAILED, 'Cannot divide by zero.');
+  }
+  if (!Number.isSafeInteger(numerator)) {
+    // Beyond 2^53 the products below stop being exact and the whole point is lost. Carl
+    // deals in pesewas; reaching this means something upstream is already wrong.
+    throw new CarlError(ErrorCode.VALIDATION_FAILED, 'Amount is too large to divide exactly.');
+  }
+
+  const negative = numerator < 0 !== denominator < 0;
+  const n = Math.abs(numerator);
+  const d = Math.abs(denominator);
+
+  const quotient = Math.floor(n / d);
+  const remainder = n - quotient * d;
+  // `2 * remainder >= d` is the half-way test, done in integers so no tie is misjudged.
+  const rounded = 2 * remainder >= d ? quotient + 1 : quotient;
+  return negative ? -rounded : rounded;
+}
+
+/**
+ * The tax inside a tax-inclusive price.
+ *
+ * Algebraically `net - net / (1 + rate/100)`, which simplifies to `net × rate / (100 + rate)`
+ * — one division instead of a division and a subtraction, and expressible entirely in
+ * integers once the rate is scaled.
+ *
+ * The rate carries up to three decimal places (12.5%, 15%), so it is scaled by 1000 and the
+ * denominator scaled to match.
+ */
+export function taxWithinPrice(net: Minor, ratePercent: number): Minor {
+  assertMinor(net);
+  if (ratePercent <= 0) return 0;
+  const scaledRate = Math.round(ratePercent * 1000);
+  return divideRoundingHalfAwayFromZero(net * scaledRate, 100_000 + scaledRate);
+}
+
+/**
+ * The tax added on top of a tax-exclusive price.
+ *
+ * `net × rate / 100`, in integers for the same reason as above.
+ */
+export function taxOnTopOfPrice(net: Minor, ratePercent: number): Minor {
+  assertMinor(net);
+  if (ratePercent <= 0) return 0;
+  const scaledRate = Math.round(ratePercent * 1000);
+  return divideRoundingHalfAwayFromZero(net * scaledRate, 100_000);
+}
