@@ -144,10 +144,29 @@ describe('shop entry URLs do not expose the application', () => {
     }
   });
 
-  it('reserves nothing that does not exist', () => {
-    // A stale entry is harmless but misleading: it suggests a route that is not there.
+  /**
+   * Names held back deliberately, with no route behind them.
+   *
+   * A reserved name costs nothing and prevents a shop from claiming a slug the application
+   * may want later — `carl-red.vercel.app/settings` belonging to a merchant called
+   * "Settings" would be a confusing thing to undo once their staff have learned the URL.
+   *
+   * Everything NOT in this set must correspond to a real route directory, so a stale entry
+   * cannot quietly accumulate and mislead the next person reading the list.
+   */
+  const RESERVED_WITHOUT_ROUTE = new Set(['settings']);
+
+  it('reserves nothing that does not exist, except where deliberate', () => {
     const onDisk = new Set(actualRoutes);
-    const stale = [...reserved].filter((r) => !onDisk.has(r));
+    const stale = [...reserved].filter((r) => !onDisk.has(r) && !RESERVED_WITHOUT_ROUTE.has(r));
     expect(stale, 'reserved routes with no directory').toEqual([]);
+  });
+
+  it('does not hold back a name that now has a route', () => {
+    // If /settings is ever built, this fails and the exception above must be removed —
+    // otherwise the list stops describing reality again.
+    const onDisk = new Set(actualRoutes);
+    const nowReal = [...RESERVED_WITHOUT_ROUTE].filter((r) => onDisk.has(r));
+    expect(nowReal, 'held-back names that now have routes').toEqual([]);
   });
 });
