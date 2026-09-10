@@ -19,7 +19,23 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z
     .string()
     .min(20, { error: 'NEXT_PUBLIC_SUPABASE_ANON_KEY is missing or malformed.' }),
-  NEXT_PUBLIC_APP_URL: z.url().default('http://localhost:3000'),
+  /*
+   * No production default, deliberately.
+   *
+   * This used to default to `http://localhost:3000` unconditionally. Every other required
+   * value in this schema fails loudly when it is missing; this one failed silently, and the
+   * value it invented is handed to merchants: `clientAppUrl()` builds the shop address shown
+   * on the onboarding handover screen, next to a Copy button. A customer can be given a link
+   * that works on nobody's machine, and nothing anywhere reports a problem.
+   *
+   * A localhost default is a development convenience, so it applies only in development. In
+   * production the variable is required and a missing one stops the deployment instead of
+   * reaching a shop.
+   */
+  NEXT_PUBLIC_APP_URL:
+    process.env.NODE_ENV === 'production'
+      ? z.url({ error: 'NEXT_PUBLIC_APP_URL must be set in production.' })
+      : z.url().default('http://localhost:3000'),
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
 });
 

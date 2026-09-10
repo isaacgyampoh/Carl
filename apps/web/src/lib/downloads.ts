@@ -57,5 +57,25 @@ export function clientAppUrl(): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (configured) return configured;
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  return vercel ? `https://${vercel}` : 'http://localhost:3000';
+  if (vercel) return `https://${vercel}`;
+
+  /*
+   * There is no localhost fallback in production.
+   *
+   * This value is not internal: it becomes the shop address printed on the onboarding
+   * handover screen with a Copy button beside it. Falling back to `http://localhost:3000`
+   * meant a misconfigured deployment handed a paying merchant a link that resolves to their
+   * own machine, and did it silently — the page rendered, the button copied, and the error
+   * surfaced days later as "the link you gave me doesn't work".
+   *
+   * Refusing is louder and cheaper. A 500 on one internal page is visible to the operator
+   * who can fix it in a minute; a wrong URL is visible only to the customer.
+   */
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL is not configured. Refusing to hand out a localhost address as a ' +
+        "merchant's shop URL.",
+    );
+  }
+  return 'http://localhost:3000';
 }
