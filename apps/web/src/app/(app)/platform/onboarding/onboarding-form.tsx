@@ -121,76 +121,86 @@ export function OnboardingForm({
 
       <fieldset className="space-y-4">
         <legend className="text-sm font-medium">Business</legend>
-        <Field label="Business name" error={errors.businessName?.message}>
-          <input
-            {...register('businessName', {
-              onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-                // Suggested, not forced: the slug is part of the URL a merchant sees, and
-                // the operator can overwrite it before submitting.
-                if (!form.formState.dirtyFields.slug) {
-                  setValue(
-                    'slug',
-                    event.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, '-')
-                      .replace(/^-+|-+$/g, '')
-                      .slice(0, 50),
-                  );
-                }
-              },
-            })}
-            className={inputClass}
-            autoComplete="organization"
-          />
-        </Field>
-        <Field label="Identifier" error={errors.slug?.message} hint="Used in links. Lowercase.">
-          <input {...register('slug')} className={inputClass} />
-        </Field>
-        <Field label="Contact person" error={errors.contactPerson?.message}>
-          <input {...register('contactPerson')} className={inputClass} autoComplete="name" />
-        </Field>
-        <Field label="Phone" error={errors.phone?.message}>
-          <input {...register('phone')} className={inputClass} inputMode="tel" autoComplete="tel" />
-        </Field>
-        <Field label="Address" error={errors.address?.message}>
-          <input {...register('address')} className={inputClass} />
-        </Field>
+        <Field
+          label="Business name"
+          error={errors.businessName?.message}
+          autoComplete="organization"
+          {...register('businessName', {
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+              // Suggested, not forced: the slug is part of the URL a merchant sees, and
+              // the operator can overwrite it before submitting.
+              if (!form.formState.dirtyFields.slug) {
+                setValue(
+                  'slug',
+                  event.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '')
+                    .slice(0, 50),
+                );
+              }
+            },
+          })}
+        />
+        <Field
+          label="Identifier"
+          error={errors.slug?.message}
+          hint="Used in links. Lowercase."
+          {...register('slug')}
+        />
+        <Field
+          label="Contact person"
+          error={errors.contactPerson?.message}
+          autoComplete="name"
+          {...register('contactPerson')}
+        />
+        <Field
+          label="Phone"
+          error={errors.phone?.message}
+          inputMode="tel"
+          autoComplete="tel"
+          {...register('phone')}
+        />
+        <Field label="Address" error={errors.address?.message} {...register('address')} />
       </fieldset>
 
       <fieldset className="space-y-4">
         <legend className="text-sm font-medium">Owner</legend>
-        <Field label="Owner name" error={errors.ownerName?.message}>
-          <input {...register('ownerName')} className={inputClass} autoComplete="name" />
-        </Field>
+        <Field
+          label="Owner name"
+          error={errors.ownerName?.message}
+          autoComplete="name"
+          {...register('ownerName')}
+        />
         <Field
           label="Owner email"
           error={errors.ownerEmail?.message}
           hint="They sign in with this."
-        >
-          <input
-            {...register('ownerEmail')}
-            type="email"
-            inputMode="email"
-            className={inputClass}
-            autoComplete="email"
-          />
-        </Field>
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          {...register('ownerEmail')}
+        />
       </fieldset>
 
       <fieldset className="space-y-4">
         <legend className="text-sm font-medium">First branch</legend>
-        <Field label="Branch name" error={errors.branchName?.message}>
-          <input {...register('branchName')} className={inputClass} />
-        </Field>
-        <Field label="Branch code" error={errors.branchCode?.message} hint="Appears on receipts.">
-          <input {...register('branchCode')} className={inputClass} />
-        </Field>
+        <Field label="Branch name" error={errors.branchName?.message} {...register('branchName')} />
+        <Field
+          label="Branch code"
+          error={errors.branchCode?.message}
+          hint="Appears on receipts."
+          {...register('branchCode')}
+        />
       </fieldset>
 
       <fieldset className="space-y-4">
         <legend className="text-sm font-medium">Subscription</legend>
-        <Field label="Plan" error={errors.planId?.message}>
-          <select {...register('planId')} className={inputClass}>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="planId" className="text-sm font-medium">
+            Plan
+          </label>
+          <select id="planId" {...register('planId')} className={inputClass}>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} — {formatMoney(p.price, (p.currency_code as Currency) ?? Currency.GHS)} /{' '}
@@ -198,7 +208,12 @@ export function OnboardingForm({
               </option>
             ))}
           </select>
-        </Field>
+          {errors.planId?.message && (
+            <p role="alert" className="text-sm text-[color:var(--color-danger)]">
+              {errors.planId.message}
+            </p>
+          )}
+        </div>
         {plan && (
           <p className="text-sm text-[color:var(--color-text-muted)]">
             {plan.max_branches ? `Up to ${plan.max_branches} branches` : 'Unlimited branches'} ·{' '}
@@ -210,30 +225,34 @@ export function OnboardingForm({
             label="Trial days"
             error={errors.trialDays?.message}
             hint="0 to start billing now."
-          >
-            <input
-              {...register('trialDays')}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={365}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Grace days" error={errors.graceDays?.message} hint="After the due date.">
-            <input
-              {...register('graceDays')}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={90}
-              className={inputClass}
-            />
-          </Field>
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={365}
+            {...register('trialDays')}
+          />
+          <Field
+            label="Grace days"
+            error={errors.graceDays?.message}
+            hint="After the due date."
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={90}
+            {...register('graceDays')}
+          />
         </div>
-        <Field label="Notes" error={errors.notes?.message}>
-          <textarea {...register('notes')} rows={3} className={`${inputClass} h-auto py-2`} />
-        </Field>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="notes" className="text-sm font-medium">
+            Notes
+          </label>
+          <textarea
+            id="notes"
+            {...register('notes')}
+            rows={3}
+            className={`${inputClass} h-auto py-2`}
+          />
+        </div>
       </fieldset>
 
       <button

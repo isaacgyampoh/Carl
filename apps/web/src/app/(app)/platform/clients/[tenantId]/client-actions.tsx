@@ -154,42 +154,43 @@ export function ClientActions({
           className="space-y-4 rounded-[var(--radius-card)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4"
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={`Amount (${currencyCode})`}>
-              <input
-                name="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-                inputMode="decimal"
-                defaultValue={(defaultAmount / 100).toFixed(2)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Method">
-              <select name="method" defaultValue="MOMO" className={inputClass}>
+            <Field
+              label={`Amount (${currencyCode})`}
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+              inputMode="decimal"
+              defaultValue={(defaultAmount / 100).toFixed(2)}
+            />
+            {/* A select cannot go through Field, which renders an input of its own. */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="method" className="text-sm font-medium">
+                Method
+              </label>
+              <select id="method" name="method" defaultValue="MOMO" className={inputClass}>
                 <option value="MOMO">Mobile money</option>
                 <option value="CASH">Cash</option>
                 <option value="BANK_TRANSFER">Bank transfer</option>
                 <option value="CARD">Card</option>
                 <option value="OTHER">Other</option>
               </select>
-            </Field>
-            <Field label="Reference" hint="Transaction or slip number.">
-              <input name="reference" className={inputClass} />
-            </Field>
-            <Field label="Paid on">
-              <input
-                name="paidAt"
-                type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
-                className={inputClass}
-              />
-            </Field>
+            </div>
+            <Field label="Reference" hint="Transaction or slip number." name="reference" />
+            <Field
+              label="Paid on"
+              name="paidAt"
+              type="date"
+              defaultValue={new Date().toISOString().slice(0, 10)}
+            />
           </div>
           {openInvoices.length > 0 && (
-            <Field label="Settles invoice" hint="Optional.">
-              <select name="invoiceId" defaultValue="" className={inputClass}>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="invoiceId" className="text-sm font-medium">
+                Settles invoice
+              </label>
+              <select id="invoiceId" name="invoiceId" defaultValue="" className={inputClass}>
                 <option value="">None</option>
                 {openInvoices.map((i) => (
                   <option key={i.id} value={i.id}>
@@ -197,7 +198,8 @@ export function ClientActions({
                   </option>
                 ))}
               </select>
-            </Field>
+              <p className="text-sm text-[color:var(--color-ink-muted)]">Optional.</p>
+            </div>
           )}
           <button
             type="submit"
@@ -226,20 +228,17 @@ export function ClientActions({
           }}
           className="space-y-4 rounded-[var(--radius-card)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4"
         >
-          <Field label={`Amount (${currencyCode})`} hint="Defaults to the subscription price.">
-            <input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              inputMode="decimal"
-              defaultValue={(defaultAmount / 100).toFixed(2)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Notes">
-            <input name="notes" className={inputClass} />
-          </Field>
+          <Field
+            label={`Amount (${currencyCode})`}
+            hint="Defaults to the subscription price."
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            inputMode="decimal"
+            defaultValue={(defaultAmount / 100).toFixed(2)}
+          />
+          <Field label="Notes" name="notes" />
           <button
             type="submit"
             disabled={busy}
@@ -263,9 +262,7 @@ export function ClientActions({
           <p className="text-sm">
             {tenantName} will not be able to sell until it is reactivated. The reason is recorded.
           </p>
-          <Field label="Reason">
-            <input name="reason" required minLength={5} className={inputClass} />
-          </Field>
+          <Field label="Reason" name="reason" required minLength={5} />
           <button
             type="submit"
             disabled={busy}
