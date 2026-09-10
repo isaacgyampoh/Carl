@@ -48,7 +48,36 @@ export async function createUser(
   const userId = randomUUID();
 
   await db.asAdmin(async () => {
-    await db.query(`insert into auth.users (id, email) values ($1, $2)`, [userId, email]);
+    /*
+     * Shaped the way GoTrue shapes a real account, not the minimum PostgreSQL accepts.
+     *
+     * `insert into auth.users (id, email)` is valid SQL and an account GoTrue cannot use. It
+     * is Go: several of these columns are scanned into non-nullable strings, and a row with
+     * no `email_confirmed_at` is treated as one that has not signed up — so a magic-link
+     * request tries to INSERT and collides with `users_email_partial_key`.
+     *
+     * That produced a real outage. Rows created here were being used as real accounts, the
+     * Auth admin API answered 500, and the platform owner was told "We're having trouble
+     * connecting right now" after entering the correct PIN.
+     *
+     * A fixture that cannot do what the real thing does is a fixture that hides this.
+     */
+    await db.query(
+      `insert into auth.users (
+         id, email, instance_id, aud, role,
+         email_confirmed_at, created_at, updated_at,
+         raw_app_meta_data, raw_user_meta_data,
+         confirmation_token, recovery_token, email_change_token_new,
+         email_change_token_current, email_change, phone_change,
+         phone_change_token, reauthentication_token
+       ) values (
+         $1, $2, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated',
+         now(), now(), now(),
+         '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+         '', '', '', '', '', '', '', ''
+       )`,
+      [userId, email],
+    );
     await db.query(`insert into profiles (id, email, full_name) values ($1, $2, $3)`, [
       userId,
       email,

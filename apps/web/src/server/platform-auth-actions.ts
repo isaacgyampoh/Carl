@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createLogger } from '@carl/shared';
+import { createLogger, ErrorCode } from '@carl/shared';
 import { z } from '@carl/validation';
 
 import { requirePlatformAdmin } from '@/lib/auth';
@@ -69,21 +69,46 @@ export async function signInWithPin(
      * cookie. Both halves happen on the server within this call, so the token is never
      * transmitted anywhere.
      */
-    const { data: link, error: linkError } = await admin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: result.email,
-    });
-    if (linkError) throw linkError;
+    /*
+     * From here the PIN has ALREADY been verified. Everything below is session plumbing, and
+     * it fails for reasons that have nothing to do with the credential — so it reports a
+     * distinct code rather than falling into the generic handler, where the console would
+     * tell the owner to check their internet connection.
+     *
+     * The failure that made this necessary: the administrator's Auth account was created by
+     * hand and had no `email_confirmed_at`, so GoTrue treated a magic-link request as a fresh
+     * signup, tried to INSERT, and hit `users_email_partial_key`. The Auth API answered 500,
+     * this threw, and the owner saw "We're having trouble connecting right now."
+     */
+    try {
+      const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: result.email,
+      });
+      if (linkError) throw linkError;
 
-    const tokenHash = link?.properties?.hashed_token;
-    if (!tokenHash) throw new Error('Could not establish a session for the platform owner.');
+      const tokenHash = link?.properties?.hashed_token;
+      if (!tokenHash) throw new Error('Auth returned no one-time token.');
 
-    const client = await supabase();
-    const { error: verifyError } = await client.auth.verifyOtp({
-      type: 'magiclink',
-      token_hash: tokenHash,
-    });
-    if (verifyError) throw verifyError;
+      const client = await supabase();
+      const { error: verifyError } = await client.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: tokenHash,
+      });
+      if (verifyError) throw verifyError;
+    } catch (sessionError) {
+      // Logged in full for whoever is on call; the owner gets a sentence they can act on.
+      log.error('platform session could not be created', {
+        detail: sessionError instanceof Error ? sessionError.message : String(sessionError),
+      });
+      return {
+        ok: false,
+        code: ErrorCode.SESSION_CREATION_FAILED,
+        message:
+          'Your PIN was accepted, but Carl could not start your session. This is a problem on ' +
+          'our side, not with your PIN.',
+      };
+    }
 
     log.info('platform owner signed in', { userId: result.user_id });
     return actionOk({ mustChangePin: result.is_default === true });

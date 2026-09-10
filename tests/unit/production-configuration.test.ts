@@ -7,6 +7,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  */
 vi.mock('server-only', () => ({}));
 
+/*
+ * `process.env.NODE_ENV` is typed as read-only, because application code has no business
+ * reassigning it. A test that exercises production-only behaviour does, so it goes through
+ * an explicit record view rather than a cast at each call site.
+ */
+function setNodeEnv(value: string): void {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
+}
+
 /**
  * Configuration that must not silently invent a value in production.
  *
@@ -31,7 +40,7 @@ describe('the merchant-facing application URL', () => {
 
   it('never hands out localhost in production', async () => {
     vi.resetModules();
-    process.env.NODE_ENV = 'production';
+    setNodeEnv('production');
     delete process.env.NEXT_PUBLIC_APP_URL;
     delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
 
@@ -41,7 +50,7 @@ describe('the merchant-facing application URL', () => {
 
   it('uses the configured URL when there is one', async () => {
     vi.resetModules();
-    process.env.NODE_ENV = 'production';
+    setNodeEnv('production');
     process.env.NEXT_PUBLIC_APP_URL = 'https://carl.example';
 
     const fn = await clientAppUrl();
@@ -50,7 +59,7 @@ describe('the merchant-facing application URL', () => {
 
   it('falls back to the deployment URL rather than to localhost', async () => {
     vi.resetModules();
-    process.env.NODE_ENV = 'production';
+    setNodeEnv('production');
     delete process.env.NEXT_PUBLIC_APP_URL;
     process.env.VERCEL_PROJECT_PRODUCTION_URL = 'carl-red.vercel.app';
 
@@ -60,7 +69,7 @@ describe('the merchant-facing application URL', () => {
 
   it('still defaults to localhost in development, where that is the point', async () => {
     vi.resetModules();
-    process.env.NODE_ENV = 'development';
+    setNodeEnv('development');
     delete process.env.NEXT_PUBLIC_APP_URL;
     delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
 

@@ -36,6 +36,13 @@ function messageFor(
       return { text: 'That PIN is not correct.', retryable: false };
     case 'PIN_LOCKED':
       return { text: serverMessage, retryable: false };
+    case 'SESSION_CREATION_FAILED':
+      /*
+       * The PIN was right and the session could not be created. Telling the owner to check
+       * their connection would send them to restart a router over a server-side fault, which
+       * is exactly what happened when the administrator's Auth account was malformed.
+       */
+      return { text: serverMessage, retryable: true };
     default:
       return { text: 'We’re having trouble connecting right now.', retryable: true };
   }

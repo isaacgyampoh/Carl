@@ -100,7 +100,7 @@ try {
             pa.pin_is_default          as is_default,
             (pa.pin_set_at is not null) as pin_timestamped,
             (select count(*)::int from platform_admins) as admin_count,
-            (select count(*)::int from tenant_members tm where tm.user_id = pa.user_id) as staff_memberships
+            (select count(*)::int from tenant_memberships tm where tm.user_id = pa.user_id) as staff_memberships
        from platform_admins pa where pa.user_id = $1`,
     [user.id],
   );

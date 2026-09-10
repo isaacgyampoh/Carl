@@ -12,6 +12,19 @@
 export const ErrorCode = {
   // --- Authentication & authorization ---
   UNAUTHENTICATED: 'UNAUTHENTICATED',
+  /*
+   * The credential was correct and the session could not be created anyway.
+   *
+   * A distinct code because the two halves of signing in fail for completely different
+   * reasons and need completely different answers. Without it, a PIN pad shows one message
+   * for a wrong PIN, a dead network and a broken Auth service alike — and the owner is told
+   * to check their connection while the real fault is server-side.
+   *
+   * That is not hypothetical: the platform owner's Auth account was malformed, the Auth
+   * admin API answered 500, and the console reported trouble connecting. The PIN had already
+   * verified.
+   */
+  SESSION_CREATION_FAILED: 'SESSION_CREATION_FAILED',
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN_TENANT: 'FORBIDDEN_TENANT',
   FORBIDDEN_BRANCH: 'FORBIDDEN_BRANCH',

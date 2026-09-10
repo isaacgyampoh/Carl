@@ -46,11 +46,36 @@ create schema if not exists auth;
 -- it. An earlier version of this shim defaulted to gen_random_uuid(); fixtures then relied
 -- on that and worked locally while failing against a real project. A shim that is more
 -- permissive than production hides exactly the bugs it exists to catch.
+--
+-- The columns below `raw_user_meta_data` are not decoration. GoTrue is Go, and it scans
+-- several of them into non-nullable strings; a NULL is a row it cannot read at all. It also
+-- treats a row with no `email_confirmed_at` as an account that has not signed up, so a
+-- magic-link request tries to INSERT and collides with the unique index on email.
+--
+-- A shim without them let fixtures create rows that PostgreSQL accepted and GoTrue could
+-- not use. Those rows were then used as real accounts: the Auth admin API answered 500 and
+-- the platform owner, having entered the correct PIN, was told Carl was having trouble
+-- connecting. The shim modelled a table; production has a service behind it.
 create table if not exists auth.users (
   id            uuid primary key,
   email         text unique,
+  instance_id   uuid,
+  aud           text,
+  role          text,
+  email_confirmed_at timestamptz,
+  raw_app_meta_data  jsonb not null default '{}'::jsonb,
   raw_user_meta_data jsonb not null default '{}'::jsonb,
-  created_at    timestamptz not null default now()
+  -- Empty string, never NULL, exactly as GoTrue writes them.
+  confirmation_token         text not null default '',
+  recovery_token             text not null default '',
+  email_change_token_new     text not null default '',
+  email_change_token_current text not null default '',
+  email_change               text not null default '',
+  phone_change               text not null default '',
+  phone_change_token         text not null default '',
+  reauthentication_token     text not null default '',
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
 );
 
 -- The identity functions every RLS policy is built on. These mirror Supabase's
