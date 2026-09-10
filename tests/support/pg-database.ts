@@ -147,6 +147,7 @@ const SEEDED_REFERENCE_TABLES = [
 
 class PgTestDatabase implements TestDatabase {
   readonly supportsConcurrency = true;
+  readonly supportsMultiStatementQuery = true;
 
   /**
    * Set when the connection dies underneath us.

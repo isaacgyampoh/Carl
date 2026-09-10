@@ -129,6 +129,18 @@ export interface TestDatabase {
   readonly supportsConcurrency: boolean;
 
   /**
+   * Whether `query()` accepts several statements in one string.
+   *
+   * True for node-postgres, which sends a bare string over the simple protocol. False for
+   * PGlite, which prepares every statement and so rejects the text outright — a genuine
+   * driver difference rather than a Carl defect, and the reason the two disagree about
+   * what `query()` returns for such a string. `exec()` handles multi-statement SQL on both
+   * and is what production code uses; this flag exists so the harness's own regression
+   * test can assert the node-postgres shape where that shape is real.
+   */
+  readonly supportsMultiStatementQuery: boolean;
+
+  /**
    * Opens a second, independent session. Only available where `supportsConcurrency`.
    */
   concurrent(): Promise<TestDatabase>;
@@ -143,6 +155,7 @@ class PgliteTestDatabase implements TestDatabase {
   constructor(private readonly db: PGlite) {}
 
   readonly supportsConcurrency = false;
+  readonly supportsMultiStatementQuery = false;
 
   concurrent(): Promise<TestDatabase> {
     return Promise.reject(

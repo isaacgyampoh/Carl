@@ -57,6 +57,8 @@ describe('database test harness', () => {
      * way, so a full PGlite suite stayed green while two files died on real PostgreSQL.
      * `exec()` sends multi-statement SQL routinely — the seed file, batches of DDL — so
      * this was not an exotic path.
+     *
+     * This half runs on both drivers, because this is the half that broke.
      */
     await db.exec(`
       drop table if exists public.harness_multi cascade;
@@ -69,11 +71,33 @@ describe('database test harness', () => {
     );
     expect(rows[0]!.n).toBe('2');
 
-    // The last statement's rows are what a caller of a multi-statement query is asking for.
+    await db.exec('drop table if exists public.harness_multi cascade');
+  });
+
+  it('returns the last statement’s rows from a multi-statement query', async (ctx) => {
+    /*
+     * The precise shape the defect got wrong, asserted only where the shape exists.
+     *
+     * PGlite prepares every statement and rejects multi-statement text outright, so there
+     * is no "last result" for it to return. Asserting node-postgres's behaviour there
+     * would fail on a driver difference rather than on anything Carl does, which is how
+     * a suite starts being re-run instead of read.
+     */
+    if (!db.supportsMultiStatementQuery) {
+      ctx.skip('this driver prepares every statement and cannot run several at once');
+      return;
+    }
+
+    await db.exec(`
+        drop table if exists public.harness_multi cascade;
+        create table public.harness_multi (id int primary key, label text);
+        insert into public.harness_multi (id, label) values (1, 'first'), (2, 'second');
+      `);
+
     const result = await db.query<{ label: string }>(`
-      select label from public.harness_multi where id = 1;
-      select label from public.harness_multi where id = 2;
-    `);
+        select label from public.harness_multi where id = 1;
+        select label from public.harness_multi where id = 2;
+      `);
     expect(result.rows[0]!.label).toBe('second');
     expect(result.rowCount).toBe(1);
 

@@ -21,8 +21,13 @@ thiserror = "2"
 # Windows only: the print spooler API. Not a vendor SDK and not a USB library — the shop
 # installs the printer's own Windows driver, and the spooler passes raw ESC/POS through.
 [target.'cfg(windows)'.dependencies]
+# Win32_Graphics_Gdi is not a drawing dependency. windows-rs gates OpenPrinterW on it
+# because PRINTER_DEFAULTSW embeds a DEVMODEW, so the spooler cannot be opened without it.
+# Win32_Security is deliberately absent: only the level-2 printer struct needed it, and
+# enumeration asks for level 1.
 windows = { version = "0.58", features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Graphics_Printing",
 ] }
 

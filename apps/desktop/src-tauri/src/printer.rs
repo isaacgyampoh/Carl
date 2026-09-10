@@ -19,6 +19,14 @@
 //!
 //! ## Honesty about what success means
 //!
+//! ## Checking this file without a Windows machine
+//!
+//! `cargo check --target x86_64-pc-windows-msvc` on this crate fails before it reaches
+//! here, because libsqlite3-sys compiles C and wants MSVC. `cargo check` does not link,
+//! though, so copying this file alone into a scratch crate that depends only on `windows`
+//! with the same features does compile, and catches a wrong signature or a missing feature
+//! in seconds rather than in a CI round trip. That is how the feature gate below was found.
+//!
 //! `print_raw` returning `Ok` means the spooler accepted the job. It does not mean paper
 //! came out, and it cannot: the spooler does not report that, and a drawer kick reports
 //! even less. The application says "sent to the printer", never "printed".
@@ -40,7 +48,7 @@ mod platform {
     use windows::Win32::Graphics::Printing::{
         ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, GetDefaultPrinterW,
         OpenPrinterW, StartDocPrinterW, StartPagePrinter, WritePrinter, DOC_INFO_1W,
-        PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_INFO_2W,
+        PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_INFO_1W,
     };
 
     fn wide(value: &str) -> Vec<u16> {
@@ -84,9 +92,15 @@ mod platform {
         let mut needed: u32 = 0;
         let mut returned: u32 = 0;
 
+        // Level 1, not 2. All this needs is the name, which level 1 carries; level 2's
+        // struct embeds a DEVMODEW and a security descriptor, so asking for it would pull
+        // the GDI and Security bindings into a module whose entire job is to hand bytes to
+        // the spooler.
+        const LEVEL: u32 = 1;
+
         unsafe {
             // Sizing call. It is expected to fail; what matters is `needed`.
-            let _ = EnumPrintersW(flags, PCWSTR::null(), 2, None, &mut needed, &mut returned);
+            let _ = EnumPrintersW(flags, PCWSTR::null(), LEVEL, None, &mut needed, &mut returned);
             if needed == 0 {
                 return Ok(Vec::new());
             }
@@ -95,7 +109,7 @@ mod platform {
             EnumPrintersW(
                 flags,
                 PCWSTR::null(),
-                2,
+                LEVEL,
                 Some(&mut buffer),
                 &mut needed,
                 &mut returned,
@@ -104,13 +118,13 @@ mod platform {
 
             let default = default_printer();
             let infos = std::slice::from_raw_parts(
-                buffer.as_ptr() as *const PRINTER_INFO_2W,
+                buffer.as_ptr() as *const PRINTER_INFO_1W,
                 returned as usize,
             );
             Ok(infos
                 .iter()
                 .map(|info| {
-                    let name = from_wide(info.pPrinterName.0);
+                    let name = from_wide(info.pName.0);
                     PrinterInfo { is_default: !name.is_empty() && name == default, name }
                 })
                 .collect())
