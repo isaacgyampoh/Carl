@@ -453,6 +453,50 @@ export async function createPgTestDatabase(options: PgDriverOptions = {}): Promi
   const client = await connect(connectionString);
   const db = new PgTestDatabase(client, connectionString);
 
+  /*
+   * The environment variable says the OPERATOR meant it. This says the DATABASE agrees.
+   *
+   * That distinction is not academic. `CARL_ALLOW_DESTRUCTIVE_DB_TESTS=yes` travels with the
+   * shell; the connection string travels with `~/.carl/db.env`. Set the flag once, point the
+   * URL somewhere real, and the suite will truncate `profiles`, `platform_admins`, `tenants`
+   * and everything else without a word — which is exactly what happened here: the only Carl
+   * Supabase project was used as the verification target, and the platform owner's account
+   * was destroyed and replaced by `@example.test` fixtures. The symptom reached the owner as
+   * "That PIN is not correct", which is a true statement about an account that no longer
+   * existed.
+   *
+   * A consent flag that lives outside the database cannot protect the database. This marker
+   * lives INSIDE the target, so a mistyped or stale connection string fails closed.
+   *
+   * Marking a project is one statement, and it must never be run against a database anyone
+   * relies on:
+   *
+   *     create table if not exists public.carl_disposable_verification_marker ();
+   *
+   * There is deliberately no code path that creates it. A guard that can arm itself is a
+   * guard that will arm itself against the wrong database at three in the morning.
+   */
+  const marker = await client.query(
+    `select to_regclass('public.carl_disposable_verification_marker') is not null as present`,
+  );
+  if (marker.rows[0]?.present !== true) {
+    await client.end().catch(() => undefined);
+    throw new Error(
+      'Refusing to run destructive database tests: the target is not marked disposable.\n' +
+        '\n' +
+        'This suite TRUNCATES every application table, including profiles, platform_admins\n' +
+        'and tenants. It found no disposability marker in the database SUPABASE_DB_URL points\n' +
+        'at, so it will not touch it.\n' +
+        '\n' +
+        'If — and ONLY if — that database is a throwaway verification project that nobody and\n' +
+        'nothing depends on, mark it once:\n' +
+        '\n' +
+        '    create table if not exists public.carl_disposable_verification_marker ();\n' +
+        '\n' +
+        'Never run that against a database serving real shops. Use a separate project.',
+    );
+  }
+
   if (options.applyMigrations) {
     const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort();
     for (const file of files) {
