@@ -181,3 +181,60 @@ describe('renderReceipt', () => {
     expect(text).toContain('25kg');
   });
 });
+
+describe('money figures are always well formed', () => {
+  /*
+   * A regression test for a receipt a customer could actually have been handed.
+   *
+   * The desktop payment panel computed a line total as `unitPrice * (quantity / 1000)` in
+   * floating point. Weighed goods make that fractional — 9.99/kg at half a kilo is 499.5
+   * minor units — and the formatter floored the cedis and took the remainder for the
+   * pesewas, producing "GHS 4.99.5". A float artefact produced
+   * "GHS 0.33.300000000000004".
+   *
+   * The caller is fixed to use `lineTotals().total`, which is exact and is also what the
+   * server recomputes. The formatter is hardened too, because the thing being prevented is
+   * a customer holding a financial document with a malformed number on it.
+   */
+  const base: ReceiptData = {
+    businessName: 'Shop',
+    branchName: 'Main',
+    saleNumber: 'S-1',
+    soldAt: new Date('2026-01-01T10:00:00Z'),
+    cashierName: 'Ama',
+    lines: [{ name: 'Rice', quantity: 500, unitPrice: 999, lineTotal: 499.5 }],
+    subtotal: 500,
+    discountTotal: 0,
+    taxTotal: 0,
+    total: 500,
+    payments: [{ method: 'CASH', amount: 500 }],
+    amountPaid: 500,
+    changeGiven: 0,
+    currencyCode: 'GHS ',
+  };
+
+  it('never prints two decimal points in one figure', () => {
+    const text = receiptText(base);
+    expect(text).not.toMatch(/\d+\.\d+\.\d+/);
+  });
+
+  it('prints exactly two pesewa digits even for a fractional value', () => {
+    // 499.5 rounds half away from zero to 500 -> "GHS 5.00".
+    expect(receiptText(base)).toContain('GHS 5.00');
+    expect(receiptText(base)).not.toContain('4.99.5');
+  });
+
+  it('does not leak a floating point artefact onto paper', () => {
+    const text = receiptText({
+      ...base,
+      lines: [{ name: 'Sugar', quantity: 100, unitPrice: 333, lineTotal: 333 * (100 / 1000) }],
+    });
+    expect(text).not.toContain('0000000');
+    expect(text).toMatch(/GHS \d+\.\d{2}/);
+  });
+
+  it('keeps a negative figure well formed', () => {
+    const text = receiptText({ ...base, changeGiven: -150.5 });
+    expect(text).not.toMatch(/\d+\.\d+\.\d+/);
+  });
+});

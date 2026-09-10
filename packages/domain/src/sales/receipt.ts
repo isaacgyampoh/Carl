@@ -18,7 +18,7 @@
  * at the condensed one. Both are supported because both are common; nothing else is.
  */
 
-import type { Minor } from '@carl/shared';
+import { roundHalfAwayFromZero, type Minor } from '@carl/shared';
 
 export type ReceiptWidth = 32 | 42;
 
@@ -71,9 +71,23 @@ export interface ReceiptData {
   readonly footer?: string | null;
 }
 
+/**
+ * A money figure, always well formed.
+ *
+ * `Minor` is whole minor units by contract, and this used to trust that. It flooring-and-
+ * remaindering a fractional value printed `GHS 4.99.5` for 499.5, and
+ * `GHS 0.33.300000000000004` for a float artefact — on a customer's receipt, which is
+ * routinely the only record either party keeps.
+ *
+ * A caller passing a fraction is a bug and is fixed where it happens. Rounding here as well
+ * is not redundancy for its own sake: the failure this prevents is a customer holding a
+ * financial document with a malformed number on it, and no shop can correct that after the
+ * fact. Sub-pesewa rounding is invisible; `4.99.5` is not.
+ */
 const money = (minor: Minor, currency: string): string => {
-  const sign = minor < 0 ? '-' : '';
-  const abs = Math.abs(minor);
+  const whole = roundHalfAwayFromZero(minor);
+  const sign = whole < 0 ? '-' : '';
+  const abs = Math.abs(whole);
   return `${sign}${currency}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 };
 

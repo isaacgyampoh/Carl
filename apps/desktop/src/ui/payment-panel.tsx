@@ -12,6 +12,7 @@
 
 import { useState } from 'react';
 import {
+  lineTotals,
   printFailureMessage,
   printWithoutFailingTheSale,
   renderReceipt,
@@ -120,11 +121,25 @@ export function PaymentPanel({
           saleNumber: `LOCAL-${idempotencyKey.slice(0, 8).toUpperCase()}`,
           soldAt: new Date(soldAt),
           cashierName,
+          /*
+           * `lineTotals(line).total`, not `unitPrice * quantity / 1000`.
+           *
+           * The arithmetic version was floating point and produced a non-integer whenever
+           * goods were weighed: 9.99/kg at half a kilo is 499.5 minor units, which the
+           * receipt formatter renders by flooring and taking a remainder, printing
+           * "GHS 4.99.5" on a customer's copy. 3.33/kg at 0.1 kg printed
+           * "GHS 0.33.300000000000004".
+           *
+           * It also disagreed with the money actually taken, because it skipped the line's
+           * discount and tax. `lineTotals` is what the cart charged and what `complete_sale`
+           * recomputes on the server, so the lines now sum to the subtotal printed below
+           * them.
+           */
           lines: lines.map((line) => ({
             name: line.name,
             quantity: line.quantity,
             unitPrice: line.unitPrice,
-            lineTotal: line.unitPrice * (line.quantity / 1000),
+            lineTotal: lineTotals(line).total,
           })),
           subtotal,
           discountTotal,
