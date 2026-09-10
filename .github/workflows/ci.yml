@@ -38,7 +38,10 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          # 24, not 22: packages/sync imports node:sqlite, which is only stable from
+          # Node 24. On 22 the import fails and the whole unit suite dies at load time —
+          # which is exactly how CI and a developer's machine came to disagree.
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
