@@ -220,6 +220,9 @@ Windows machine; the runner is how a real installer exists at all.
 **Build verified is not hardware verified.** CI proves the installer exists, is a valid PE
 executable and contains no secret. It cannot prove a cashier can sell on a particular till.
 
+First successful build: tag `v0.1.0`, run 34502546417 — installer produced, PE header
+verified, SHA256SUMS.txt generated, attached to a draft GitHub Release.
+
 ### Signing
 
 **BLOCKED — no Authenticode certificate.** The installer is unsigned and SmartScreen will
