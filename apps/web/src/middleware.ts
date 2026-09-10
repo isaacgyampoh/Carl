@@ -102,6 +102,9 @@ export async function middleware(request: NextRequest) {
      * sign-in page, which asks for an email and password the platform owner does not use.
      */
     pathname === '/platform/sign-in' ||
+    // The owner console's manifest. A browser fetches it before any session exists, and
+    // behind the session check it returns a redirect, so the app cannot be installed.
+    pathname === '/platform.webmanifest' ||
     // Browsers post CSP violation reports themselves, without cookies, often for the
     // sign-in page where there is no session at all. Behind the session check the reports
     // would be redirected and silently lost.
@@ -112,7 +115,15 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isPublic) {
     const signIn = request.nextUrl.clone();
-    signIn.pathname = '/sign-in';
+    /*
+     * The owner console has its own way in.
+     *
+     * Sending an unauthenticated owner to the merchant sign-in page is a dead end: it asks
+     * for an email and password, and the platform owner signs in with a PIN. The guard in
+     * requirePlatformAdmin() says the same thing, but middleware runs first, so saying it
+     * only there means it never runs.
+     */
+    signIn.pathname = pathname.startsWith('/platform') ? '/platform/sign-in' : '/sign-in';
     // Preserved so a deep link survives the round trip through sign-in.
     signIn.searchParams.set('next', pathname);
     return NextResponse.redirect(signIn);

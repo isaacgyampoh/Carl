@@ -34,6 +34,7 @@ describe('middleware public paths', () => {
     ['/api/health', 'the liveness probe'],
     ['/api/device/', 'terminals, which have no browser session'],
     ['/platform/sign-in', 'the owner PIN prompt, which is how a session is obtained'],
+    ['/platform.webmanifest', 'fetched before any session exists, or the PWA cannot install'],
     ['/api/csp-report', 'browsers post violation reports without cookies'],
     ['/offline', 'the page shown when there is no connection'],
     ['/sw.js', 'the service worker'],
@@ -53,10 +54,22 @@ describe('middleware public paths', () => {
       '/auth',
       '/manifest.webmanifest',
       '/offline',
+      '/platform.webmanifest',
       '/platform/sign-in',
       '/sign-in',
       '/sw.js',
     ]);
+  });
+
+  it('sends an unauthenticated owner to the PIN prompt, not the merchant sign-in', () => {
+    /*
+     * Middleware runs before any page guard, so a redirect decided only in
+     * requirePlatformAdmin() never happens. Without this branch the owner is bounced to a
+     * page asking for an email and password they do not have.
+     */
+    const redirectBlock = source.slice(source.indexOf('if (!user && !isPublic)'));
+    expect(redirectBlock).toContain("pathname.startsWith('/platform')");
+    expect(redirectBlock).toContain("'/platform/sign-in'");
   });
 
   it('excludes the device routes from nothing in the matcher', () => {
