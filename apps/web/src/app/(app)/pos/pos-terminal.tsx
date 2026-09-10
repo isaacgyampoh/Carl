@@ -66,6 +66,32 @@ export function PosTerminal({
   } | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  /*
+   * The idempotency key for the sale currently being paid for, held across retries.
+   *
+   * A ref rather than state because changing it must not re-render the till mid-payment,
+   * and because every read of it happens inside the submit handler.
+   */
+  const saleKey = useRef<string | null>(null);
+
+  /*
+   * Opening and closing the payment panel is what bounds a sale's identity.
+   *
+   * The key must survive a retry of the SAME sale and must not survive anything else. If a
+   * cancelled panel left its key behind, the next sale rung up would carry it — and if the
+   * first attempt had in fact reached the server, the second would be discarded as a
+   * duplicate. The customer pays and nothing is recorded, which is worse than the double
+   * charge this whole mechanism exists to prevent.
+   */
+  const openPayment = useCallback(() => {
+    saleKey.current = null;
+    setPaying(true);
+  }, []);
+
+  const closePayment = useCallback(() => {
+    saleKey.current = null;
+    setPaying(false);
+  }, []);
   const totals = cartTotals(cart);
   const short = insufficientLines(cart);
 
@@ -116,7 +142,7 @@ export function PosTerminal({
 
     const timer = setTimeout(() => {
       setSearching(true);
-      void searchProducts({ branchId, query: term, tier: cart.tier, limit: 20 })
+      searchProducts({ branchId, query: term, tier: cart.tier, limit: 20 })
         .then((result) => {
           if (!result.ok) {
             setError(result.message);
@@ -129,6 +155,18 @@ export function PosTerminal({
           } else {
             setResults(result.data);
           }
+        })
+        .catch(() => {
+          /*
+           * Clearing is the safe failure, not keeping what was there.
+           *
+           * A rejected search never called setResults, so the list went on showing matches
+           * for whatever was typed before. A cashier typing a new product and clicking the
+           * first row would have added the previous customer's item at the previous
+           * customer's price.
+           */
+          setResults([]);
+          setError('Product search is not responding. Check the connection and try again.');
         })
         .finally(() => setSearching(false));
     }, 120);
@@ -145,45 +183,78 @@ export function PosTerminal({
         focusSearch();
       } else if (event.key === 'F4' && cart.lines.length > 0) {
         event.preventDefault();
-        setPaying(true);
+        openPayment();
       } else if (event.key === 'Escape') {
-        setPaying(false);
+        closePayment();
         focusSearch();
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cart.lines.length, focusSearch]);
+  }, [cart.lines.length, focusSearch, openPayment, closePayment]);
 
   useEffect(focusSearch, [focusSearch]);
 
   async function onPay(payments: { method: string; amount: number; reference?: string }[]) {
     setError(null);
 
-    // Generated once, here, for this logical sale. Generating it inside a retry loop would
-    // provide no protection at all.
-    const idempotencyKey = newIdempotencyKey();
+    /*
+     * ONE key for this logical sale, reused by every attempt at it.
+     *
+     * It used to be generated inside this function, which runs once per press of Confirm.
+     * So the second press was a different key and therefore a different sale — the exact
+     * thing idempotency exists to prevent. That only mattered when the first press failed
+     * in a way that made a cashier press again, which is precisely when it matters most.
+     *
+     * Cleared once the sale is recorded, and on a definitive refusal from the server, since
+     * neither of those is the same sale being retried.
+     */
+    saleKey.current ??= newIdempotencyKey();
+    const idempotencyKey = saleKey.current;
 
-    const result = await completeSale({
-      branchId,
-      ...toSalePayload(cart),
-      payments,
-      idempotencyKey,
-      tier: cart.tier,
-      ...(cart.customerId ? { customerId: cart.customerId } : {}),
-      ...(cart.orderDiscount.kind !== DiscountKind.NONE
-        ? {
-            orderDiscount: { type: cart.orderDiscount.kind, value: cart.orderDiscount.value },
-          }
-        : {}),
-    });
+    let result: Awaited<ReturnType<typeof completeSale>>;
+    try {
+      result = await completeSale({
+        branchId,
+        ...toSalePayload(cart),
+        payments,
+        idempotencyKey,
+        tier: cart.tier,
+        ...(cart.customerId ? { customerId: cart.customerId } : {}),
+        ...(cart.orderDiscount.kind !== DiscountKind.NONE
+          ? {
+              orderDiscount: { type: cart.orderDiscount.kind, value: cart.orderDiscount.value },
+            }
+          : {}),
+      });
+    } catch {
+      /*
+       * The request did not come back. Unlike the desktop till there is no local queue here,
+       * so this genuinely cannot be resolved from the browser: the sale may have been
+       * recorded before the connection dropped, or not at all.
+       *
+       * Saying "try again" is only honest because the key above is now stable — pressing
+       * Confirm again retries THIS sale rather than starting a second one. Previously this
+       * rejection was unhandled, the button stayed spinning, and the only way out was
+       * reloading the page and ringing the sale afresh, which is how a customer gets charged
+       * twice.
+       */
+      setError(
+        'Carl could not be reached, so it is not known whether this sale was recorded. ' +
+          'Press Confirm again — it cannot be recorded twice.',
+      );
+      return;
+    }
 
     if (!result.ok) {
+      // The server answered and refused. That is a different sale next time.
+      saleKey.current = null;
       setError(result.message);
       setPaying(false);
       return;
     }
 
+    saleKey.current = null;
     setReceipt({
       saleNumber: result.data.saleNumber,
       total: result.data.total,
@@ -383,12 +454,7 @@ export function PosTerminal({
             </p>
           )}
 
-          <Button
-            size="pos"
-            block
-            disabled={cart.lines.length === 0}
-            onClick={() => setPaying(true)}
-          >
+          <Button size="pos" block disabled={cart.lines.length === 0} onClick={openPayment}>
             Pay {formatMoney(totals.total)}
           </Button>
         </footer>
@@ -399,7 +465,7 @@ export function PosTerminal({
           total={totals.total}
           canDiscount={canDiscount}
           onCancel={() => {
-            setPaying(false);
+            closePayment();
             focusSearch();
           }}
           onConfirm={onPay}

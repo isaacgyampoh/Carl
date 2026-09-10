@@ -114,8 +114,18 @@ export function PaymentPanel({
       return;
     }
     setSubmitting(true);
-    await onConfirm(tenders);
-    setSubmitting(false);
+    try {
+      await onConfirm(tenders);
+    } finally {
+      /*
+       * `finally`, so the button always comes back.
+       *
+       * Without it a rejected submit left Confirm spinning for good, with money possibly
+       * taken and no way forward except reloading the page — which loses the cart and any
+       * knowledge of whether the sale landed.
+       */
+      setSubmitting(false);
+    }
   }
 
   return (
