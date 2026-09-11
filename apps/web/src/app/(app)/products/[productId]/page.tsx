@@ -53,9 +53,15 @@ export default async function EditProductPage({
          product_prices(amount, tier, effective_to),
          product_barcodes(barcode, is_primary)`,
       )
+      .eq('tenant_id', auth.tenant.tenantId)
       .eq('id', productId)
       .maybeSingle<ProductDetail>(),
-    client.from('categories').select('id, name').eq('is_active', true).order('name'),
+    client
+      .from('categories')
+      .select('id, name')
+      .eq('tenant_id', auth.tenant.tenantId)
+      .eq('is_active', true)
+      .order('name'),
     // This branch's stock. A new product has no row until something is recorded.
     branch
       ? client

@@ -38,6 +38,7 @@ export default async function CustomerDetailPage({
     client
       .from('customers')
       .select('id, name, phone, email, address, notes, default_tier, credit_limit, balance')
+      .eq('tenant_id', auth.tenant.tenantId)
       .eq('id', customerId)
       .maybeSingle<CustomerDetail>(),
     // Purchase history. RLS decides which sales this caller may see, so a cashier sees
@@ -45,6 +46,7 @@ export default async function CustomerDetailPage({
     client
       .from('sales')
       .select('id, sale_number, total, sold_at, status')
+      .eq('tenant_id', auth.tenant.tenantId)
       .eq('customer_id', customerId)
       .order('sold_at', { ascending: false })
       .limit(20),

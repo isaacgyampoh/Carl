@@ -54,6 +54,7 @@ export default async function TransferDetailPage({
        stock_transfer_items(id, quantity_requested, quantity_sent, quantity_received,
                             products(id, name, sku))`,
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .eq('id', transferId)
     .maybeSingle<TransferDetail>();
 

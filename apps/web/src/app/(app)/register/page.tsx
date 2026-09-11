@@ -35,11 +35,17 @@ export default async function RegisterPage() {
   const auth = await requirePermission(Permission.REGISTER_OPEN);
   const branch = activeBranch(auth);
 
+  // A drawer belongs to a branch. Without this, a manager of two branches saw the other
+  // branch's registers, and its open session presented as this one's.
+  const branchFilter = branch ? { branch_id: branch.id } : {};
+
   const client = await supabase();
   const [{ data: registers }, { data: sessions }] = await Promise.all([
     client
       .from('cash_registers')
       .select('id, name')
+      .eq('tenant_id', auth.tenant.tenantId)
+      .match(branchFilter)
       .eq('is_active', true)
       .order('name')
       .returns<{ id: string; name: string }[]>(),
@@ -50,6 +56,8 @@ export default async function RegisterPage() {
          expected_cash, counted_cash, variance, variance_note, opened_at, closed_at,
          cash_registers(name), profiles!cash_sessions_opened_by_fkey(full_name)`,
       )
+      .eq('tenant_id', auth.tenant.tenantId)
+      .match(branchFilter)
       .order('opened_at', { ascending: false })
       .limit(20)
       .returns<SessionRow[]>(),

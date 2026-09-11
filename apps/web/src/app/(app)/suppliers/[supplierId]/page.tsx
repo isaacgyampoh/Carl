@@ -50,11 +50,13 @@ export default async function SupplierDetailPage({
     client
       .from('suppliers')
       .select('id, name, contact_name, phone, email, address, notes, payment_terms_days, balance')
+      .eq('tenant_id', auth.tenant.tenantId)
       .eq('id', supplierId)
       .maybeSingle<SupplierDetail>(),
     client
       .from('purchases')
       .select('id, reference, total, status, ordered_at')
+      .eq('tenant_id', auth.tenant.tenantId)
       .eq('supplier_id', supplierId)
       .order('created_at', { ascending: false })
       .limit(20),

@@ -52,12 +52,19 @@ export default async function ProductsPage({
        inventory(quantity, reorder_level)`,
       { count: 'exact' },
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('name')
     .range(from, to);
 
   if (search) {
     // Matches the POS search behaviour: name or SKU, case-insensitive.
     query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+  }
+
+  if (branchId) {
+    // Stock is counted per branch. Unfiltered, the embed returns a row for every branch and
+    // the column showed whichever came back first.
+    query = query.eq('inventory.branch_id', branchId);
   }
 
   const { data, count } = await query.returns<ProductRow[]>();

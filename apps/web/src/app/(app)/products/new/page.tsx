@@ -30,6 +30,7 @@ export default async function NewProductPage() {
   const { data: categories } = await client
     .from('categories')
     .select('id, name')
+    .eq('tenant_id', auth.tenant.tenantId)
     .eq('is_active', true)
     .order('name');
 

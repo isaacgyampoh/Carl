@@ -75,6 +75,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ sal
                   discount_amount, tax_amount, line_total, quantity_returned),
        sale_payments(id, method, amount, reference)`,
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .eq('id', saleId)
     .maybeSingle<SaleDetail>();
 

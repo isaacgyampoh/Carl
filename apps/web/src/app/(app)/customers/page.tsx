@@ -37,6 +37,7 @@ export default async function CustomersPage({
   const { data, count } = await client
     .from('customers')
     .select('id, name, phone, email, default_tier, balance, is_active', { count: 'exact' })
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('name')
     .range(from, to)
     .returns<CustomerRow[]>();

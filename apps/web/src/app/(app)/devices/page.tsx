@@ -41,6 +41,7 @@ export default async function DevicesPage() {
     .select(
       'id, code, name, status, platform, app_version, last_seen_at, last_sync_at, pending_sync_count, authorized_until, health',
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('code')
     .returns<DeviceRow[]>();
 

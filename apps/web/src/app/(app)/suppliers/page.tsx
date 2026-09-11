@@ -39,6 +39,7 @@ export default async function SuppliersPage({
     .select('id, name, contact_name, phone, payment_terms_days, balance, is_active', {
       count: 'exact',
     })
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('name')
     .range(from, to)
     .returns<SupplierRow[]>();

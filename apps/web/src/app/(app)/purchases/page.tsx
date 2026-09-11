@@ -54,6 +54,7 @@ export default async function PurchasesPage({
       'id, reference, status, payment_status, total, ordered_at, received_at, suppliers(name), branches(name)',
       { count: 'exact' },
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('created_at', { ascending: false })
     .range(from, to)
     .returns<PurchaseRow[]>();

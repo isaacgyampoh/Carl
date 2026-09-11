@@ -30,14 +30,15 @@ export default async function SalesPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requirePermission(Permission.SALES_VIEW);
+  const auth = await requirePermission(Permission.SALES_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
 
   const client = await supabase();
 
   // RLS decides which sales are visible: sales.view shows your own, sales.view_all shows
-  // the branch's. No filter here, because a filter here would not be the control.
+  // the branch's. The tenant filter is not the control either; it keeps someone who works
+  // for two businesses looking at the one they chose.
   const { data, count } = await client
     .from('sales')
     .select(
@@ -45,6 +46,7 @@ export default async function SalesPage({
        customers(name), profiles!sales_cashier_id_fkey(full_name)`,
       { count: 'exact' },
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('sold_at', { ascending: false })
     .range(from, to)
     .returns<SaleRow[]>();

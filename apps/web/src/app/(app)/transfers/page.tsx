@@ -56,6 +56,7 @@ export default async function TransfersPage({
        stock_transfer_items(id)`,
       { count: 'exact' },
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('created_at', { ascending: false })
     .range(from, to)
     .returns<TransferRow[]>();

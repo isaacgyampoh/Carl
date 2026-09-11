@@ -52,6 +52,7 @@ export default async function PurchaseDetailPage({
        purchase_items(id, line_number, quantity_ordered, quantity_received, unit_cost, line_total,
                       products(id, name, sku, unit))`,
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .eq('id', purchaseId)
     .maybeSingle<PurchaseDetail>();
 

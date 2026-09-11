@@ -26,10 +26,16 @@ export default async function NewPurchasePage() {
 
   const client = await supabase();
   const [{ data: suppliers }, { data: products }] = await Promise.all([
-    client.from('suppliers').select('id, name').eq('is_active', true).order('name'),
+    client
+      .from('suppliers')
+      .select('id, name')
+      .eq('tenant_id', auth.tenant.tenantId)
+      .eq('is_active', true)
+      .order('name'),
     client
       .from('products')
       .select('id, name, sku, unit, average_cost')
+      .eq('tenant_id', auth.tenant.tenantId)
       .eq('is_active', true)
       .order('name')
       .limit(1000),
