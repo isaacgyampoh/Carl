@@ -92,7 +92,7 @@ export default async function ClientsPage({
 
       {/* Scrolls rather than wrapping: filter chips must not push the list below the fold. */}
       <div className="-mx-4 overflow-x-auto px-4">
-        <div className="flex gap-2 pb-1">
+        <div className="flex flex-wrap gap-2 pb-1">
           {STATUSES.map((s) => (
             <Link
               key={s}

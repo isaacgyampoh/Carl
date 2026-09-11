@@ -97,7 +97,7 @@ export default async function BillingPage() {
                   <span className="min-w-0">
                     <Link
                       href={`/platform/clients/${p.tenant_id}`}
-                      className="block truncate font-medium underline-offset-4 hover:underline"
+                      className="-my-1 block truncate py-2 font-medium underline-offset-4 hover:underline"
                     >
                       {tenant?.name ?? 'Unknown'}
                     </Link>
@@ -160,7 +160,7 @@ function Section({
               <span className="min-w-0">
                 <Link
                   href={`/platform/clients/${client.tenantId}`}
-                  className="block truncate font-medium underline-offset-4 hover:underline"
+                  className="-my-1 block truncate py-2 font-medium underline-offset-4 hover:underline"
                 >
                   {client.name}
                 </Link>

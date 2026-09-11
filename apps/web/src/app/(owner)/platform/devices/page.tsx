@@ -83,7 +83,7 @@ export default async function DevicesPage({
       </section>
 
       <div className="-mx-4 overflow-x-auto px-4">
-        <div className="flex gap-2 pb-1">
+        <div className="flex flex-wrap gap-2 pb-1">
           {STATUSES.map((s) => (
             <Link
               key={s}
