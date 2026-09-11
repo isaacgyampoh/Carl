@@ -62,6 +62,20 @@ export default async function ReportsPage({
     canSeeStock ? client.rpc('low_stock_items', { ...stockArgs, p_limit: 50 }) : null,
   ]);
 
+  /*
+   * Each branch side by side, from the same database aggregate as the headline figures, one
+   * call per branch. A business has a handful of branches; nothing is summed in React.
+   */
+  const branchRows =
+    canSeeSales && auth.tenant.branches.length > 1
+      ? await Promise.all(
+          auth.tenant.branches.map(async (each) => {
+            const { data } = await client.rpc('sales_summary', { ...args, p_branch_id: each.id });
+            return { id: each.id, name: each.name, totals: data?.[0] };
+          }),
+        )
+      : [];
+
   const totals = summary?.data?.[0];
   const paymentRows = payments?.data ?? [];
   const paymentTotal = paymentRows.reduce((sum, row) => sum + (row.amount ?? 0), 0);
@@ -97,6 +111,35 @@ export default async function ReportsPage({
               tone={(totals?.refunds ?? 0) > 0 ? 'warning' : 'neutral'}
             />
           </div>
+
+          {branchRows.length > 0 && (
+            <Card className="mt-5 overflow-hidden">
+              <CardHeader
+                title="By branch"
+                description={`Every branch over ${label.toLowerCase()}.`}
+              />
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Branch</TH>
+                    <TH numeric>Sales</TH>
+                    <TH numeric>Transactions</TH>
+                    {canSeeFinancial && <TH numeric>Gross profit</TH>}
+                  </TR>
+                </THead>
+                <TBody>
+                  {branchRows.map((row) => (
+                    <TR key={row.id}>
+                      <TD className="font-medium">{row.name}</TD>
+                      <TD numeric>{formatMoney(row.totals?.gross ?? 0)}</TD>
+                      <TD numeric>{(row.totals?.sales_count ?? 0).toLocaleString('en-GH')}</TD>
+                      {canSeeFinancial && <TD numeric>{formatMoney(row.totals?.profit ?? 0)}</TD>}
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </Card>
+          )}
 
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <Card className="overflow-hidden">

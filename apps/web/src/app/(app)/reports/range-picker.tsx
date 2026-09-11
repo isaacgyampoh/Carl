@@ -10,13 +10,14 @@ import { cn } from '@carl/ui';
  * Ranges are half-open (`from <= sold_at < to`), which is what stops a sale at exactly
  * midnight being counted in two adjacent periods.
  */
-export type RangeKey = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+export type RangeKey = 'today' | 'yesterday' | 'week' | 'month' | 'year' | 'custom';
 
 const OPTIONS: readonly { key: RangeKey; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
   { key: 'week', label: 'This week' },
   { key: 'month', label: 'This month' },
+  { key: 'year', label: 'This year' },
 ];
 
 export function resolveRange(
@@ -54,6 +55,11 @@ export function resolveRange(
         label: 'This month',
         key: 'month',
       };
+    }
+    case 'year': {
+      const start = new Date(now.getFullYear(), 0, 1);
+      const end = new Date(startOfDay(now).getTime() + 86_400_000);
+      return { from: start.toISOString(), to: end.toISOString(), label: 'This year', key: 'year' };
     }
     case undefined:
       // No range in the URL: fall through to today, below.

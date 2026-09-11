@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
+import { memberTenantAtSlug } from '@carl/infrastructure/auth/resolve-auth-context';
 import { supabase } from '@/lib/supabase';
 import { MemberPinPad } from './member-pin-pad';
 import { InstallGate } from '@/components/install-gate';
@@ -56,22 +57,19 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
    * one origin and therefore one session cookie, so the address has to be checked against
    * the session, not assumed.
    *
-   * The check reads only the caller's own memberships (RLS), so it reveals nothing about
-   * whether a business exists to anyone who does not already belong to it.
+   * The check is filtered by the caller's own user id, not left to RLS. The platform owner
+   * can READ every business's memberships, so an unfiltered "is there an active membership
+   * at this slug?" found the business administrator's row and let the owner in. That was
+   * how a client's address opened the owner console. Filtered, it also reveals nothing
+   * about whether a business exists to anyone who does not belong to it.
    */
   if (auth) {
     const client = await supabase();
-    const { data: membership } = await client
-      .from('tenant_memberships')
-      .select('tenant_id, tenants!inner(slug)')
-      .eq('tenants.slug', slug)
-      .eq('status', 'ACTIVE')
-      .limit(1)
-      .maybeSingle();
+    const membership = await memberTenantAtSlug(client, auth.user.userId, slug);
 
     if (membership) {
       // Already operating in this business: straight in. Otherwise switch to it first.
-      redirect(auth.tenant?.tenantId === membership.tenant_id ? '/dashboard' : `/${slug}/enter`);
+      redirect(auth.tenant?.tenantId === membership.tenantId ? '/dashboard' : `/${slug}/enter`);
     }
     // Not a member here — including the platform owner — so this business's own sign-in.
   }

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -13,6 +14,15 @@ export default defineConfig({
   test: {
     projects: [
       {
+        resolve: {
+          alias: {
+            // Server-side modules guard themselves with `server-only`, which throws outside a
+            // React Server Component build. Unit tests exercise that code in plain Node.
+            'server-only': fileURLToPath(
+              new URL('./tests/support/server-only-stub.ts', import.meta.url),
+            ),
+          },
+        },
         test: {
           name: 'unit',
           globals: true,

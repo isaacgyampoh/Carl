@@ -11,6 +11,19 @@
  * looks there. That is what makes tenant isolation hold even for code paths nobody
  * remembered to check.
  *
+ * ## Why every membership query filters by the caller's own user id
+ *
+ * RLS decides what may be READ, and reading is not the same as belonging. Migration 0028
+ * lets the platform owner read every business's memberships, for the staff list on a
+ * client's profile. A query that relied on RLS to mean "my memberships" therefore returned,
+ * for the owner, every membership on the platform.
+ *
+ * That was the client-URL-opens-the-owner-console bug. The shop entry page asked "is this
+ * person a member of this business?", found the business administrator's row, and let the
+ * owner straight in; this resolver then gave the owner that business as their tenant, with
+ * no permissions, inside a shell showing their owner console. So membership is always
+ * `user_id = the verified caller`, never "whatever RLS lets me see".
+ *
  * ## Why `getUser()` and not `getSession()`
  *
  * `getSession()` reads the JWT from the cookie and decodes it **without verifying it
@@ -34,6 +47,7 @@ import { asId, randomUuid } from '@carl/shared';
 import type { CarlSupabaseClient } from '../supabase/server-client';
 
 interface MembershipRow {
+  id: string;
   tenant_id: string;
   tenants: {
     name: string;
@@ -47,8 +61,10 @@ interface BranchRow {
   name: string;
 }
 
-interface PermissionRow {
-  permission_key: string;
+interface RoleGrantRow {
+  roles: {
+    role_permissions: { permission_key: string }[] | null;
+  } | null;
 }
 
 export interface ResolveOptions {
@@ -64,8 +80,8 @@ export interface ResolveOptions {
  * Resolves the current caller, or null when there is no valid session.
  *
  * Note the treatment of `requestedTenantId` and `requestedBranchId`: they are *filters over
- * what the database already says the user may reach*, never grants. Asking for a tenant you
- * are not a member of yields null, not access.
+ * what the database says the user belongs to*, never grants. Asking for a tenant you are
+ * not a member of never yields that tenant.
  */
 export async function resolveAuthContext(
   supabase: CarlSupabaseClient,
@@ -102,45 +118,77 @@ export async function resolveAuthContext(
   };
 
   const requestId = options.requestId ?? randomUuid();
-  const tenant = await resolveTenant(supabase, options);
+  const tenant = await resolveTenant(supabase, authUser.id, options);
 
   return { user, tenant, deviceId: null, requestId };
 }
 
+/**
+ * The business a signed-in person may enter at a shop's address, or null.
+ *
+ * Used by `/[slug]` and `/[slug]/enter`. Filtered by the caller's own user id for the reason
+ * in this module's header: the platform owner can READ every business's memberships, and
+ * must not thereby be treated as a member of every business.
+ */
+export async function memberTenantAtSlug(
+  supabase: CarlSupabaseClient,
+  userId: string,
+  slug: string,
+): Promise<{ tenantId: string } | null> {
+  const { data } = await supabase
+    .from('tenant_memberships')
+    .select('tenant_id, tenants!inner(slug)')
+    .eq('user_id', userId)
+    .eq('tenants.slug', slug)
+    .eq('status', 'ACTIVE')
+    .limit(1)
+    .maybeSingle<{ tenant_id: string }>();
+
+  return data ? { tenantId: data.tenant_id } : null;
+}
+
 async function resolveTenant(
   supabase: CarlSupabaseClient,
+  userId: string,
   options: ResolveOptions,
 ): Promise<TenantContext | null> {
-  // RLS already restricts this to the caller's own memberships, so no user filter is
-  // needed — and adding one would imply the filter is what provides the isolation.
   const { data: memberships } = await supabase
     .from('tenant_memberships')
-    .select('tenant_id, tenants(name, status)')
+    .select('id, tenant_id, tenants(name, status)')
+    .eq('user_id', userId)
     .eq('status', 'ACTIVE')
+    .order('created_at')
     .returns<MembershipRow[]>();
 
-  if (!memberships || memberships.length === 0) return null;
+  const own = memberships ?? [];
+  if (own.length === 0) return null;
 
-  const membership = options.requestedTenantId
-    ? memberships.find((m) => m.tenant_id === options.requestedTenantId)
-    : memberships[0];
+  /*
+   * Which of the caller's businesses this request operates in.
+   *
+   * The one the session chose, when it is one of theirs. Otherwise their business only when
+   * they have exactly one, which is unambiguous. With several and no choice there is no
+   * safe default: "the first one" is how a request ends up in the wrong business, so the
+   * answer is no business until they enter one through its own address.
+   */
+  const requested = options.requestedTenantId
+    ? own.find((m) => m.tenant_id === options.requestedTenantId)
+    : undefined;
+  const membership = requested ?? (own.length === 1 ? own[0] : undefined);
 
-  // Asking for a tenant you do not belong to is not an error worth distinguishing from
-  // having no tenant: both mean "no access", and telling them apart confirms the tenant
-  // exists.
   if (!membership?.tenants) return null;
 
   const tenantId = asId<'TenantId'>(membership.tenant_id);
 
   const [branches, permissions] = await Promise.all([
     accessibleBranches(supabase, membership.tenant_id),
-    grantedPermissions(supabase, membership.tenant_id),
+    grantedPermissions(supabase, membership.id),
   ]);
 
   // The requested branch is a filter over what the database already permits, never a
   // grant. Asking for a branch you cannot reach falls back to your first one.
-  const requested = branches.find((branch) => branch.id === options.requestedBranchId);
-  const activeBranchId = requested?.id ?? branches[0]?.id ?? null;
+  const requestedBranch = branches.find((branch) => branch.id === options.requestedBranchId);
+  const activeBranchId = requestedBranch?.id ?? branches[0]?.id ?? null;
 
   return {
     tenantId,
@@ -180,23 +228,32 @@ async function accessibleBranches(
 }
 
 /**
- * The permissions this user holds in this tenant.
+ * The permissions this user holds in this tenant: those of the roles on THEIR membership.
  *
- * Used only to decide what the UI offers. The database checks the same permissions again on
- * every operation, so a stale or tampered set here changes what is *displayed* and nothing
- * about what is *permitted*.
+ * The same rule `app.has_permission` enforces (membership → membership_roles →
+ * role_permissions). It used to read every role_permissions row in the tenant, which RLS
+ * lets any member read, so a cashier's context carried the owner's permissions: the full
+ * navigation, a dashboard with reports, page guards that passed. The database still refused
+ * the data, but what a cashier could open was decided by the wrong set.
+ *
+ * Used only to decide what the UI offers. The database checks permissions again on every
+ * operation.
  */
 async function grantedPermissions(
   supabase: CarlSupabaseClient,
-  tenantId: string,
+  membershipId: string,
 ): Promise<ReadonlySet<Permission>> {
   const { data } = await supabase
-    .from('role_permissions')
-    .select('permission_key, roles!inner(tenant_id)')
-    .eq('roles.tenant_id', tenantId)
-    .returns<PermissionRow[]>();
+    .from('membership_roles')
+    .select('roles(role_permissions(permission_key))')
+    .eq('membership_id', membershipId)
+    .returns<RoleGrantRow[]>();
 
-  return new Set((data ?? []).map((row) => row.permission_key as Permission));
+  return new Set(
+    (data ?? [])
+      .flatMap((row) => row.roles?.role_permissions ?? [])
+      .map((grant) => grant.permission_key as Permission),
+  );
 }
 
 function toTenantStatus(value: string): TenantStatus {

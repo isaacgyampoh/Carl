@@ -49,7 +49,7 @@ export default async function DashboardPage() {
     return (
       <EmptyState
         title="No business attached to your account"
-        description="Your account exists but is not yet part of a business. Contact whoever manages Carl for your organisation."
+        description="Your account is not operating in a business right now. Open your business's own Carl address and sign in there, or contact whoever manages Carl for your organisation."
       />
     );
   }

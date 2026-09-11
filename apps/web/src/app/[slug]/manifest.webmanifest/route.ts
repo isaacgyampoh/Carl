@@ -10,9 +10,15 @@ import { NextResponse } from 'next/server';
  * they had just bought — and had to navigate back to their till every morning. `scope` was
  * the whole site too, so the installed window was not anchored to their business at all.
  *
- * Each business therefore gets its own manifest, with `start_url` and `scope` at their
- * address and a distinct `id`, so Windows and Android treat two shops as two applications
- * rather than reinstalling over each other.
+ * Each business therefore gets its own manifest, with `start_url` at their address and a
+ * distinct `id`, so Windows and Android treat two shops as two applications rather than
+ * reinstalling over each other, and the installed app always opens at its own business.
+ *
+ * `scope` is the whole origin, deliberately. A business's own screens (/dashboard, /pos,
+ * /products) are shared routes, not under /{slug}. Scoped to /{slug}, every screen after
+ * the PIN was outside the app's scope, so the installed window showed a browser bar over the
+ * till. Which business the app belongs to is carried by `id` and `start_url`; which business
+ * a request operates in is decided by the server, never by scope.
  *
  * ## Why it does not look the business up
  *
@@ -39,7 +45,7 @@ export async function GET(
       short_name: 'Carl',
       description: 'Point of sale, inventory and business management.',
       start_url: `/${safe}`,
-      scope: `/${safe}`,
+      scope: '/',
       display: 'standalone',
       orientation: 'any',
       background_color: '#ffffff',

@@ -34,14 +34,16 @@ describe('the web app manifest', () => {
 describe('a business gets its own manifest', () => {
   const route = read('src', 'app', '[slug]', 'manifest.webmanifest', 'route.ts');
 
-  it('anchors start_url and scope to the business, not to the marketing page', () => {
+  it('anchors start_url and id to the business, not to the marketing page', () => {
     /*
      * The shared manifest has `start_url: "/"`. A shop that installed from their own address
      * got an application that opened on Carl's sales pitch and had to navigate to their till
      * every morning.
      */
     expect(route).toContain('start_url: `/${safe}`');
-    expect(route).toContain('scope: `/${safe}`');
+    // Scope is the whole origin: the business's own screens (/dashboard, /pos) are shared
+    // routes, and a /{slug} scope put a browser bar over every screen after the PIN.
+    expect(route).toContain("scope: '/'");
     // A distinct id, or two shops install over each other.
     expect(route).toContain('id: `/${safe}`');
   });

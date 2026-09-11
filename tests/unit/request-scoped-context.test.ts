@@ -48,9 +48,10 @@ describe('request-scoped tenant context', () => {
     expect(auth).toContain('requestedBranchId: uuidOrUndefined(store.get(BRANCH_COOKIE)?.value)');
     // And the resolver matches them against memberships RLS already permits.
     const resolver = read('packages', 'infrastructure', 'src', 'auth', 'resolve-auth-context.ts');
-    expect(resolver).toContain(
-      'memberships.find((m) => m.tenant_id === options.requestedTenantId)',
-    );
+    expect(resolver).toContain('own.find((m) => m.tenant_id === options.requestedTenantId)');
+    // Membership is the caller's own rows, never whatever RLS lets them read.
+    expect(resolver).toContain(".eq('user_id', userId)");
+    expect(resolver).not.toContain('memberships[0]');
   });
 
   it('only lets a business address in the members of that business', () => {
@@ -58,6 +59,9 @@ describe('request-scoped tenant context', () => {
     // The old unconditional redirect sent the platform owner into the owner console from any
     // client's address.
     expect(entry).not.toContain("redirect(auth.user.isPlatformAdmin ? '/platform' : '/dashboard')");
-    expect(entry).toContain(".eq('tenants.slug', slug)");
+    // Filtered by the caller's own user id: the platform owner can read every membership.
+    expect(entry).toContain('memberTenantAtSlug(client, auth.user.userId, slug)');
+    const enter = read('apps', 'web', 'src', 'app', '[slug]', 'enter', 'route.ts');
+    expect(enter).toContain('memberTenantAtSlug(client, userData.user.id, slug)');
   });
 });
