@@ -22,7 +22,12 @@ import {
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/page-header';
-import { PAYMENT_METHOD_LABEL, PrintReceiptButton } from '@/components/receipt';
+import {
+  PAYMENT_METHOD_LABEL,
+  PrintReceiptButton,
+  ShareReceiptButton,
+  type ReceiptSource,
+} from '@/components/receipt';
 import { SaleActions } from './sale-actions';
 
 export const metadata: Metadata = { title: 'Sale' };
@@ -96,6 +101,42 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ sal
   const address = sale.branches?.address ?? business?.address ?? null;
   const returnable = items.filter((item) => item.quantity_returned < item.quantity);
 
+  const receipt: ReceiptSource = {
+    businessName: business?.name ?? auth.tenant.tenantName,
+    branchName: sale.branches?.name ?? '',
+    addressLines: address ? [address] : [],
+    phone: sale.branches?.phone ?? business?.phone ?? null,
+    taxId: business?.tax_registration_no ?? null,
+    saleNumber: sale.sale_number,
+    soldAt: sale.sold_at,
+    cashierName: sale.profiles?.full_name ?? '',
+    customerName: sale.customers?.name ?? null,
+    lines: items.map((item) => ({
+      name: item.product_name,
+      quantity: Math.round(item.quantity * 1000),
+      unitPrice: item.unit_price,
+      lineTotal: item.line_total,
+      ...(item.discount_amount > 0 ? { discount: item.discount_amount } : {}),
+    })),
+    subtotal: sale.subtotal,
+    discountTotal: sale.discount_amount,
+    taxTotal: sale.tax_amount,
+    total: sale.total,
+    payments: sale.sale_payments.map((payment) => ({
+      method: PAYMENT_METHOD_LABEL[payment.method] ?? payment.method,
+      amount: payment.amount,
+      reference: payment.reference,
+    })),
+    amountPaid: sale.amount_paid,
+    changeGiven: sale.change_given,
+    currencyCode: `${business?.currency_code ?? 'GHS'} `,
+    // A reprint says so, and a voided sale's receipt says it is not valid.
+    footer:
+      sale.status === 'VOIDED'
+        ? 'VOIDED - NOT A VALID RECEIPT'
+        : `COPY - ${business?.receipt_footer ?? 'Thank you'}`,
+  };
+
   return (
     <>
       <PageHeader
@@ -106,43 +147,9 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ sal
         )}`}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <PrintReceiptButton
-              receipt={{
-                businessName: business?.name ?? auth.tenant.tenantName,
-                branchName: sale.branches?.name ?? '',
-                addressLines: address ? [address] : [],
-                phone: sale.branches?.phone ?? business?.phone ?? null,
-                taxId: business?.tax_registration_no ?? null,
-                saleNumber: sale.sale_number,
-                soldAt: sale.sold_at,
-                cashierName: sale.profiles?.full_name ?? '',
-                customerName: sale.customers?.name ?? null,
-                lines: items.map((item) => ({
-                  name: item.product_name,
-                  quantity: Math.round(item.quantity * 1000),
-                  unitPrice: item.unit_price,
-                  lineTotal: item.line_total,
-                  ...(item.discount_amount > 0 ? { discount: item.discount_amount } : {}),
-                })),
-                subtotal: sale.subtotal,
-                discountTotal: sale.discount_amount,
-                taxTotal: sale.tax_amount,
-                total: sale.total,
-                payments: sale.sale_payments.map((payment) => ({
-                  method: PAYMENT_METHOD_LABEL[payment.method] ?? payment.method,
-                  amount: payment.amount,
-                  reference: payment.reference,
-                })),
-                amountPaid: sale.amount_paid,
-                changeGiven: sale.change_given,
-                currencyCode: `${business?.currency_code ?? 'GHS'} `,
-                // A reprint says so, and a voided sale's receipt says it is not valid.
-                footer:
-                  sale.status === 'VOIDED'
-                    ? 'VOIDED - NOT A VALID RECEIPT'
-                    : `COPY - ${business?.receipt_footer ?? 'Thank you'}`,
-              }}
-            />
+            <PrintReceiptButton receipt={receipt} />
+            {/* A shop with no printer still has something to give the customer. */}
+            <ShareReceiptButton receipt={receipt} customerPhone={sale.customers?.phone ?? null} />
             <Badge tone={statusTone(sale.status)}>
               {sale.status.replace(/_/g, ' ').toLowerCase()}
             </Badge>

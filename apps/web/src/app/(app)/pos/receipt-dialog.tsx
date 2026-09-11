@@ -5,7 +5,7 @@ import { formatMoney } from '@carl/shared';
 import type { ReceiptData } from '@carl/domain';
 import { Button } from '@carl/ui';
 
-import { PrintableReceipt } from '@/components/receipt';
+import { PrintableReceipt, ShareReceiptButton } from '@/components/receipt';
 
 /**
  * Confirmation after a completed sale.
@@ -15,7 +15,8 @@ import { PrintableReceipt } from '@/components/receipt';
  *
  * Thermal printing arrives with the desktop application, which can talk to a printer
  * directly. In the browser this offers the print dialog, which is what a shop with a
- * receipt printer attached to a laptop actually uses.
+ * receipt printer attached to a laptop actually uses — and, for a shop with no printer at
+ * all, sending the receipt to the customer's phone.
  */
 export function ReceiptDialog({
   receipt,
@@ -92,6 +93,13 @@ export function ReceiptDialog({
           <Button ref={closeRef} size="lg" block onClick={onClose}>
             Next sale
           </Button>
+        </div>
+
+        <div className="mt-2 flex flex-col items-center">
+          <ShareReceiptButton
+            receipt={{ ...printData, soldAt: printData.soldAt.toISOString() }}
+            size="lg"
+          />
         </div>
       </div>
     </div>

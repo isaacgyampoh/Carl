@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { renderReceipt, type ReceiptData } from '@carl/domain';
-import { Button } from '@carl/ui';
+
+import { whatsappNumber } from '@/lib/receipt-sharing';
+import { Button, buttonClasses } from '@carl/ui';
 
 /** How a payment method reads on a customer's receipt. */
 export const PAYMENT_METHOD_LABEL: Readonly<Record<string, string>> = {
@@ -44,6 +46,85 @@ export function PrintableReceipt({ data }: { data: ReceiptData }) {
 
 /** Serialisable from a server component: the sale time travels as an ISO string. */
 export type ReceiptSource = Omit<ReceiptData, 'soldAt'> & { soldAt: string };
+
+/** The receipt as plain text, narrow enough to read in a chat window. */
+function receiptText(data: ReceiptData): string {
+  return renderReceipt(data, 32).join('\n');
+}
+
+/**
+ * Sending a customer their receipt.
+ *
+ * Most customers would rather have the receipt on their phone than on paper, and a shop with no
+ * printer had nothing to give them at all. This uses the phone's own share sheet where there is
+ * one, and otherwise opens WhatsApp or a text message with the receipt already written.
+ *
+ * Nothing is sent by Carl: the shop's own WhatsApp or messaging app sends it, so there is no
+ * gateway to pay for, no customer number stored for the purpose, and no message that can go out
+ * without the cashier seeing it.
+ */
+export function ShareReceiptButton({
+  receipt,
+  customerPhone,
+  size = 'sm',
+}: {
+  receipt: ReceiptSource;
+  customerPhone?: string | null;
+  size?: 'sm' | 'lg';
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const data: ReceiptData = { ...receipt, soldAt: new Date(receipt.soldAt) };
+  const text = receiptText(data);
+  const number = whatsappNumber(customerPhone);
+
+  async function share() {
+    // The share sheet is the best answer where it exists: the customer may not use WhatsApp.
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: `Receipt ${data.saleNumber}`, text });
+        return;
+      } catch {
+        // Dismissed, or refused by the browser. Fall through to the explicit choices.
+      }
+    }
+    setChoosing(true);
+  }
+
+  const encoded = encodeURIComponent(text);
+  return (
+    <>
+      <Button variant="secondary" size={size} onClick={() => void share()}>
+        Send receipt
+      </Button>
+      {choosing && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <a
+            href={`https://wa.me/${number ?? ''}?text=${encoded}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClasses({ variant: 'secondary', size: 'sm' })}
+          >
+            WhatsApp
+          </a>
+          {/* `?body=` is understood by Android and by iOS 8 and later. */}
+          <a
+            href={`sms:${number ?? ''}?body=${encoded}`}
+            className={buttonClasses({ variant: 'secondary', size: 'sm' })}
+          >
+            Text message
+          </a>
+          <button
+            type="button"
+            onClick={() => setChoosing(false)}
+            className={buttonClasses({ variant: 'ghost', size: 'sm' })}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
 
 /** "Print receipt" for a sale that has already happened. */
 export function PrintReceiptButton({ receipt }: { receipt: ReceiptSource }) {

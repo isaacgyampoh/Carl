@@ -1,8 +1,21 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Permission } from '@carl/domain';
 import { activeBranch, hasPermission } from '@carl/application';
 import { formatMoney, formatQuantity } from '@carl/shared';
-import { Card, CardHeader, EmptyState, Stat, Table, TBody, TD, TH, THead, TR } from '@carl/ui';
+import {
+  buttonClasses,
+  Card,
+  CardHeader,
+  EmptyState,
+  Stat,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -107,6 +120,29 @@ export default async function ReportsPage({
       />
 
       <RangePicker current={key} />
+
+      {/* What a shop does with a report: close the day, or hand the figures to an accountant. */}
+      <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+        <Link href="/reports/day" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>
+          Day report
+        </Link>
+        {(
+          [
+            ['sales', 'Export sales'],
+            ['payments', 'Export payments'],
+            ['staff', 'Export by person'],
+            ['products', 'Export products'],
+          ] as const
+        ).map(([type, label]) => (
+          <a
+            key={type}
+            href={`/reports/export?type=${type}&range=${key}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${branch ? `&branch=${branch.id}` : ''}`}
+            className={buttonClasses({ variant: 'ghost', size: 'sm' })}
+          >
+            {label}
+          </a>
+        ))}
+      </div>
 
       {canSeeSales && (
         <>
