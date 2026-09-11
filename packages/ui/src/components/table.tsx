@@ -18,6 +18,15 @@ export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>)
           // reading the fifth column still knows which sale or product it belongs to.
           '[&_td:first-child]:sticky [&_td:first-child]:left-0 [&_td:first-child]:z-[1] [&_td:first-child]:bg-inherit',
           '[&_th:first-child]:sticky [&_th:first-child]:left-0 [&_th:first-child]:z-[1] [&_th:first-child]:bg-inherit',
+          /*
+           * On a phone the first column may wrap.
+           *
+           * Cells do not wrap, so that a reference like S-00412 is never split in half — but
+           * applied to the first column that rule made every table as wide as its longest
+           * product name, and "Bottled water, pack of 15" pushed the price off the screen.
+           * The name is the one thing that reads fine on two lines.
+           */
+          'max-sm:[&_td:first-child]:whitespace-normal max-sm:[&_th:first-child]:whitespace-normal',
           className,
         )}
         {...props}
@@ -87,7 +96,7 @@ export function TH({
     <th
       scope="col"
       className={cn(
-        'whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)] sm:px-4',
+        'whitespace-nowrap px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)] sm:px-4',
         numeric && 'text-right',
         from && VISIBLE_FROM[from],
         className,
@@ -108,7 +117,7 @@ export function TD({
       className={cn(
         // One line per row on a phone: the table scrolls sideways, so wrapping only made each
         // row three lines tall and split references like S-00412 across two.
-        'px-3 py-3 text-[color:var(--color-ink)] max-md:whitespace-nowrap sm:px-4',
+        'px-2 py-3 text-[color:var(--color-ink)] max-md:whitespace-nowrap sm:px-4',
         numeric && 'whitespace-nowrap text-right tabular-nums',
         from && VISIBLE_FROM[from],
         className,
