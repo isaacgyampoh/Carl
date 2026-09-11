@@ -21,14 +21,12 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+// Resolved from the repository rather than from an absolute path: this runs on a CI runner too.
 const require = createRequire(import.meta.url);
-const { Client } = require('/Users/isaacgyampoh/Carl/node_modules/pg');
-const {
-  createClient,
-} = require('/Users/isaacgyampoh/Carl/apps/web/node_modules/@supabase/supabase-js');
-const {
-  createServerClient,
-} = require('/Users/isaacgyampoh/Carl/apps/web/node_modules/@supabase/ssr');
+const requireFromWeb = createRequire(new URL('../../apps/web/package.json', import.meta.url));
+const { Client } = require('pg');
+const { createClient } = requireFromWeb('@supabase/supabase-js');
+const { createServerClient } = requireFromWeb('@supabase/ssr');
 
 const required = ['BASE', 'SB_URL', 'SB_ANON', 'SB_SERVICE', 'SUPABASE_DB_URL'];
 const missing = required.filter((name) => !process.env[name]);
