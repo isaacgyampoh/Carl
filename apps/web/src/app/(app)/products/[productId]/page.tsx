@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Permission } from '@carl/domain';
 import { activeBranch, hasPermission } from '@carl/application';
-import { EmptyState, Card } from '@carl/ui';
+import { EmptyState, Card, Alert } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { signedProductImageUrls } from '@/lib/product-images';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/page-header';
 import { ProductForm } from '../product-form';
@@ -29,15 +30,17 @@ interface ProductDetail {
   tax_mode: 'INCLUSIVE' | 'EXCLUSIVE' | 'EXEMPT';
   tax_rate: number | null;
   category_id: string | null;
-  image_url: string | null;
+  image_path: string | null;
   product_prices: { amount: number; tier: string; effective_to: string | null }[];
   product_barcodes: { barcode: string; is_primary: boolean }[];
 }
 
 export default async function EditProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ productId: string }>;
+  searchParams: Promise<{ image?: string }>;
 }) {
   const auth = await requirePermission(Permission.PRODUCTS_VIEW);
   const { productId } = await params;
@@ -49,7 +52,7 @@ export default async function EditProductPage({
       .from('products')
       .select(
         `id, name, sku, description, unit, allow_fractional, is_stock_tracked, is_active,
-         average_cost, reorder_level, min_stock, tax_mode, tax_rate, category_id, image_url,
+         average_cost, reorder_level, min_stock, tax_mode, tax_rate, category_id, image_path,
          product_prices(amount, tier, effective_to),
          product_barcodes(barcode, is_primary)`,
       )
@@ -76,6 +79,10 @@ export default async function EditProductPage({
   // RLS returns nothing for a product in another tenant, so a forbidden product and a
   // non-existent one look the same from here. That is intended.
   if (!product) notFound();
+
+  const imageUrls = await signedProductImageUrls(client, [product.image_path]);
+  const imageUrl = product.image_path ? imageUrls.get(product.image_path) : undefined;
+  const imageFailed = (await searchParams).image === 'failed';
 
   if (!branch) {
     return (
@@ -106,6 +113,11 @@ export default async function EditProductPage({
   return (
     <>
       <PageHeader title={product.name} description={product.sku} />
+      {imageFailed && (
+        <Alert tone="warning" className="mb-5 max-w-3xl">
+          The product was saved, but its image could not be saved. Choose the image again below.
+        </Alert>
+      )}
       {product.is_stock_tracked && (
         <Card className="mb-5 max-w-3xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -128,6 +140,7 @@ export default async function EditProductPage({
           branchId={branch.id}
           categories={categories ?? []}
           productId={product.id}
+          image={imageUrl ? { url: imageUrl } : null}
           initial={{
             name: product.name,
             sku: product.sku,
@@ -145,7 +158,6 @@ export default async function EditProductPage({
             taxMode: product.tax_mode,
             ...(product.tax_rate !== null ? { taxRate: product.tax_rate } : {}),
             ...(primaryBarcode ? { barcode: primaryBarcode.barcode } : {}),
-            imageUrl: product.image_url,
           }}
         />
       </div>

@@ -28,6 +28,14 @@ const nextConfig: NextConfig = {
 
   allowedDevOrigins: localNetworkOrigins(),
 
+  experimental: {
+    serverActions: {
+      // A product image may be up to 2 MB. Server actions cap requests at 1 MB by default,
+      // which refused an ordinary photo before it reached the size check.
+      bodySizeLimit: '3mb',
+    },
+  },
+
   // Workspace packages ship as TypeScript source; Next compiles them in-place.
   transpilePackages: [
     '@carl/application',
@@ -104,7 +112,8 @@ const nextConfig: NextConfig = {
       // work that has to happen before this policy can be enforced.
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      // Product images are served from private Storage through short-lived signed URLs.
+      "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' data:",
       // The only origins Carl talks to.
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",

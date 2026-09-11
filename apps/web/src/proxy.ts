@@ -164,6 +164,7 @@ export async function proxy(request: NextRequest) {
     'staff',
     'suppliers',
     'transfers',
+    'windows-pos',
   ]);
   const segment = pathname.slice(1);
   const SLUG = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;

@@ -12,6 +12,7 @@ import {
   Calculator,
   ChartColumn,
   CreditCard,
+  Download,
   FileText,
   LayoutDashboard,
   MonitorSmartphone,
@@ -150,6 +151,13 @@ const NAV_SECTIONS: readonly { heading: string; items: readonly NavItem[] }[] = 
         permissions: [Permission.BRANCHES_VIEW],
       },
       { href: '/staff', label: 'Staff', icon: UserCog, permissions: [Permission.STAFF_VIEW] },
+      {
+        href: '/windows-pos',
+        label: 'Windows POS',
+        short: 'Windows',
+        icon: Download,
+        permissions: [Permission.DEVICES_MANAGE],
+      },
       {
         href: '/devices',
         label: 'Terminals',

@@ -49,7 +49,7 @@ export interface DashboardData {
   recent: { id: string; number: string; total: number; soldAt: string; status: string }[];
   /** What a new business has done so far. Null when the viewer cannot act on any of it. */
   setup: { products: boolean; stock: boolean; staff: boolean; sale: boolean } | null;
-  install: { url: string; windowsDownload: string | null } | null;
+  install: { url: string } | null;
 }
 
 const count = (value: number, one: string, many: string) =>
@@ -576,22 +576,13 @@ function InstallCard({ install }: { install: NonNullable<DashboardData['install'
           <li>Choose Install, then open Carl from its own icon.</li>
           <li>Each person signs in with their own PIN.</li>
         </ol>
-        {install.windowsDownload ? (
-          <a
-            href={install.windowsDownload}
-            className={buttonClasses({ variant: 'secondary', size: 'sm' })}
-          >
-            Download the Windows desktop app
-          </a>
-        ) : (
-          <p className="text-xs text-[color:var(--color-ink-muted)]">
-            For offline selling with a receipt printer, add the till under{' '}
-            <Link href="/devices" className="underline underline-offset-4">
-              Terminals
-            </Link>
-            .
-          </p>
-        )}
+        <Link href="/windows-pos" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>
+          Set up a Windows till
+        </Link>
+        <p className="text-xs text-[color:var(--color-ink-muted)]">
+          A Windows till keeps selling offline and prints receipts. Phones and browsers use the
+          address above.
+        </p>
       </CardBody>
     </Card>
   );

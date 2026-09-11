@@ -164,6 +164,66 @@ alter default privileges in schema public
   grant execute on functions to anon, authenticated, service_role;
 
 
+-- -----------------------------------------------------------------------------
+-- storage: the slice of Supabase Storage that migrations and policies touch.
+--
+-- On Supabase the Storage service owns these tables and serves the files; the database holds
+-- the object rows and the RLS policies that decide who may read or write them. Tenant
+-- isolation of product images rests entirely on those policies, so they are exercised here
+-- against the same table shape rather than trusted. Columns, the unique index and
+-- `storage.foldername` match Supabase's own definitions.
+-- -----------------------------------------------------------------------------
+create schema if not exists storage;
+
+create table if not exists storage.buckets (
+  id                 text primary key,
+  name               text not null,
+  owner              uuid,
+  public             boolean default false,
+  file_size_limit    bigint,
+  allowed_mime_types text[],
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
+);
+
+create table if not exists storage.objects (
+  id               uuid primary key default gen_random_uuid(),
+  bucket_id        text references storage.buckets (id),
+  name             text,
+  owner            uuid,
+  owner_id         text,
+  metadata         jsonb,
+  path_tokens      text[] generated always as (string_to_array(name, '/')) stored,
+  version          text,
+  user_metadata    jsonb,
+  created_at       timestamptz default now(),
+  updated_at       timestamptz default now(),
+  last_accessed_at timestamptz default now()
+);
+create unique index if not exists bucketid_objname on storage.objects (bucket_id, name);
+
+alter table storage.objects enable row level security;
+
+create or replace function storage.foldername(name text)
+returns text[]
+language plpgsql
+immutable
+as $$
+declare
+  _parts text[];
+begin
+  select string_to_array(name, '/') into _parts;
+  return _parts[1:array_length(_parts, 1) - 1];
+end
+$$;
+
+grant usage on schema storage to anon, authenticated, service_role;
+-- As on Supabase: every API role holds the table privileges and RLS alone decides.
+grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
+grant select on storage.buckets to anon, authenticated;
+grant all on storage.buckets to service_role;
+
+
 -- =============================================================================
 -- Test-only reset helper.
 --
@@ -209,6 +269,12 @@ begin
 
   if exists (select 1 from auth.users limit 1) then
     truncate table auth.users cascade;
+  end if;
+
+  -- Stored files belong to the test that made them. Buckets are schema (created by
+  -- migrations) and stay.
+  if exists (select 1 from storage.objects limit 1) then
+    delete from storage.objects;
   end if;
 end;
 $$;

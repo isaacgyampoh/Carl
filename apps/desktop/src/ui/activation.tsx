@@ -10,7 +10,8 @@
 import { useState } from 'react';
 
 import type { Runtime } from '../app';
-import { storeDeviceSecret } from '../lib/keychain';
+import { clearCashierToken, clearDeviceSecret, storeDeviceSecret } from '../lib/keychain';
+import { TenantBoundary, decideRebinding } from '../lib/tenant-boundary';
 import { APP_VERSION } from '../lib/env';
 import { LocalSettings } from '../lib/local-settings';
 
@@ -59,6 +60,26 @@ export function Activation({
       }
 
       const session = result.value;
+
+      // One till serves one business. See lib/tenant-boundary.ts for why this comes before
+      // anything is written.
+      const previous = await runtime.devices.read();
+      const boundary = new TenantBoundary(runtime.connection);
+      const decision = decideRebinding(previous, session, await boundary.unsyncedCount());
+      if (decision.kind === 'refuse') {
+        setError(
+          `This till still holds ${decision.unsynced} sale${decision.unsynced === 1 ? '' : 's'} for ` +
+            `${decision.previousTenantName} that ${decision.unsynced === 1 ? 'has' : 'have'} not reached Carl. ` +
+            'Connect it to the internet so they send, or contact Carl support, before it joins another business.',
+        );
+        return;
+      }
+      if (decision.kind === 'switch' && previous) {
+        await boundary.wipeBusinessData();
+        await clearCashierToken(previous.deviceId);
+        if (previous.deviceId !== session.deviceId) await clearDeviceSecret(previous.deviceId);
+      }
+
       // The secret goes to the OS keychain first. If the configuration were written first
       // and this failed, the terminal would look activated and be unable to prove it.
       await storeDeviceSecret(session.deviceId, session.deviceSecret);

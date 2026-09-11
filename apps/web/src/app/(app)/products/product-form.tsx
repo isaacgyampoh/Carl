@@ -2,13 +2,14 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { productSchema, type ProductFormValues, type ProductInput } from '@carl/validation';
 import { formatMoney, parseMoney } from '@carl/shared';
-import { Button, Card, CardHeader } from '@carl/ui';
+import { Button, Card, CardHeader, buttonClasses } from '@carl/ui';
 
 import { saveProduct } from '@/server/catalogue-actions';
+import { removeProductImage, uploadProductImage } from '@/server/product-image-actions';
 import {
   FormError,
   FormRow,
@@ -44,14 +45,61 @@ export function ProductForm({
   categories,
   productId,
   initial,
+  image,
 }: {
   branchId: string;
   categories: Category[];
   productId?: string;
   initial?: Partial<ProductFormValues>;
+  /** The product's current image, as a short-lived signed URL. */
+  image?: { url: string } | null;
 }) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  /*
+   * The image is optional and off by default: most products sell perfectly well without one,
+   * and a form that asks for a photo of every item slows down entering a catalogue.
+   */
+  const [useImage, setUseImage] = useState(Boolean(image));
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(image?.url ?? null);
+  const [removeCurrent, setRemoveCurrent] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const objectUrl = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    },
+    [],
+  );
+
+  function chooseImage(file: File | undefined): void {
+    setImageError(null);
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setImageError('Use a JPEG, PNG or WebP image.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setImageError('The image must be 2 MB or smaller.');
+      return;
+    }
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    objectUrl.current = URL.createObjectURL(file);
+    setImageFile(file);
+    setPreview(objectUrl.current);
+    setRemoveCurrent(false);
+  }
+
+  function clearImage(): void {
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    objectUrl.current = null;
+    setImageFile(null);
+    setPreview(null);
+    setRemoveCurrent(Boolean(image));
+  }
 
   const {
     register,
@@ -101,8 +149,27 @@ export function ProductForm({
       setServerError(result.message);
       return;
     }
-    // The product exists either way; if its stock was not recorded, go where it can be.
-    router.push(result.data.stockWarning ? `/products/${result.data.productId}` : '/products');
+
+    // The image follows the product, which now exists and has an id to file it under.
+    const savedId = result.data.productId;
+    let imageFailed = false;
+    if (useImage && imageFile) {
+      const upload = new FormData();
+      upload.set('productId', savedId);
+      upload.set('file', imageFile);
+      imageFailed = !(await uploadProductImage(upload)).ok;
+    } else if (image && (!useImage || removeCurrent)) {
+      imageFailed = !(await removeProductImage({ productId: savedId })).ok;
+    }
+
+    // The product exists either way; if its stock or image did not save, go where it can be fixed.
+    router.push(
+      imageFailed
+        ? `/products/${savedId}?image=failed`
+        : result.data.stockWarning
+          ? `/products/${savedId}`
+          : '/products',
+    );
     router.refresh();
   }
 
@@ -255,24 +322,70 @@ export function ProductForm({
           </LabelledField>
         </FormSection>
 
-        <FormSection title="Image">
-          <LabelledField
-            label="Image URL"
-            htmlFor="imageUrl"
-            error={errors.imageUrl}
-            hint="Optional. A link to a picture of the product."
-          >
-            <input
-              id="imageUrl"
-              type="url"
-              inputMode="url"
-              autoComplete="off"
-              className={inputClass}
-              {...register('imageUrl', {
-                setValueAs: (value: string) => (value === '' ? null : value),
-              })}
-            />
-          </LabelledField>
+        <FormSection
+          title="Image"
+          description="Optional. A product sells perfectly well without one."
+        >
+          <FormRow wide>
+            <label className="flex min-h-11 cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={useImage}
+                onChange={(event) => {
+                  setUseImage(event.target.checked);
+                  setImageError(null);
+                }}
+                className="size-5 accent-[color:var(--color-brand)]"
+              />
+              <span className="text-sm font-medium">Use product image</span>
+            </label>
+
+            {useImage && (
+              <div className="mt-3 flex flex-wrap items-start gap-4">
+                <div className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]">
+                  {preview ? (
+                    // A plain <img>: the source is a local preview or a short-lived signed URL.
+                    <img
+                      src={preview}
+                      alt="Product image preview"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs text-[color:var(--color-ink-muted)]">No image</span>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <label
+                    className={`${buttonClasses({ variant: 'secondary', size: 'sm' })} cursor-pointer`}
+                  >
+                    {preview ? 'Replace image' : 'Choose image'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(event) => {
+                        chooseImage(event.target.files?.[0]);
+                        event.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {preview && (
+                    <Button type="button" variant="ghost" size="sm" onClick={clearImage}>
+                      Remove image
+                    </Button>
+                  )}
+                  <p className="text-xs text-[color:var(--color-ink-muted)]">
+                    JPEG, PNG or WebP, up to 2 MB.
+                  </p>
+                  {imageError && (
+                    <p role="alert" className="text-sm text-[color:var(--color-danger)]">
+                      {imageError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </FormRow>
         </FormSection>
 
         <FormSection title="Tax">

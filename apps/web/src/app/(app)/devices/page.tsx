@@ -1,7 +1,20 @@
 import type { Metadata } from 'next';
 import { Permission } from '@carl/domain';
 import { hasPermission } from '@carl/application';
-import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, statusTone } from '@carl/ui';
+import Link from 'next/link';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  buttonClasses,
+  statusTone,
+} from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -58,6 +71,13 @@ export default async function DevicesPage() {
         {devices.length === 0 ? (
           <EmptyState
             title="No terminals registered"
+            action={
+              canManage ? (
+                <Link href="/windows-pos" className={buttonClasses({ size: 'sm' })}>
+                  Set up a Windows till
+                </Link>
+              ) : undefined
+            }
             description="A terminal is created here, then activated on the machine with a one-time code."
           />
         ) : (

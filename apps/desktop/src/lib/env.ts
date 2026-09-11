@@ -32,7 +32,7 @@ const env = import.meta.env as unknown as DesktopEnv;
 export const CARL_URL: string = env.VITE_CARL_URL ?? 'https://carl-red.vercel.app';
 
 /** Reported at activation so an estate can be audited for out-of-date terminals. */
-export const APP_VERSION: string = env.VITE_APP_VERSION ?? '0.1.0';
+export const APP_VERSION: string = env.VITE_APP_VERSION ?? '0.2.0';
 
 /**
  * Supabase, for cashier sign-in only.

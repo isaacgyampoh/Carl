@@ -79,3 +79,83 @@ export function clientAppUrl(): string {
   }
   return 'http://localhost:3000';
 }
+
+/**
+ * The Windows POS installer a client downloads, from the latest published release.
+ *
+ * Resolved server-side from GitHub Releases rather than hard-coded: `windows-release.yml`
+ * builds Carl-POS-Windows-x64-Setup.exe on a Windows runner for every version tag and
+ * publishes it, so the newest installer appears here without a redeploy. When nothing is
+ * published, this says so; the portal shows no download button rather than a dead link.
+ *
+ * `CARL_DOWNLOAD_URL_WINDOWS` overrides the lookup, for a signed build hosted elsewhere.
+ */
+export interface WindowsInstaller {
+  readonly available: boolean;
+  readonly downloadUrl: string | null;
+  readonly version: string | null;
+  readonly publishedAt: string | null;
+  readonly sizeBytes: number | null;
+  readonly checksumsUrl: string | null;
+}
+
+const INSTALLER_ASSET = 'Carl-POS-Windows-x64-Setup.exe';
+
+function releaseRepository(): string {
+  const configured = process.env.CARL_RELEASE_REPO?.trim();
+  return configured && /^[\w.-]+\/[\w.-]+$/.test(configured) ? configured : 'isaacgyampoh/Carl';
+}
+
+const UNAVAILABLE: WindowsInstaller = {
+  available: false,
+  downloadUrl: null,
+  version: null,
+  publishedAt: null,
+  sizeBytes: null,
+  checksumsUrl: null,
+};
+
+export async function windowsInstaller(): Promise<WindowsInstaller> {
+  const override = process.env.CARL_DOWNLOAD_URL_WINDOWS?.trim();
+  if (override?.startsWith('https://')) {
+    return { ...UNAVAILABLE, available: true, downloadUrl: override };
+  }
+
+  const repository = releaseRepository();
+  try {
+    const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, {
+      headers: { accept: 'application/vnd.github+json' },
+      // Ten minutes: a new release reaches every portal quickly, and GitHub's unauthenticated
+      // rate limit is never approached however many clients open the page.
+      next: { revalidate: 600 },
+    });
+    if (!response.ok) return UNAVAILABLE;
+
+    const release = (await response.json()) as {
+      tag_name?: string;
+      published_at?: string;
+      draft?: boolean;
+      assets?: { name: string; browser_download_url: string; size: number }[];
+    };
+    if (release.draft) return UNAVAILABLE;
+
+    const expectedPrefix = `https://github.com/${repository}/releases/download/`;
+    const asset = (name: string) =>
+      release.assets?.find(
+        (a) => a.name === name && a.browser_download_url.startsWith(expectedPrefix),
+      );
+    const installer = asset(INSTALLER_ASSET);
+    if (!installer) return UNAVAILABLE;
+
+    return {
+      available: true,
+      downloadUrl: installer.browser_download_url,
+      version: release.tag_name ?? null,
+      publishedAt: release.published_at ?? null,
+      sizeBytes: installer.size,
+      checksumsUrl: asset('SHA256SUMS.txt')?.browser_download_url ?? null,
+    };
+  } catch {
+    return UNAVAILABLE;
+  }
+}

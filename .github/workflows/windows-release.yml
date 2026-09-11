@@ -41,6 +41,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # A terminal built without these installs, opens, activates, and then cannot sign a
+      # single cashier in. That is a broken product shipped to a shop, so it never builds.
+      - name: Refuse a build that could not sign a cashier in
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:VITE_SUPABASE_URL -or -not $env:VITE_SUPABASE_ANON_KEY) {
+            throw 'Repository variables VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set (Settings > Secrets and variables > Actions > Variables).'
+          }
+          if ($env:VITE_SUPABASE_URL -notmatch '^https://[a-z0-9]+\.supabase\.co$') {
+            throw "VITE_SUPABASE_URL does not look like a Supabase project URL."
+          }
+          Write-Host 'Supabase configuration present for cashier sign-in.'
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v5
@@ -152,7 +166,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist-release/*
-          draft: true # a human decides when a shop can download it
+          # Pushing a v* tag is the decision to release. A draft was invisible to every client
+          # portal, so the "Install on Windows" button had nothing to point at.
+          draft: false
+          make_latest: true
           body: |
             Carl POS for Windows.
 

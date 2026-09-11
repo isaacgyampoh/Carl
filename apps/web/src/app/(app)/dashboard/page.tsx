@@ -5,7 +5,7 @@ import { Permission } from '@carl/domain';
 import { EmptyState } from '@carl/ui';
 
 import { requireAuth } from '@/lib/auth';
-import { clientAppUrl, desktopDownloads } from '@/lib/downloads';
+import { clientAppUrl } from '@/lib/downloads';
 import { supabase } from '@/lib/supabase';
 import { DashboardView } from './dashboard-view';
 
@@ -137,7 +137,6 @@ export default async function DashboardPage() {
   const periods = periodsResult?.data?.[0];
   const stock = stockResult?.data?.[0];
   const slug = tenantResult?.data?.slug ?? null;
-  const windows = desktopDownloads().find((d) => d.platform === 'Windows');
 
   return (
     <DashboardView
@@ -199,10 +198,7 @@ export default async function DashboardPage() {
               sale: (setupResults[3].data ?? []).length > 0,
             }
           : null,
-        install:
-          canSetUpTerminals && slug
-            ? { url: `${clientAppUrl()}/${slug}`, windowsDownload: windows?.url ?? null }
-            : null,
+        install: canSetUpTerminals && slug ? { url: `${clientAppUrl()}/${slug}` } : null,
       }}
     />
   );
