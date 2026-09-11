@@ -226,20 +226,48 @@ async function main() {
     );
   }
 
-  const client = new pg.Client({
-    connectionString,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 20_000,
-    // Generation is slow by nature. The queries being *measured* are never given this
-    // much room — if one of those needed it, that would be the finding.
-    statement_timeout: 900_000,
-  });
-  await client.connect();
+  /*
+   * A query being measured can take the connection down with it — a statement timeout on a
+   * hosted database closes the socket, and the first run of this probe died on its third
+   * query with "Connection terminated unexpectedly", reporting nothing about the nine
+   * queries after it. Each measurement now gets a fresh connection and its own short
+   * timeout, so a pathological query is a finding rather than the end of the run.
+   */
+  const connect = async (timeoutMs) => {
+    const c = new pg.Client({
+      connectionString,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 20_000,
+      statement_timeout: timeoutMs,
+    });
+    await c.connect();
+    return c;
+  };
+
+  /** Long, because generating volume is slow by nature. Measurement never gets this much. */
+  const client = await connect(900_000);
 
   try {
-    // A clean slate. The probe is meaningless run twice on top of itself.
-    await client.query('drop table if exists perf_products');
-    await client.query(`delete from public.tenants where slug = 'perf-test'`);
+    /*
+     * Generating a year of trade takes about six minutes, nearly all of it the half million
+     * line items. Measuring the same volume before and after a change should not pay that
+     * twice, so CARL_PERF_REUSE=yes measures whatever is already there.
+     */
+    const reuse = process.env.CARL_PERF_REUSE === 'yes';
+    const { rows: existing } = await client.query(
+      `select t.id as tenant_id, b.id as branch_id,
+              (select count(*) from public.sales s where s.tenant_id = t.id) as sales
+         from public.tenants t
+         join public.branches b on b.tenant_id = t.id
+        where t.slug = 'perf-test' limit 1`,
+    );
+    const alreadySeeded = reuse && existing.length > 0 && Number(existing[0].sales) > 0;
+
+    if (!alreadySeeded) {
+      // A clean slate. The probe is meaningless run twice on top of itself.
+      await client.query('drop table if exists perf_products');
+      await client.query(`delete from public.tenants where slug = 'perf-test'`);
+    }
 
     await client.query(
       `insert into auth.users (id, email) values ($1, 'perf@carl.test')
@@ -260,16 +288,25 @@ async function main() {
       JSON.stringify({ sub: PERF_ADMIN, role: 'authenticated' }),
     ]);
 
-    const { rows: provisioned } = await client.query(
-      `select tenant_id, branch_id from public.provision_tenant(
-         'perf-test', 'Performance Test Co', 'perf@carl.test', 'Performance Probe',
-         $1, 'Main', 'main', 'ACTIVE', 14)`,
-      [PERF_ADMIN],
-    );
-    const { tenant_id: tenantId, branch_id: branchId } = provisioned[0];
+    let tenantId;
+    let branchId;
+    if (alreadySeeded) {
+      ({ tenant_id: tenantId, branch_id: branchId } = existing[0]);
+      console.log(
+        `Reusing the volume already in perf-test: ${Number(existing[0].sales).toLocaleString()} sales\n`,
+      );
+    } else {
+      const { rows: provisioned } = await client.query(
+        `select tenant_id, branch_id from public.provision_tenant(
+           'perf-test', 'Performance Test Co', 'perf@carl.test', 'Performance Probe',
+           $1, 'Main', 'main', 'ACTIVE', 14)`,
+        [PERF_ADMIN],
+      );
+      ({ tenant_id: tenantId, branch_id: branchId } = provisioned[0]);
+    }
 
-    console.log('Generating volume\n');
-    for (const stage of stages(tenantId, branchId)) {
+    console.log(alreadySeeded ? '' : 'Generating volume\n');
+    for (const stage of alreadySeeded ? [] : stages(tenantId, branchId)) {
       const started = Date.now();
       const result = await client.query(stage.sql, stage.params);
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
@@ -285,19 +322,43 @@ async function main() {
     console.log('\nQuery plans, as an authenticated user — RLS applies\n');
     const results = [];
 
+    /** Long enough that a slow query is measured, short enough that a hopeless one is not. */
+    const MEASURE_TIMEOUT_MS = Number(process.env.CARL_PERF_TIMEOUT_MS ?? 60_000);
+
     for (const query of QUERIES) {
-      const { rows } = await client.query(
-        `explain (analyze, buffers, format json) ${query.sql}`,
-        query.params,
-      );
-      const plan = rows[0]['QUERY PLAN'][0];
-      const ms = plan['Execution Time'];
-      const scans = sequentialScans(plan);
-      const verdict = ms <= query.budgetMs ? 'PASS' : 'SLOW';
-      results.push({ ...query, ms, verdict, scans });
+      const measurer = await connect(MEASURE_TIMEOUT_MS);
+      let ms = null;
+      let scans = [];
+      let failure = null;
+      try {
+        await measurer.query(`select set_config('request.jwt.claims', $1, false)`, [
+          JSON.stringify({ sub: PERF_ADMIN, role: 'authenticated' }),
+        ]);
+        await measurer.query('set role authenticated');
+        const { rows } = await measurer.query(
+          `explain (analyze, buffers, format json) ${query.sql}`,
+          query.params,
+        );
+        const plan = rows[0]['QUERY PLAN'][0];
+        ms = plan['Execution Time'];
+        scans = sequentialScans(plan);
+      } catch (error) {
+        // A statement timeout closes the socket on a hosted database, so this is the shape
+        // "too slow to measure" actually arrives in.
+        failure =
+          error.message.includes('timeout') || error.message.includes('terminated')
+            ? `no answer within ${(MEASURE_TIMEOUT_MS / 1000).toFixed(0)}s`
+            : error.message;
+      } finally {
+        await measurer.end().catch(() => undefined);
+      }
+
+      const verdict = failure ? 'SLOW' : ms <= query.budgetMs ? 'PASS' : 'SLOW';
+      results.push({ ...query, ms, verdict, scans, failure });
 
       console.log(
-        `${verdict === 'PASS' ? '✓' : '✗'} ${query.name}  —  ${ms.toFixed(1)} ms (budget ${query.budgetMs} ms)`,
+        `${verdict === 'PASS' ? '✓' : '✗'} ${query.name}  —  ` +
+          `${failure ?? `${ms.toFixed(1)} ms`} (budget ${query.budgetMs} ms)`,
       );
       console.log(`    ${query.why}`);
       if (scans.length > 0) {
@@ -306,8 +367,6 @@ async function main() {
         );
       }
     }
-
-    await client.query('reset role');
 
     const { rows: sizes } = await client.query(
       `select relname, n_live_tup, pg_size_pretty(pg_total_relation_size(relid)) as total
@@ -330,7 +389,7 @@ async function main() {
     process.exitCode = slow.length > 0 ? 1 : 0;
   } finally {
     await client.query('drop table if exists perf_products').catch(() => undefined);
-    await client.end();
+    await client.end().catch(() => undefined);
   }
 }
 
