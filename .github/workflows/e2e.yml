@@ -1,0 +1,77 @@
+name: End-to-end
+
+# The entry architecture, proved in a real browser against a real deployment: owner PIN to the
+# console, till door to the till, business address to the portal, two sessions on one device, and
+# no way into the console by typing an address.
+#
+# It creates and deletes a business, so it runs against STAGING and never against production. With
+# no staging secrets configured — a fork's pull request, or before staging exists — it skips.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  routing:
+    name: Entry architecture
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Is there a staging environment?
+        id: staging
+        run: |
+          if [ -n "${{ secrets.STAGING_SUPABASE_URL }}" ]; then
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+            echo "No staging environment configured — skipping." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Browser
+        if: steps.staging.outputs.ready == 'yes'
+        run: npx --yes playwright@1.56.0 install --with-deps chromium
+
+      - name: Build against staging
+        if: steps.staging.outputs.ready == 'yes'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+          CARL_DEVICE_SECRET_PEPPER: ${{ secrets.STAGING_DEVICE_PEPPER }}
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+        run: pnpm --filter @carl/web build
+
+      - name: Run the suite
+        if: steps.staging.outputs.ready == 'yes'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+          CARL_DEVICE_SECRET_PEPPER: ${{ secrets.STAGING_DEVICE_PEPPER }}
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          BASE: http://localhost:3000
+          SB_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          SB_ANON: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SB_SERVICE: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @carl/web start &
+          for _ in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health > /dev/null && break
+            sleep 2
+          done
+          node tests/e2e/routing.mjs
