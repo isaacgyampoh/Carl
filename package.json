@@ -2,7 +2,7 @@
   "name": "carl",
   "version": "0.1.0",
   "private": true,
-  "description": "Carl — multi-tenant POS, inventory and business management platform.",
+  "description": "Carl \u2014 multi-tenant POS, inventory and business management platform.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@12.3.4",
   "engines": {
@@ -30,7 +30,8 @@
     "clean": "git clean -xdf node_modules dist .next .turbo",
     "db:perf": "node scripts/performance-probe.mjs",
     "db:verify-history": "node scripts/verify-migration-history.mjs",
-    "test:e2e": "node tests/e2e/routing.mjs"
+    "test:e2e": "node tests/e2e/routing.mjs",
+    "ui:audit": "node scripts/ui-audit.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
