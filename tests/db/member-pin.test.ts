@@ -209,18 +209,22 @@ describe('staff PINs', () => {
       // a PIN is in use somewhere on Carl.
       const other = await createTenant(db);
       await givePin(shop.ownerUserId, '4417', false);
-      const otherMembership = (
-        await db.asServiceRole(() =>
-          db.query<{ id: string }>(
-            `select id from tenant_memberships where tenant_id = $1 and user_id = $2`,
-            [other.tenantId, other.ownerUserId],
-          ),
-        )
-      ).rows[0]!.id;
+      /*
+       * Issued to a member of the other business's staff, not to its owner's own membership.
+       *
+       * `set_member_pin` is a manager issuing a PIN to someone ELSE. Migration 0037 refuses it
+       * for the caller's own membership (people change their own PIN through `change_my_pin`,
+       * which requires the current one) and for the owner (whom nobody else may re-key). This
+       * test used the owner's own row only as a convenient target; the property it asserts —
+       * a PIN in use in one business is still available in another — is unchanged.
+       */
+      const { membershipId: otherCashier } = await addMember(db, other.tenantId, {
+        roleKey: 'cashier',
+      });
 
       await expect(
         db.asUser(other.ownerUserId, () =>
-          db.query(`select set_member_pin($1, '4417')`, [otherMembership]),
+          db.query(`select set_member_pin($1, '4417')`, [otherCashier]),
         ),
       ).resolves.toBeDefined();
     });

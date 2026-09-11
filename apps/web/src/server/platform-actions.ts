@@ -380,3 +380,41 @@ export async function reactivateTenant(
     return toActionResult(error);
   }
 }
+
+const feeSchema = z.object({
+  tenantId: z.uuid(),
+  // In cedis as typed; stored in pesewas.
+  monthlyFee: z.number().min(0, 'The fee cannot be negative.').max(1_000_000),
+  note: z.string().trim().max(500).optional(),
+});
+
+/**
+ * Sets what one client pays each month.
+ *
+ * Billing is manual: this records the agreed amount against the client's subscription so
+ * invoices and "due" figures use it. Nothing is charged automatically. The change is
+ * audited with the old and new price.
+ */
+export async function setClientMonthlyFee(
+  input: unknown,
+): Promise<ActionResult<{ tenantId: string }>> {
+  try {
+    const parsed = feeSchema.parse(input);
+    await requirePlatformAdmin();
+
+    const client = await supabase();
+    const { error } = await client.rpc('set_client_monthly_fee', {
+      p_tenant_id: parsed.tenantId,
+      p_price: Math.round(parsed.monthlyFee * 100),
+      ...(parsed.note ? { p_note: parsed.note } : {}),
+    });
+    if (error) throw error;
+
+    revalidatePath('/platform');
+    revalidatePath('/platform/clients');
+    revalidatePath(`/platform/clients/${parsed.tenantId}`);
+    return actionOk({ tenantId: parsed.tenantId });
+  } catch (error) {
+    return toActionResult(error);
+  }
+}

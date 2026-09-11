@@ -9,6 +9,7 @@ import { requirePlatformAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { billingState, daysUntil, listClients } from '@/server/platform-queries';
 import { ClientActions } from './client-actions';
+import { FeeEditor } from './fee-editor';
 
 export const metadata: Metadata = { title: 'Client · Carl platform' };
 export const dynamic = 'force-dynamic';
@@ -129,6 +130,8 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
           tone={outstanding > 0 ? 'warning' : 'neutral'}
         />
       </section>
+
+      <FeeEditor tenantId={tenant.id} currentFee={summary?.price ?? 0} />
 
       <ClientActions
         tenantId={tenant.id}

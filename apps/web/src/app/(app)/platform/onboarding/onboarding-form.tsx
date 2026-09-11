@@ -29,6 +29,8 @@ const schema = z.object({
   contactPerson: z.string().trim().max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(300).optional(),
+  // The amount agreed with this client, in cedis. Every client can pay a different price.
+  monthlyFee: z.coerce.number().min(0, 'The fee cannot be negative.').max(1_000_000).default(0),
   trialDays: z.coerce.number().int().min(0).max(365).default(14),
   graceDays: z.coerce.number().int().min(0).max(90).default(7),
   notes: z.string().trim().max(1000).optional(),
@@ -52,6 +54,7 @@ export function OnboardingForm({
     defaultValues: {
       branchName: 'Main Branch',
       branchCode: 'main',
+      monthlyFee: 0,
       trialDays: 14,
       graceDays: 7,
     },
@@ -67,7 +70,8 @@ export function OnboardingForm({
 
   async function submit(values: FormOutput) {
     setFailure(null);
-    const outcome = await onboardClient(values);
+    // Sent in pesewas, the unit every money figure in Carl is stored in.
+    const outcome = await onboardClient({ ...values, price: Math.round(values.monthlyFee * 100) });
     if (outcome.ok) setResult(outcome.data);
     else setFailure(outcome.message);
   }
@@ -203,6 +207,16 @@ export function OnboardingForm({
             {...register('graceDays')}
           />
         </div>
+        <Field
+          label="Monthly fee (GHS)"
+          error={errors.monthlyFee?.message}
+          hint="What this client has agreed to pay each month. Billing is manual."
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.01"
+          {...register('monthlyFee')}
+        />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="notes" className="text-sm font-medium">
             Notes

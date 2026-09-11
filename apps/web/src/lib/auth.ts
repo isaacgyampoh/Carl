@@ -2,7 +2,7 @@ import 'server-only';
 
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type { AuthContext } from '@carl/application';
 import { hasPermission } from '@carl/application';
 import type { Permission } from '@carl/domain';
@@ -18,11 +18,43 @@ import { supabase } from './supabase';
  */
 export const currentAuth = cache(async (): Promise<AuthContext | null> => {
   const client = await supabase();
-  const requestHeaders = await headers();
+  const [requestHeaders, store] = await Promise.all([headers(), cookies()]);
+
+  /*
+   * The tenant and branch this session chose, read from cookies set by the server when the
+   * person signed in at a business's address or picked a branch.
+   *
+   * They are FILTERS, never grants: `resolveAuthContext` matches them against the
+   * memberships and branches RLS already lets this user read, so a forged cookie naming
+   * another business selects nothing. Before this, nothing tied a session to the address it
+   * signed in at — every request fell back to the user's first membership and first branch,
+   * which is why the branch switcher did nothing on the server.
+   */
   return resolveAuthContext(client, {
     requestId: requestHeaders.get('x-request-id') ?? undefined,
+    requestedTenantId: uuidOrUndefined(store.get(TENANT_COOKIE)?.value),
+    requestedBranchId: uuidOrUndefined(store.get(BRANCH_COOKIE)?.value),
   });
 });
+
+/** Cookie naming the business a session is operating in. Set only by the server. */
+export const TENANT_COOKIE = 'carl_tenant';
+/** Cookie naming the branch a session is operating in. Set only by the server. */
+export const BRANCH_COOKIE = 'carl_branch';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function uuidOrUndefined(value: string | undefined): string | undefined {
+  return value && UUID.test(value) ? value : undefined;
+}
+
+/** How long a chosen business or branch is remembered on this device. */
+export const CONTEXT_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+  maxAge: 60 * 60 * 24 * 30,
+};
 
 /** The current caller, redirecting to sign-in when there is none. */
 export async function requireAuth(): Promise<AuthContext> {

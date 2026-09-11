@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { hasPermission } from '@carl/application';
 import { Permission } from '@carl/domain';
 import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/page-header';
+import { AddBranchForm } from './add-branch-form';
 
 export const metadata: Metadata = { title: 'Branches' };
 export const dynamic = 'force-dynamic';
@@ -21,12 +23,16 @@ interface BranchRow {
 }
 
 export default async function BranchesPage() {
-  await requirePermission(Permission.BRANCHES_VIEW);
+  const auth = await requirePermission(Permission.BRANCHES_VIEW);
+  const canManage = hasPermission(auth, Permission.BRANCHES_MANAGE);
 
   const client = await supabase();
   const { data } = await client
     .from('branches')
     .select('id, code, name, address, phone, is_default, is_active, allow_negative_stock')
+    // RLS already confines this to businesses the caller belongs to; this confines it to the
+    // one they are working in, or a person on two businesses' staff would see both.
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('code')
     .returns<BranchRow[]>();
 
@@ -36,7 +42,8 @@ export default async function BranchesPage() {
     <>
       <PageHeader
         title="Branches"
-        description="Products are shared across the business; stock, sales and cash are counted per branch."
+        description="Products are shared across the business; stock, sales and cash are counted per branch. Add POS computers to a branch under Terminals."
+        action={canManage ? <AddBranchForm /> : undefined}
       />
 
       <Card className="overflow-hidden">

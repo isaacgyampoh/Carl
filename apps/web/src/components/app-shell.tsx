@@ -28,7 +28,12 @@ const NAV_SECTIONS: readonly { heading: string; items: readonly NavItem[] }[] = 
   {
     heading: 'Trade',
     items: [
-      { href: '/dashboard', label: 'Dashboard', permissions: [] },
+      // Hidden from a cashier, whose dashboard is the till.
+      {
+        href: '/dashboard',
+        label: 'Dashboard',
+        permissions: [Permission.REPORTS_VIEW, Permission.INVENTORY_VIEW],
+      },
       { href: '/pos', label: 'Point of sale', permissions: [Permission.SALES_CREATE] },
       { href: '/sales', label: 'Sales', permissions: [Permission.SALES_VIEW] },
       { href: '/customers', label: 'Customers', permissions: [Permission.CUSTOMERS_VIEW] },

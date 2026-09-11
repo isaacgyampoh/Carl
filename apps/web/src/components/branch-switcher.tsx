@@ -1,22 +1,24 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import type { TenantContext } from '@carl/application';
+
+import { selectBranch } from '@/server/context-actions';
 
 /**
  * Chooses which branch the session is operating in.
  *
- * The selection is a URL parameter rather than client state so that a server-rendered page
- * knows the branch on first paint, and so a link to "Kumasi's stock" can be shared.
+ * The choice is recorded on the server (a cookie `currentAuth` reads), so every
+ * server-rendered page — stock, sales, reports, the till — operates in the chosen branch.
+ * It used to be a `?branch=` URL parameter that nothing on the server read, so a business
+ * with two branches always saw its first.
  *
  * It is not a grant. The server treats it as a filter over branches the database already
  * says this user may reach, so requesting a branch you cannot access selects nothing.
  */
 export function BranchSwitcher({ tenant }: { tenant: TenantContext }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
 
   // One branch means there is nothing to switch between; a disabled dropdown would just be
@@ -31,9 +33,11 @@ export function BranchSwitcher({ tenant }: { tenant: TenantContext }) {
         value={tenant.activeBranchId ?? ''}
         disabled={pending}
         onChange={(event) => {
-          const params = new URLSearchParams(searchParams.toString());
-          params.set('branch', event.target.value);
-          startTransition(() => router.replace(`${pathname}?${params.toString()}`));
+          const branchId = event.target.value;
+          startTransition(async () => {
+            const result = await selectBranch({ branchId });
+            if (result.ok) router.refresh();
+          });
         }}
       >
         {tenant.branches.map((branch) => (

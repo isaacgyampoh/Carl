@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 54 relations, 28 enums, 48 functions.
+ * 54 relations, 28 enums, 57 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -3831,6 +3831,18 @@ export interface Database {
     authorized_until: string | null;
   }[];
       };
+      add_staff_member: {
+        Args: {
+          p_tenant_id: string;
+          p_user_id: string;
+          p_full_name: string;
+          p_role_key: string;
+          p_pin: string;
+          p_branch_ids?: string[] | undefined;
+          p_job_title?: string | undefined;
+        };
+        Returns: string;
+      };
       apply_stock_adjustment: {
         Args: {
           p_branch_id: string;
@@ -3929,6 +3941,16 @@ export interface Database {
     was_replayed: boolean | null;
   }[];
       };
+      create_branch: {
+        Args: {
+          p_tenant_id: string;
+          p_name: string;
+          p_code: string;
+          p_address?: string | undefined;
+          p_phone?: string | undefined;
+        };
+        Returns: string;
+      };
       create_purchase: {
         Args: {
           p_branch_id: string;
@@ -3986,6 +4008,17 @@ export interface Database {
     dispatched_count: number | null;
   }[];
       };
+      inventory_overview: {
+        Args: {
+          p_tenant_id: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    products: number | null;
+    low_stock: number | null;
+    out_of_stock: number | null;
+  }[];
+      };
       issue_activation_code: {
         Args: {
           p_device_id: string;
@@ -4035,6 +4068,21 @@ export interface Database {
     quantity: number | null;
     reorder_level: number | null;
     shortfall: number | null;
+  }[];
+      };
+      low_stock_items: {
+        Args: {
+          p_tenant_id: string;
+          p_branch_id?: string | undefined;
+          p_limit?: number | undefined;
+        };
+        Returns: {
+    product_id: string | null;
+    name: string | null;
+    sku: string | null;
+    branch_id: string | null;
+    quantity: number | null;
+    reorder_level: number | null;
   }[];
       };
       onboard_client: {
@@ -4272,6 +4320,14 @@ export interface Database {
     pack_size: number | null;
   }[];
       };
+      set_client_monthly_fee: {
+        Args: {
+          p_tenant_id: string;
+          p_price: number;
+          p_note?: string | undefined;
+        };
+        Returns: unknown;
+      };
       set_member_pin: {
         Args: {
           p_membership_id: string;
@@ -4290,6 +4346,27 @@ export interface Database {
         Returns: {
     price_id: string | null;
   }[];
+      };
+      set_staff_branches: {
+        Args: {
+          p_membership_id: string;
+          p_branch_ids: string[];
+        };
+        Returns: unknown;
+      };
+      set_staff_role: {
+        Args: {
+          p_membership_id: string;
+          p_role_key: string;
+        };
+        Returns: unknown;
+      };
+      set_staff_status: {
+        Args: {
+          p_membership_id: string;
+          p_status: string;
+        };
+        Returns: unknown;
       };
       staff_sales_summary: {
         Args: {
@@ -4361,6 +4438,22 @@ export interface Database {
     cost: number | null;
     cash: number | null;
     momo: number | null;
+  }[];
+      };
+      tenant_sales_periods: {
+        Args: {
+          p_tenant_id: string;
+          p_branch_id?: string | undefined;
+        };
+        Returns: {
+    today_count: number | null;
+    today_gross: number | null;
+    week_count: number | null;
+    week_gross: number | null;
+    month_count: number | null;
+    month_gross: number | null;
+    year_count: number | null;
+    year_gross: number | null;
   }[];
       };
       top_products: {

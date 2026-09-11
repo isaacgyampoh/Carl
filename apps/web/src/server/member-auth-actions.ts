@@ -3,7 +3,8 @@
 import { createLogger } from '@carl/shared';
 import { z } from '@carl/validation';
 
-import { currentAuth } from '@/lib/auth';
+import { BRANCH_COOKIE, CONTEXT_COOKIE_OPTIONS, TENANT_COOKIE, currentAuth } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import { supabase, serviceRoleClient } from '@/lib/supabase';
 import { actionOk, toActionResult, type ActionResult } from './errors';
 
@@ -78,6 +79,18 @@ export async function signInWithMemberPin(
       token_hash: tokenHash,
     });
     if (verifyError) throw verifyError;
+
+    /*
+     * The business this person just signed in at becomes the session's business.
+     *
+     * Without this, a session resolved to whichever membership the database returned first,
+     * so nothing guaranteed that signing in at one shop's address put you in that shop. Any
+     * previously chosen branch belonged to the previous context, so it is cleared.
+     */
+    const store = await cookies();
+    if (result.out_tenant_id)
+      store.set(TENANT_COOKIE, result.out_tenant_id, CONTEXT_COOKIE_OPTIONS);
+    store.delete(BRANCH_COOKIE);
 
     log.info('member signed in', {
       userId: result.out_user_id,

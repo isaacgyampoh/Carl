@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { MemberPinPad } from './member-pin-pad';
 import { InstallGate } from '@/components/install-gate';
 
@@ -46,7 +47,34 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
   const { slug } = await params;
   const auth = await currentAuth();
   // Already signed in: no reason to ask again.
-  if (auth) redirect(auth.user.isPlatformAdmin ? '/platform' : '/dashboard');
+  /*
+   * Only a member of THIS business is taken inside.
+   *
+   * This used to send every signed-in session to /platform or /dashboard regardless of the
+   * address: the platform owner opening a client's URL landed in the owner console, and a
+   * member of one shop opening another shop's URL landed in their own. All businesses share
+   * one origin and therefore one session cookie, so the address has to be checked against
+   * the session, not assumed.
+   *
+   * The check reads only the caller's own memberships (RLS), so it reveals nothing about
+   * whether a business exists to anyone who does not already belong to it.
+   */
+  if (auth) {
+    const client = await supabase();
+    const { data: membership } = await client
+      .from('tenant_memberships')
+      .select('tenant_id, tenants!inner(slug)')
+      .eq('tenants.slug', slug)
+      .eq('status', 'ACTIVE')
+      .limit(1)
+      .maybeSingle();
+
+    if (membership) {
+      // Already operating in this business: straight in. Otherwise switch to it first.
+      redirect(auth.tenant?.tenantId === membership.tenant_id ? '/dashboard' : `/${slug}/enter`);
+    }
+    // Not a member here — including the platform owner — so this business's own sign-in.
+  }
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
