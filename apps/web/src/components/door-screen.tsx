@@ -28,6 +28,10 @@ import type { ReactNode } from 'react';
  * A browser fetches only the one its screen matches, and each is under 50 KB, so a shop pays for
  * its door once on whatever connection it has.
  *
+ * The ground under the pictures is #062a86, the colour both tall ones end on, painted on the
+ * screen itself: under the picture while it is still arriving, below it once it has, and in
+ * place of it if it never comes.
+ *
  * ## Why the card is solid
  *
  * Decoration stays behind glass. Every word — a PIN prompt, an error, a business's name — sits
@@ -50,7 +54,7 @@ export function DoorScreen({
   picture?: Picture;
 }) {
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-10 lg:items-end lg:px-[7vw]">
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[#062a86] px-5 py-10 lg:items-end lg:px-[7vw]">
       <DoorBackdrop picture={picture} />
       <div className={`relative w-full ${wide ? 'max-w-md' : 'max-w-sm'}`}>
         <div className="rounded-2xl bg-[color:var(--color-surface)] p-6 shadow-[0_30px_80px_-24px_rgb(1_16_54/0.8)] sm:p-8">
@@ -84,9 +88,11 @@ function DoorBackdrop({ picture }: { picture: Picture }) {
     <div
       aria-hidden
       /*
-       * #062a86 is the colour both tall pictures end on, so it is what the page is painted with:
-       * under the picture while it is still arriving, and below it once it has. On a wide screen
-       * the picture covers everything and the subject's third of the frame is what stays in view.
+       * Only the picture. The colour under it is painted by the screen itself rather than here,
+       * because this element is a sibling of the text, not an ancestor of it: anything reading
+       * the page — a contrast audit, a browser's forced-colours mode — resolves what is behind
+       * a word by walking up its ancestors, and would find the white page background and
+       * conclude that the white line under the card is invisible.
        */
       className={`pointer-events-none absolute inset-0 -z-10 bg-[#062a86] bg-[length:100%_auto] bg-top bg-no-repeat lg:bg-cover lg:bg-[position:36%_center] ${PICTURES[picture]}`}
     >

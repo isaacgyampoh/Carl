@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 /**
@@ -50,6 +50,13 @@ describe('the backdrop', () => {
   it.each(PICTURES)('%s is a file the doors actually ship', (file) => {
     expect(existsSync(file)).toBe(true);
     expect(door).toContain(`bg-[url('/door/${basename(file)}')]`);
+  });
+
+  it('ships no picture the markup does not name', () => {
+    // The pictures are served immutable for a year, so replacing one means renaming it. If a
+    // rename is done in only one of the two places, this is where it is caught.
+    const onDisk = readdirSync(repo('apps', 'web', 'public', 'door')).sort();
+    expect(onDisk).toEqual(PICTURES.map((p) => basename(p)).sort());
   });
 
   it.each(PICTURES)('%s is small enough for a shop on one bar of signal', (file) => {
