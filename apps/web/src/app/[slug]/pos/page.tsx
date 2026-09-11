@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { DoorScreen } from '@/components/door-screen';
 import { InstallGate } from '@/components/install-gate';
 import { currentAuth } from '@/lib/auth';
 import { memberTenantAtSlug } from '@carl/infrastructure/auth/resolve-auth-context';
@@ -49,21 +50,19 @@ export default async function PosEntryPage({ params }: { params: Promise<{ slug:
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
-        <InstallGate
-          title="Install Carl POS"
-          description="The till app for this business. Installed, it opens straight to this business's POS in its own window. The business portal and the owner console stay in the browser."
-        >
-          <header className="mb-10 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Carl POS</h1>
-            <p className="mt-1 text-sm text-[color:var(--color-ink-muted)]">
-              Enter your 4-digit PIN to open the till
-            </p>
-          </header>
-          <MemberPinPad slug={slug} entry="pos" />
-        </InstallGate>
-      </div>
-    </main>
+    <DoorScreen footer="This till belongs to one business and sells only at its own branch.">
+      <InstallGate
+        title="Install Carl POS"
+        description="The till app for this business. Installed, it opens straight to this business's POS in its own window. The business portal and the owner console stay in the browser."
+      >
+        <header className="mb-10 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Carl POS</h1>
+          <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
+            Enter your 4-digit PIN to open the till
+          </p>
+        </header>
+        <MemberPinPad slug={slug} entry="pos" />
+      </InstallGate>
+    </DoorScreen>
   );
 }

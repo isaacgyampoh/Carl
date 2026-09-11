@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { currentAuth } from '@/lib/auth';
 import { memberTenantAtSlug } from '@carl/infrastructure/auth/resolve-auth-context';
 import { supabase } from '@/lib/supabase';
+import { DoorScreen } from '@/components/door-screen';
 import { MemberPinPad } from './member-pin-pad';
 
 /*
@@ -81,14 +82,9 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
-        <header className="mb-10 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-muted)]">Enter your 4-digit PIN</p>
-        </header>
-        <MemberPinPad slug={slug} entry="portal" />
-        <p className="mt-10 text-center text-sm text-[color:var(--color-ink-muted)]">
+    <DoorScreen
+      footer={
+        <>
           Setting up a till?{' '}
           <Link
             href={`/${slug}/pos`}
@@ -96,8 +92,14 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
           >
             Open Carl POS
           </Link>
-        </p>
-      </div>
-    </main>
+        </>
+      }
+    >
+      <header className="mb-10 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
+        <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">Enter your 4-digit PIN</p>
+      </header>
+      <MemberPinPad slug={slug} entry="portal" />
+    </DoorScreen>
   );
 }

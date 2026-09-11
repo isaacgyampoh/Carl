@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { DoorScreen } from '@/components/door-screen';
 import { FindShop } from '@/components/find-shop';
 import { OwnerPinPad } from '@/components/owner-pin-pad';
 import { OwnerTotpPrompt } from '@/components/owner-totp-prompt';
@@ -50,17 +51,15 @@ export default async function OwnerEntryPage({
   // The shops' hostname, where this address is theirs and the console lives elsewhere.
   if ((await currentSurface()) === 'business') {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
-          <header className="mb-8 text-center">
-            <div className="text-2xl font-semibold tracking-tight">Carl</div>
-            <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
-              Enter the address your business was given
-            </p>
-          </header>
-          <FindShop />
-        </div>
-      </main>
+      <DoorScreen footer="Ask your manager for the address if you do not have it.">
+        <header className="mb-8 text-center">
+          <div className="text-2xl font-semibold tracking-tight">Carl</div>
+          <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
+            Enter the address your business was given
+          </p>
+        </header>
+        <FindShop />
+      </DoorScreen>
     );
   }
 
@@ -70,24 +69,17 @@ export default async function OwnerEntryPage({
   if (auth?.user.isPlatformAdmin && !awaitingCode) redirect(ownerDestination(next));
 
   return (
-    <main className="flex min-h-dvh flex-col px-6">
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="w-full max-w-sm">
-          <header className="mb-12 text-center">
-            <div className="text-2xl font-semibold tracking-tight">Carl</div>
-            <h1 className="mt-8 text-lg font-medium">Owner console</h1>
-            <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
-              {awaitingCode
-                ? 'Enter the 6-digit code from your authenticator app'
-                : 'Enter your 4-digit PIN to continue'}
-            </p>
-          </header>
-          {awaitingCode ? <OwnerTotpPrompt next={next} /> : <OwnerPinPad next={next} />}
-        </div>
-      </div>
-      <footer className="pb-8 text-center text-xs text-[color:var(--color-ink-muted)]">
-        Working at a shop? Open the address your business was given.
-      </footer>
-    </main>
+    <DoorScreen footer="Working at a shop? Open the address your business was given.">
+      <header className="mb-10 text-center">
+        <div className="text-2xl font-semibold tracking-tight">Carl</div>
+        <h1 className="mt-6 text-lg font-medium">Owner console</h1>
+        <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
+          {awaitingCode
+            ? 'Enter the 6-digit code from your authenticator app'
+            : 'Enter your 4-digit PIN to continue'}
+        </p>
+      </header>
+      {awaitingCode ? <OwnerTotpPrompt next={next} /> : <OwnerPinPad next={next} />}
+    </DoorScreen>
   );
 }

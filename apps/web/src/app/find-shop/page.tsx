@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { DoorScreen } from '@/components/door-screen';
 import { FindShop } from '@/components/find-shop';
 
 export const metadata: Metadata = {
@@ -15,16 +16,14 @@ export const metadata: Metadata = {
  */
 export default function FindShopPage() {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
-        <header className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Open your till</h1>
-          <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
-            Enter the address your business was given
-          </p>
-        </header>
-        <FindShop />
-      </div>
-    </main>
+    <DoorScreen footer="Your manager has the address. It looks like kofi-stores.">
+      <header className="mb-8 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">Open your till</h1>
+        <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
+          Enter the address your business was given
+        </p>
+      </header>
+      <FindShop />
+    </DoorScreen>
   );
 }
