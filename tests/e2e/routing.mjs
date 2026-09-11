@@ -496,7 +496,8 @@ try {
     ['/platform/clients', '/'],
     ['/platform/sign-in', '/'],
     ['/dashboard', '/sign-in'],
-    ['/pos', '/sign-in'],
+    // A till screen with nothing remembered about this device asks which business it is.
+    ['/pos', '/find-shop'],
   ]) {
     await go(tab, BASE + from);
     const p = await path(tab);
