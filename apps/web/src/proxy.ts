@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { DOOR_COOKIE, shopDoor } from './lib/shop-door';
+
 /**
  * Session refresh and route protection.
  *
@@ -202,7 +204,25 @@ export async function proxy(request: NextRequest) {
      * requirePlatformAdmin() says the same thing, but middleware runs first, so saying it
      * only there means it never runs.
      */
-    signIn.pathname = pathname.startsWith('/platform') ? '/platform/sign-in' : '/sign-in';
+    if (pathname.startsWith('/platform')) {
+      signIn.pathname = '/platform/sign-in';
+    } else {
+      /*
+       * A screen that belongs to a business goes back to that business's PIN door, not to the
+       * email sign-in page a PIN user cannot use. See lib/shop-door.ts.
+       */
+      const door = shopDoor(
+        pathname,
+        request.cookies.get(DOOR_COOKIE)?.value,
+        (segment) => SLUG.test(segment) && !RESERVED.has(segment),
+      );
+      if (door) {
+        signIn.pathname = door;
+        signIn.search = '';
+        return NextResponse.redirect(signIn);
+      }
+      signIn.pathname = '/sign-in';
+    }
     // Preserved so a deep link survives the round trip through sign-in.
     signIn.searchParams.set('next', pathname);
     return NextResponse.redirect(signIn);

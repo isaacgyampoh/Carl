@@ -4,6 +4,7 @@ import { createLogger } from '@carl/shared';
 import { z } from '@carl/validation';
 
 import { BRANCH_COOKIE, CONTEXT_COOKIE_OPTIONS, TENANT_COOKIE, currentAuth } from '@/lib/auth';
+import { DOOR_COOKIE } from '@/lib/shop-door';
 import { cookies } from 'next/headers';
 import { supabase, serviceRoleClient } from '@/lib/supabase';
 import { actionOk, toActionResult, type ActionResult } from './errors';
@@ -91,6 +92,9 @@ export async function signInWithMemberPin(
     if (result.out_tenant_id)
       store.set(TENANT_COOKIE, result.out_tenant_id, CONTEXT_COOKIE_OPTIONS);
     store.delete(BRANCH_COOKIE);
+    // Remembered so a screen on this device whose session has ended returns to this
+    // business's PIN door rather than the email sign-in page (lib/shop-door.ts).
+    store.set(DOOR_COOKIE, parsed.data.slug.toLowerCase(), CONTEXT_COOKIE_OPTIONS);
 
     log.info('member signed in', {
       userId: result.out_user_id,
