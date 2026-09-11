@@ -83,6 +83,12 @@ describe("a business's POS app manifest", () => {
     }
   });
 
+  it('is rendered in <head>, where browsers read a manifest, never streamed into <body>', () => {
+    // The business layout computes its manifest from the session. Streamed, it landed in the
+    // body on every screen after the PIN and the POS app could not be installed from them.
+    expect(read('next.config.ts')).toMatch(/^\s*htmlLimitedBots: \/\.\*\/,$/m);
+  });
+
   it("is what a business's own screens offer to install", () => {
     const layout = read('src', 'app', '(app)', 'layout.tsx');
     expect(layout).toContain('manifest = `/${data.slug}/manifest.webmanifest`');

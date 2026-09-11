@@ -26,6 +26,19 @@ function localNetworkOrigins(): string[] {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  /*
+   * Metadata goes in <head> for every browser, never streamed into <body>.
+   *
+   * Next.js streams metadata still being computed when the page shell is ready, and places it
+   * in the body for every visitor it does not take for a bot. Browsers read a manifest only
+   * from <head>, so a <link rel="manifest"> in the body offers nothing to install. A business's
+   * screens compute their POS app manifest from the session, and live, every screen after the
+   * PIN offered no installable app: the link was on the page, in the body, and Chromium
+   * resolved no manifest. The layout already waits for the session it reads, so rendering the
+   * metadata before the shell costs nothing measurable.
+   */
+  htmlLimitedBots: /.*/,
+
   allowedDevOrigins: localNetworkOrigins(),
 
   experimental: {
