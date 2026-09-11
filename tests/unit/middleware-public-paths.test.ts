@@ -38,6 +38,7 @@ describe('middleware public paths', () => {
     ['/offline', 'the page shown when there is no connection'],
     ['/sw.js', 'the service worker'],
     ['/manifest.webmanifest', "the till app's generic manifest"],
+    ['/find-shop', 'where a till opens when this device has not signed in to a business yet'],
   ])('%s is public — %s', (path) => {
     expect(publicBlock).toContain(`'${path}'`);
   });
@@ -52,6 +53,7 @@ describe('middleware public paths', () => {
       '/api/device/',
       '/api/health',
       '/auth',
+      '/find-shop',
       '/manifest.webmanifest',
       '/offline',
       '/sign-in',

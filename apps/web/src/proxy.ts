@@ -1,8 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { DOOR_COOKIE, shopDoor } from './lib/shop-door';
-import { OWNER_SESSION_COOKIE, SURFACE_HEADER, surfaceFor } from './lib/surface';
+import { DOOR_COOKIE, isPosScreen, shopDoor } from './lib/shop-door';
+import {
+  movedTo,
+  OWNER_SESSION_COOKIE,
+  SURFACE_HEADER,
+  surfaceForRequest,
+  type Hosts,
+} from './lib/surface';
 
 /**
  * Session refresh and route protection.
@@ -49,9 +55,33 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+/** A hostname from configuration. Absent and empty mean the same thing: not configured. */
+function configuredHost(name: string): string | null {
+  const value = process.env[name]?.trim().toLowerCase();
+  return value !== undefined && value.length > 0 ? value : null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const surface = surfaceFor(pathname);
+  const host = request.headers.get('host') ?? '';
+  /*
+   * Configured, these split the two applications across two hostnames: the console answers on
+   * one, businesses and their tills on the other. Unset, Carl runs on a single hostname and the
+   * path decides, which is how it has always worked.
+   */
+  const hosts: Hosts = {
+    owner: configuredHost('CARL_OWNER_HOST'),
+    app: configuredHost('CARL_APP_HOST'),
+  };
+  const surface = surfaceForRequest(pathname, host, hosts);
+
+  // A console address asked for on the shops' hostname, or the other way round.
+  const elsewhere = movedTo(pathname, host, hosts);
+  if (elsewhere) {
+    const moved = new URL(elsewhere);
+    moved.search = request.nextUrl.search;
+    return NextResponse.redirect(moved);
+  }
 
   /*
    * The owner's old PIN page.
@@ -141,6 +171,8 @@ export async function proxy(request: NextRequest) {
     // sign-in page where there is no session at all. Behind the session check the reports
     // would be redirected and silently lost.
     pathname === '/api/csp-report' ||
+    // Where someone opens their till when this device has not signed in to a business yet.
+    pathname === '/find-shop' ||
     pathname === '/offline' ||
     pathname === '/sw.js' ||
     // The till app's generic manifest. A browser fetches a manifest before anyone signs in.
@@ -170,6 +202,7 @@ export async function proxy(request: NextRequest) {
     'dashboard',
     'devices',
     'expenses',
+    'find-shop',
     'inventory',
     'no-access',
     'offline',
@@ -246,6 +279,16 @@ export async function proxy(request: NextRequest) {
       );
       if (door) {
         signIn.pathname = door;
+        signIn.search = '';
+        return NextResponse.redirect(signIn);
+      }
+      /*
+       * A till screen on a device that has never signed in to a business. The email-and-password
+       * page is no use to a cashier who has only ever had a PIN, so this asks which business it
+       * is and hands them that business's own door.
+       */
+      if (isPosScreen(pathname)) {
+        signIn.pathname = '/find-shop';
         signIn.search = '';
         return NextResponse.redirect(signIn);
       }

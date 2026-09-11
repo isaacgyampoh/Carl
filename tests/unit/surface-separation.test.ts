@@ -4,9 +4,12 @@ import { join } from 'node:path';
 import { createServerClient } from '../../apps/web/node_modules/@supabase/ssr';
 
 import {
+  hostOf,
+  movedTo,
   OWNER_SESSION_COOKIE,
   SURFACE_HEADER,
   surfaceFor,
+  surfaceForRequest,
   surfaceFromHeader,
 } from '../../apps/web/src/lib/surface';
 
@@ -54,6 +57,69 @@ describe('which application a request belongs to', () => {
     for (const value of ['OWNER', ' owner', 'platform', '', null, undefined]) {
       expect(surfaceFromHeader(value)).toBe('business');
     }
+  });
+});
+
+describe('when the two applications have their own hostnames', () => {
+  const split = { owner: 'owner.thecarl.cc', app: 'thecarl.cc' };
+  const single = { owner: null, app: null };
+
+  it('the hostname decides, and the path no longer can', () => {
+    for (const path of ['/', '/platform', '/platform/clients', '/pos', '/dashboard', '/bobo']) {
+      expect(surfaceForRequest(path, 'owner.thecarl.cc', split)).toBe('owner');
+      // The shops' hostname serves no console screen at all, whatever path is asked for.
+      expect(surfaceForRequest(path, 'thecarl.cc', split)).toBe('business');
+    }
+  });
+
+  it('falls back to the path when only one hostname is configured', () => {
+    expect(surfaceForRequest('/platform', 'carl-red.vercel.app', single)).toBe('owner');
+    expect(surfaceForRequest('/pos', 'carl-red.vercel.app', single)).toBe('business');
+  });
+
+  it('ignores the port and the case of a hostname', () => {
+    expect(hostOf('OWNER.thecarl.cc:3000')).toBe('owner.thecarl.cc');
+    expect(surfaceForRequest('/platform', 'OWNER.thecarl.cc:3000', split)).toBe('owner');
+  });
+
+  it('sends a console address asked for on the shops hostname to the console, and back', () => {
+    expect(movedTo('/platform/clients', 'thecarl.cc', split)).toBe(
+      'https://owner.thecarl.cc/platform/clients',
+    );
+    expect(movedTo('/pos', 'owner.thecarl.cc', split)).toBe('https://thecarl.cc/pos');
+    expect(movedTo('/bobo/pos', 'owner.thecarl.cc', split)).toBe('https://thecarl.cc/bobo/pos');
+  });
+
+  it('leaves each hostname its own entry, and moves nothing when unsplit', () => {
+    expect(movedTo('/', 'thecarl.cc', split)).toBeNull();
+    expect(movedTo('/', 'owner.thecarl.cc', split)).toBeNull();
+    expect(movedTo('/platform', 'owner.thecarl.cc', split)).toBeNull();
+    expect(movedTo('/pos', 'thecarl.cc', split)).toBeNull();
+    expect(movedTo('/platform', 'carl-red.vercel.app', single)).toBeNull();
+  });
+
+  it('is wired into the proxy, from configuration rather than from the request', () => {
+    const proxy = read(...WEB, 'proxy.ts');
+    expect(proxy).toContain("owner: configuredHost('CARL_OWNER_HOST')");
+    expect(proxy).toContain("app: configuredHost('CARL_APP_HOST')");
+    // Absent and empty both mean "not configured", so a blank variable cannot split anything.
+    expect(proxy).toContain('value !== undefined && value.length > 0 ? value : null');
+    expect(proxy).toContain('const surface = surfaceForRequest(pathname, host, hosts);');
+    expect(proxy).toContain('const elsewhere = movedTo(pathname, host, hosts);');
+  });
+});
+
+describe('a till on a device that has never signed in to a business', () => {
+  it('is asked which business it is, not for an email and password', () => {
+    const proxy = read(...WEB, 'proxy.ts');
+    const fallback = proxy.slice(proxy.indexOf('if (isPosScreen(pathname))'));
+    expect(fallback).toContain("signIn.pathname = '/find-shop';");
+    const finder = read(...WEB, 'components', 'find-shop.tsx');
+    // It hands over a door; it never says whether that business exists.
+    expect(finder).toContain(
+      "window.location.assign(where === 'pos' ? `/${slug}/pos` : `/${slug}`)",
+    );
+    expect(finder).not.toMatch(/supabase|fetch\(/);
   });
 });
 
@@ -117,7 +183,7 @@ describe('the surface is decided on the server and wired through every session r
   const proxy = read(...WEB, 'proxy.ts');
 
   it('the proxy decides it from the path and overwrites whatever the browser sent', () => {
-    expect(proxy).toContain('const surface = surfaceFor(pathname)');
+    expect(proxy).toContain('const surface = surfaceForRequest(pathname, host, hosts);');
     expect(proxy).toContain('forwarded.set(SURFACE_HEADER, surface)');
     expect(proxy).not.toMatch(/headers\.get\(SURFACE_HEADER\)/);
     expect(SURFACE_HEADER).toBe('x-carl-surface');

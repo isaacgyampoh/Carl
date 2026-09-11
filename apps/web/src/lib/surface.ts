@@ -47,6 +47,50 @@ export function surfaceFor(pathname: string): Surface {
     : 'business';
 }
 
+/**
+ * The hostnames each application answers on, when they have been split.
+ *
+ * One origin can only go so far. An installed till app claims its whole origin on Android, so
+ * a link to Carl's main address tapped in another app can open inside the till. Two hostnames
+ * end that: the console's own name is not the app's, and nothing installed from the shops'
+ * address can capture it.
+ *
+ * Unset, Carl runs on one hostname and the path decides, exactly as before — so this is
+ * configuration, not a second architecture.
+ */
+export interface Hosts {
+  /** Where the owner console answers, e.g. owner.thecarl.cc. */
+  readonly owner: string | null;
+  /** Where businesses and their tills answer, e.g. thecarl.cc. */
+  readonly app: string | null;
+}
+
+export function hostOf(header: string | null | undefined): string {
+  // Port and case are not part of a hostname's identity here; a forwarded port is common in
+  // development and behind proxies.
+  return (header ?? '').split(':')[0]?.trim().toLowerCase() ?? '';
+}
+
+export function surfaceForRequest(pathname: string, host: string, hosts: Hosts): Surface {
+  if (!hosts.owner) return surfaceFor(pathname);
+  // With the console on its own hostname, the hostname decides and the path does not: the
+  // shops' address must not serve the console at all, whatever path is asked for.
+  return hostOf(host) === hosts.owner ? 'owner' : 'business';
+}
+
+/** Where a path belongs when the two are on separate hostnames, or null when it is fine here. */
+export function movedTo(pathname: string, host: string, hosts: Hosts): string | null {
+  if (!hosts.owner || !hosts.app) return null;
+  const current = hostOf(host);
+  const belongsToOwner = surfaceFor(pathname) === 'owner' && pathname !== '/';
+  if (belongsToOwner && current === hosts.app) return `https://${hosts.owner}${pathname}`;
+  // The console's hostname serves the console and its entry, and nothing of a business.
+  if (!belongsToOwner && pathname !== '/' && current === hosts.owner) {
+    return `https://${hosts.app}${pathname}`;
+  }
+  return null;
+}
+
 /** Anything but the proxy's own `owner` is a business request. */
 export function surfaceFromHeader(value: string | null | undefined): Surface {
   return value === 'owner' ? 'owner' : 'business';

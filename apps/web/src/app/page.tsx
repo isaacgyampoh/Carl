@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { FindShop } from '@/components/find-shop';
 import { OwnerPinPad } from '@/components/owner-pin-pad';
 import { OwnerTotpPrompt } from '@/components/owner-totp-prompt';
 import { currentAuth, ownerMfaState } from '@/lib/auth';
 import { ownerDestination } from '@/lib/destinations';
+import { currentSurface } from '@/lib/supabase';
 
 export const metadata: Metadata = {
   title: { absolute: 'Carl Owner' },
@@ -19,6 +21,10 @@ export const dynamic = 'force-dynamic';
  * "install first" gate. Opening Carl's address showed the owner a sales pitch, and an app
  * installed from it opened the same sales pitch. The main address is now the owner's entry,
  * and a correct PIN leads to the console and nowhere else.
+ *
+ * On a deployment where the console has its own hostname, this address belongs to the
+ * businesses instead, and answers with the till finder rather than the owner's PIN. Which one
+ * it is comes from the proxy, never from the request itself.
  *
  * ## What it is not
  *
@@ -40,6 +46,24 @@ export default async function OwnerEntryPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
+
+  // The shops' hostname, where this address is theirs and the console lives elsewhere.
+  if ((await currentSurface()) === 'business') {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <header className="mb-8 text-center">
+            <div className="text-2xl font-semibold tracking-tight">Carl</div>
+            <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
+              Enter the address your business was given
+            </p>
+          </header>
+          <FindShop />
+        </div>
+      </main>
+    );
+  }
+
   const auth = await currentAuth();
   const mfa = auth?.user.isPlatformAdmin ? await ownerMfaState() : null;
   const awaitingCode = mfa !== null && mfa.required && !mfa.satisfied;
