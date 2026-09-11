@@ -56,11 +56,31 @@ export function TR({ className, ...props }: HTMLAttributes<HTMLTableRowElement>)
 export interface CellProps {
   /** Right-aligns and applies tabular numerals. Use for every money or quantity column. */
   numeric?: boolean;
+  /**
+   * The narrowest screen this column is worth its width on.
+   *
+   * A phone is 390 points wide and a sales table has six columns, so the last of them sat off
+   * the edge — reachable only by dragging the table sideways, one column at a time, past a
+   * sticky first column. Marking the secondary ones drops them below the given breakpoint and
+   * leaves what a shopkeeper reads at a glance: what it is, what it costs, how many are left.
+   *
+   * Everything hidden must be reachable elsewhere — the row's own page, or another line in the
+   * first cell. A column no phone can reach is a column that does not exist.
+   */
+  from?: 'sm' | 'md' | 'lg';
 }
+
+/** Tailwind needs these spelled out; a computed class name is not in the stylesheet. */
+const VISIBLE_FROM = {
+  sm: 'hidden sm:table-cell',
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+} as const;
 
 export function TH({
   className,
   numeric,
+  from,
   ...props
 }: ThHTMLAttributes<HTMLTableCellElement> & CellProps) {
   return (
@@ -69,6 +89,7 @@ export function TH({
       className={cn(
         'whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)] sm:px-4',
         numeric && 'text-right',
+        from && VISIBLE_FROM[from],
         className,
       )}
       {...props}
@@ -79,6 +100,7 @@ export function TH({
 export function TD({
   className,
   numeric,
+  from,
   ...props
 }: TdHTMLAttributes<HTMLTableCellElement> & CellProps) {
   return (
@@ -88,6 +110,7 @@ export function TD({
         // row three lines tall and split references like S-00412 across two.
         'px-3 py-3 text-[color:var(--color-ink)] max-md:whitespace-nowrap sm:px-4',
         numeric && 'whitespace-nowrap text-right tabular-nums',
+        from && VISIBLE_FROM[from],
         className,
       )}
       {...props}

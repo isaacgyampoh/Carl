@@ -104,9 +104,9 @@ export default async function SalesPage({
               <THead>
                 <TR>
                   <TH>Receipt</TH>
-                  <TH>When</TH>
-                  <TH>Cashier</TH>
-                  <TH>Customer</TH>
+                  <TH from="sm">When</TH>
+                  <TH from="sm">Cashier</TH>
+                  <TH from="sm">Customer</TH>
                   <TH numeric>Total</TH>
                   <TH>Status</TH>
                 </TR>
@@ -117,7 +117,7 @@ export default async function SalesPage({
                     <TD>
                       <Link
                         href={`/sales/${sale.id}`}
-                        className="font-mono text-sm font-medium hover:text-[color:var(--color-brand)]"
+                        className="inline-flex min-h-11 items-center font-mono text-sm font-medium hover:text-[color:var(--color-brand)]"
                       >
                         {sale.sale_number}
                       </Link>
@@ -126,15 +126,21 @@ export default async function SalesPage({
                           Offline
                         </Badge>
                       )}
+                      <span className="block text-xs text-[color:var(--color-ink-muted)] sm:hidden">
+                        {new Date(sale.sold_at).toLocaleString('en-GH', {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}
+                      </span>
                     </TD>
-                    <TD className="text-[color:var(--color-ink-muted)]">
+                    <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                       {new Date(sale.sold_at).toLocaleString('en-GH', {
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })}
                     </TD>
-                    <TD>{sale.profiles?.full_name ?? '—'}</TD>
-                    <TD className="text-[color:var(--color-ink-muted)]">
+                    <TD from="sm">{sale.profiles?.full_name ?? '—'}</TD>
+                    <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                       {sale.customers?.name ?? 'Walk-in'}
                     </TD>
                     <TD numeric>

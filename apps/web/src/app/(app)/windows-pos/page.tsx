@@ -83,7 +83,7 @@ export default async function WindowsPosPage() {
                       {' '}
                       <a
                         href={installer.checksumsUrl}
-                        className="underline underline-offset-4"
+                        className="inline-flex min-h-11 items-center underline underline-offset-4"
                         rel="noopener"
                       >
                         Checksums

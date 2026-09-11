@@ -390,7 +390,11 @@ function Shell({
         className="hidden w-[5.5rem] shrink-0 select-none flex-col border-r border-[color:var(--color-border)] bg-[color:var(--color-surface)] md:flex lg:hidden"
       >
         <div className="box-content flex h-14 shrink-0 items-center justify-center border-b border-[color:var(--color-border)] pt-[env(safe-area-inset-top)]">
-          <Link href={home} className="text-base font-semibold tracking-tight">
+          {/* A tap target, not a word: on a tablet this was 29×24 points. */}
+          <Link
+            href={home}
+            className="flex h-11 w-full items-center justify-center text-base font-semibold tracking-tight"
+          >
             Carl
           </Link>
         </div>

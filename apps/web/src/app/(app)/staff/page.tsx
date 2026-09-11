@@ -105,8 +105,8 @@ export default async function StaffPage() {
               <TR>
                 <TH>Person</TH>
                 <TH>Role</TH>
-                <TH>Branches</TH>
-                <TH>Status</TH>
+                <TH from="sm">Branches</TH>
+                <TH from="sm">Status</TH>
                 {canManage && <TH className="text-right">Manage</TH>}
               </TR>
             </THead>
@@ -145,7 +145,7 @@ export default async function StaffPage() {
                         )}
                       </div>
                     </TD>
-                    <TD className="text-[color:var(--color-ink-muted)]">
+                    <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                       {member.membership_branches.length === 0 ? (
                         <span className="text-xs">Every branch</span>
                       ) : (
@@ -155,7 +155,7 @@ export default async function StaffPage() {
                           .join(', ')
                       )}
                     </TD>
-                    <TD>
+                    <TD from="sm">
                       <Badge tone={statusTone(member.status)}>{member.status.toLowerCase()}</Badge>
                     </TD>
                     {canManage && (

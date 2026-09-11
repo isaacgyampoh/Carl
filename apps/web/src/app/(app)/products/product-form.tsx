@@ -330,12 +330,12 @@ export function ProductForm({
             <label className="flex min-h-11 cursor-pointer items-center gap-3">
               <input
                 type="checkbox"
+                className="size-5 shrink-0 accent-[color:var(--color-brand)]"
                 checked={useImage}
                 onChange={(event) => {
                   setUseImage(event.target.checked);
                   setImageError(null);
                 }}
-                className="size-5 accent-[color:var(--color-brand)]"
               />
               <span className="text-sm font-medium">Use product image</span>
             </label>
@@ -461,22 +461,34 @@ export function ProductForm({
 
           <FormRow wide>
             <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" {...register('isStockTracked')} />
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-5 shrink-0 accent-[color:var(--color-brand)]"
+                  {...register('isStockTracked')}
+                />
                 Track stock for this product
                 <span className="text-[color:var(--color-ink-muted)]">
                   — turn off for services, which never run out
                 </span>
               </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" {...register('allowFractional')} />
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-5 shrink-0 accent-[color:var(--color-brand)]"
+                  {...register('allowFractional')}
+                />
                 Can be sold in fractions
                 <span className="text-[color:var(--color-ink-muted)]">
                   — for goods sold by weight or length
                 </span>
               </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" {...register('isActive')} />
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-5 shrink-0 accent-[color:var(--color-brand)]"
+                  {...register('isActive')}
+                />
                 Available for sale
               </label>
             </div>

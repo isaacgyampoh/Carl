@@ -95,7 +95,10 @@ export default async function PlatformPage() {
         <CardHeader
           title="Recently onboarded"
           action={
-            <Link href="/platform/clients" className="text-sm underline underline-offset-4">
+            <Link
+              href="/platform/clients"
+              className="inline-flex min-h-11 items-center text-sm underline underline-offset-4"
+            >
               All clients
             </Link>
           }

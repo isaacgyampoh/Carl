@@ -97,7 +97,7 @@ export function RangePicker({ current }: { current: RangeKey }) {
           href={`/reports?range=${option.key}`}
           aria-current={current === option.key ? 'page' : undefined}
           className={cn(
-            'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+            'inline-flex min-h-10 items-center rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
             current === option.key
               ? 'border-[color:var(--color-brand)] bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand-strong)]'
               : 'border-[color:var(--color-border)] hover:bg-[color:var(--color-surface-muted)]',

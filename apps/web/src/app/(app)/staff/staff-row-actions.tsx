@@ -145,6 +145,7 @@ export function StaffRowActions({
               <label key={branch.id} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="size-5 shrink-0 accent-[color:var(--color-brand)]"
                   name="branchIds"
                   value={branch.id}
                   defaultChecked={currentBranchIds.includes(branch.id)}

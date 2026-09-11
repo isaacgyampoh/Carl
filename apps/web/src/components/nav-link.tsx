@@ -31,14 +31,14 @@ export function navClasses(variant: NavVariant, active: boolean): string {
       );
     case 'rail':
       return cn(
-        'flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium leading-tight [&_svg]:size-5',
+        'flex min-h-[3.25rem] w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-xs font-medium leading-tight [&_svg]:size-5',
         active
           ? 'bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand-strong)]'
           : 'text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-surface-muted)]',
       );
     case 'tab':
       return cn(
-        'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium leading-tight [&_svg]:size-6',
+        'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-xs font-medium leading-tight [&_svg]:size-6',
         active
           ? 'text-[color:var(--color-brand)]'
           : 'text-[color:var(--color-ink-muted)] active:bg-[color:var(--color-surface-muted)]',

@@ -87,7 +87,7 @@ export default async function CustomersPage({
                 <TR>
                   <TH>Name</TH>
                   <TH>Phone</TH>
-                  <TH>Buys at</TH>
+                  <TH from="sm">Buys at</TH>
                   <TH numeric>Balance</TH>
                 </TR>
               </THead>
@@ -97,7 +97,7 @@ export default async function CustomersPage({
                     <TD>
                       <Link
                         href={`/customers/${customer.id}`}
-                        className="font-medium hover:text-[color:var(--color-brand)]"
+                        className="inline-flex min-h-11 items-center font-medium hover:text-[color:var(--color-brand)]"
                       >
                         {customer.name}
                       </Link>
@@ -110,7 +110,7 @@ export default async function CustomersPage({
                     <TD className="tabular-nums text-[color:var(--color-ink-muted)]">
                       {customer.phone ?? '—'}
                     </TD>
-                    <TD>
+                    <TD from="sm">
                       <Badge tone={customer.default_tier === 'WHOLESALE' ? 'brand' : 'neutral'}>
                         {customer.default_tier.toLowerCase()}
                       </Badge>

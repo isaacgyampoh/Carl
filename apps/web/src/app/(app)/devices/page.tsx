@@ -86,9 +86,11 @@ export default async function DevicesPage() {
               <TR>
                 <TH>Terminal</TH>
                 <TH>Health</TH>
-                <TH>Last sync</TH>
-                <TH numeric>Queued</TH>
-                <TH>Offline until</TH>
+                <TH from="sm">Last sync</TH>
+                <TH numeric from="md">
+                  Queued
+                </TH>
+                <TH from="md">Offline until</TH>
                 {canManage && <TH>Actions</TH>}
               </TR>
             </THead>
@@ -105,7 +107,7 @@ export default async function DevicesPage() {
                   <TD>
                     <Badge tone={statusTone(device.health)}>{device.health.toLowerCase()}</Badge>
                   </TD>
-                  <TD className="text-[color:var(--color-ink-muted)]">
+                  <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                     {device.last_sync_at
                       ? new Date(device.last_sync_at).toLocaleString('en-GH', {
                           dateStyle: 'short',
@@ -113,7 +115,7 @@ export default async function DevicesPage() {
                         })
                       : 'Never'}
                   </TD>
-                  <TD numeric>
+                  <TD from="md" numeric>
                     {device.pending_sync_count > 0 ? (
                       <span className="text-[color:var(--color-warning)]">
                         {device.pending_sync_count}
@@ -122,7 +124,7 @@ export default async function DevicesPage() {
                       '—'
                     )}
                   </TD>
-                  <TD className="text-[color:var(--color-ink-muted)]">
+                  <TD from="md" className="text-[color:var(--color-ink-muted)]">
                     {/* How long this till may keep selling without reaching the server. */}
                     {device.authorized_until
                       ? new Date(device.authorized_until).toLocaleDateString('en-GH')

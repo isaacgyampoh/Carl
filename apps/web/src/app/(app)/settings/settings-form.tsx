@@ -104,9 +104,10 @@ export function SettingsForm({ initial }: { initial: BusinessSettings }) {
             step="0.01"
             defaultValue={String(initial.defaultTaxRate)}
           />
-          <label className="flex items-center gap-2 self-end pb-2 text-sm">
+          <label className="flex min-h-11 items-center gap-2 self-end pb-2 text-sm">
             <input
               type="checkbox"
+              className="size-5 shrink-0 accent-[color:var(--color-brand)]"
               name="pricesIncludeTax"
               defaultChecked={initial.pricesIncludeTax}
             />

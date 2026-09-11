@@ -198,10 +198,18 @@ export default async function InventoryPage({
                 <TR>
                   <TH>Product</TH>
                   <TH numeric>On hand</TH>
-                  <TH numeric>Reserved</TH>
-                  <TH numeric>Reorder at</TH>
-                  {canSeeCost && <TH numeric>Value</TH>}
-                  <TH>Last counted</TH>
+                  <TH numeric from="md">
+                    Reserved
+                  </TH>
+                  <TH numeric from="lg">
+                    Reorder at
+                  </TH>
+                  {canSeeCost && (
+                    <TH numeric from="lg">
+                      Value
+                    </TH>
+                  )}
+                  <TH from="lg">Last counted</TH>
                   {canAdjust && branch && <TH className="text-right">Adjust</TH>}
                 </TR>
               </THead>
@@ -232,20 +240,20 @@ export default async function InventoryPage({
                           })}
                         </span>
                       </TD>
-                      <TD numeric className="text-[color:var(--color-ink-muted)]">
+                      <TD numeric from="md" className="text-[color:var(--color-ink-muted)]">
                         {row.reserved > 0 ? formatQuantity(Math.round(row.reserved * 1000)) : '—'}
                       </TD>
-                      <TD numeric className="text-[color:var(--color-ink-muted)]">
+                      <TD numeric from="lg" className="text-[color:var(--color-ink-muted)]">
                         {formatQuantity(Math.round(row.reorder_level * 1000))}
                       </TD>
                       {canSeeCost && (
-                        <TD numeric>
+                        <TD numeric from="lg">
                           {formatMoney(
                             Math.round(row.quantity * (row.products?.average_cost ?? 0)),
                           )}
                         </TD>
                       )}
-                      <TD className="text-[color:var(--color-ink-muted)]">
+                      <TD from="lg" className="text-[color:var(--color-ink-muted)]">
                         {row.last_counted_at ? (
                           new Date(row.last_counted_at).toLocaleDateString('en-GH')
                         ) : (

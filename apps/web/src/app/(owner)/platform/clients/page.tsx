@@ -113,8 +113,8 @@ export default async function ClientsPage({
             href={href({ sort: key })}
             className={
               key === sort
-                ? 'rounded-full bg-[color:var(--color-surface-muted)] px-3 py-1 font-medium'
-                : 'rounded-full px-3 py-1 text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-muted)]'
+                ? 'inline-flex min-h-10 items-center rounded-full bg-[color:var(--color-surface-muted)] px-3 py-1 font-medium'
+                : 'inline-flex min-h-10 items-center rounded-full px-3 py-1 text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-muted)]'
             }
           >
             {label}

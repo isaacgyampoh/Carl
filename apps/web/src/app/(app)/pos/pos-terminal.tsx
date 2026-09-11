@@ -565,7 +565,7 @@ export function PosTerminal({
             onChange={(e) => setQuery(e.target.value)}
             type="search"
             enterKeyHint="search"
-            placeholder="Scan a barcode or search by name or SKU"
+            placeholder="Scan or search"
             aria-label="Scan or search for a product"
             autoComplete="off"
             spellCheck={false}

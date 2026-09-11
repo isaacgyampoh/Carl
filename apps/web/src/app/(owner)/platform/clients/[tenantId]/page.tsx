@@ -240,7 +240,10 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
           <CardHeader
             title="Invoices"
             action={
-              <Link href="/platform/invoices" className="text-sm underline underline-offset-4">
+              <Link
+                href="/platform/invoices"
+                className="inline-flex min-h-11 items-center text-sm underline underline-offset-4"
+              >
                 All
               </Link>
             }

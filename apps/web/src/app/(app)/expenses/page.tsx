@@ -111,10 +111,10 @@ export default async function ExpensesPage({
             <Table>
               <THead>
                 <TR>
-                  <TH>Reference</TH>
+                  <TH from="md">Reference</TH>
                   <TH>Description</TH>
-                  <TH>Category</TH>
-                  <TH>Recorded by</TH>
+                  <TH from="sm">Category</TH>
+                  <TH from="md">Recorded by</TH>
                   <TH numeric>Amount</TH>
                   <TH>Status</TH>
                 </TR>
@@ -122,7 +122,9 @@ export default async function ExpensesPage({
               <TBody>
                 {expenses.rows.map((expense) => (
                   <TR key={expense.id}>
-                    <TD className="font-mono text-xs">{expense.reference}</TD>
+                    <TD from="md" className="font-mono text-xs">
+                      {expense.reference}
+                    </TD>
                     <TD>
                       <span className="font-medium">{expense.description}</span>
                       <span className="block text-xs text-[color:var(--color-ink-muted)]">
@@ -130,10 +132,10 @@ export default async function ExpensesPage({
                         {expense.method.replace(/_/g, ' ').toLowerCase()}
                       </span>
                     </TD>
-                    <TD className="text-[color:var(--color-ink-muted)]">
+                    <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                       {expense.expense_categories?.name ?? '—'}
                     </TD>
-                    <TD className="text-[color:var(--color-ink-muted)]">
+                    <TD from="md" className="text-[color:var(--color-ink-muted)]">
                       {expense.profiles?.full_name ?? '—'}
                     </TD>
                     <TD numeric>{formatMoney(expense.amount)}</TD>

@@ -54,8 +54,8 @@ export default async function BranchesPage() {
             <THead>
               <TR>
                 <TH>Branch</TH>
-                <TH>Contact</TH>
-                <TH>Settings</TH>
+                <TH from="sm">Contact</TH>
+                <TH from="md">Settings</TH>
                 <TH>Status</TH>
               </TR>
             </THead>
@@ -68,13 +68,13 @@ export default async function BranchesPage() {
                       {branch.code}
                     </span>
                   </TD>
-                  <TD className="text-[color:var(--color-ink-muted)]">
+                  <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                     {branch.address ?? '—'}
                     {branch.phone && (
                       <span className="block text-xs tabular-nums">{branch.phone}</span>
                     )}
                   </TD>
-                  <TD>
+                  <TD from="md">
                     {branch.allow_negative_stock ? (
                       <Badge tone="warning">Negative stock allowed</Badge>
                     ) : (

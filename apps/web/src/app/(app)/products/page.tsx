@@ -114,11 +114,15 @@ export default async function ProductsPage({
               <THead>
                 <TR>
                   <TH>Product</TH>
-                  <TH>Category</TH>
+                  <TH from="sm">Category</TH>
                   <TH numeric>Retail</TH>
-                  {canSeeCost && <TH numeric>Cost</TH>}
+                  {canSeeCost && (
+                    <TH numeric from="sm">
+                      Cost
+                    </TH>
+                  )}
                   <TH numeric>In stock</TH>
-                  <TH>Status</TH>
+                  <TH from="sm">Status</TH>
                 </TR>
               </THead>
               <TBody>
@@ -132,7 +136,7 @@ export default async function ProductsPage({
                       <TD>
                         <Link
                           href={`/products/${product.id}`}
-                          className="font-medium hover:text-[color:var(--color-brand)]"
+                          className="inline-flex min-h-11 items-center font-medium hover:text-[color:var(--color-brand)]"
                         >
                           {product.name}
                         </Link>
@@ -140,11 +144,15 @@ export default async function ProductsPage({
                           {product.sku}
                         </span>
                       </TD>
-                      <TD className="text-[color:var(--color-ink-muted)]">
+                      <TD from="sm" className="text-[color:var(--color-ink-muted)]">
                         {product.categories?.name ?? '—'}
                       </TD>
                       <TD numeric>{retail ? formatMoney(retail.amount) : '—'}</TD>
-                      {canSeeCost && <TD numeric>{formatMoney(product.average_cost)}</TD>}
+                      {canSeeCost && (
+                        <TD numeric from="sm">
+                          {formatMoney(product.average_cost)}
+                        </TD>
+                      )}
                       <TD numeric>
                         {branchId && stock ? (
                           <span className={low ? 'text-[color:var(--color-warning)]' : undefined}>
@@ -156,7 +164,7 @@ export default async function ProductsPage({
                           '—'
                         )}
                       </TD>
-                      <TD>
+                      <TD from="sm">
                         {product.is_active ? (
                           <Badge tone="positive">Active</Badge>
                         ) : (
