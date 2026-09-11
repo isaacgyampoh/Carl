@@ -39,6 +39,8 @@ export default async function ReportsPage({
    */
   const canSeeSales = hasPermission(auth, Permission.SALES_VIEW_ALL);
   const canSeeStock = hasPermission(auth, Permission.INVENTORY_VIEW);
+  // What the business spent is a financial figure, and also needs sight of expenses.
+  const canSeeExpenses = canSeeFinancial && hasPermission(auth, Permission.EXPENSES_VIEW);
 
   const client = await supabase();
   const args = {
@@ -53,14 +55,22 @@ export default async function ReportsPage({
     ...(branch ? { p_branch_id: branch.id } : {}),
   };
 
-  const [summary, top, payments, staff, stock, low] = await Promise.all([
+  const [summary, top, payments, staff, stock, low, spending] = await Promise.all([
     canSeeSales ? client.rpc('sales_summary', args) : null,
     canSeeSales ? client.rpc('top_products', { ...args, p_limit: 10 }) : null,
     canSeeSales ? client.rpc('payment_method_breakdown', args) : null,
     canSeeSales ? client.rpc('staff_sales_summary', args) : null,
     canSeeStock ? client.rpc('inventory_overview', stockArgs) : null,
     canSeeStock ? client.rpc('low_stock_items', { ...stockArgs, p_limit: 50 }) : null,
+    canSeeExpenses ? client.rpc('expense_summary', args) : null,
   ]);
+
+  /*
+   * Null when the figure cannot be shown, including when the database does not yet have
+   * expense_summary (migration 0039). An unavailable figure is left out rather than shown as
+   * zero, because "you spent nothing" would be a claim, not an absence.
+   */
+  const spent = spending && !spending.error ? (spending.data?.[0] ?? null) : null;
 
   /*
    * Each branch side by side, from the same database aggregate as the headline figures, one
@@ -70,8 +80,17 @@ export default async function ReportsPage({
     canSeeSales && auth.tenant.branches.length > 1
       ? await Promise.all(
           auth.tenant.branches.map(async (each) => {
-            const { data } = await client.rpc('sales_summary', { ...args, p_branch_id: each.id });
-            return { id: each.id, name: each.name, totals: data?.[0] };
+            const branchArgs = { ...args, p_branch_id: each.id };
+            const [{ data }, branchSpending] = await Promise.all([
+              client.rpc('sales_summary', branchArgs),
+              spent ? client.rpc('expense_summary', branchArgs) : null,
+            ]);
+            return {
+              id: each.id,
+              name: each.name,
+              totals: data?.[0],
+              spent: branchSpending && !branchSpending.error ? branchSpending.data?.[0] : undefined,
+            };
           }),
         )
       : [];
@@ -112,6 +131,36 @@ export default async function ReportsPage({
             />
           </div>
 
+          {canSeeFinancial && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <Stat
+                label="Cost of sales"
+                value={formatMoney(totals?.cost ?? 0)}
+                hint="What the goods sold cost you"
+              />
+              {spent && (
+                <>
+                  <Stat
+                    label="Expenses"
+                    value={formatMoney(spent.total ?? 0)}
+                    hint={
+                      (spent.pending_count ?? 0) > 0
+                        ? `${formatMoney(spent.pending_total ?? 0)} awaiting approval`
+                        : `${(spent.expense_count ?? 0).toLocaleString('en-GH')} approved`
+                    }
+                    tone={(spent.pending_count ?? 0) > 0 ? 'warning' : 'neutral'}
+                  />
+                  <Stat
+                    label="Net after expenses"
+                    value={formatMoney((totals?.profit ?? 0) - (spent.total ?? 0))}
+                    hint="Gross profit less approved expenses"
+                    tone={(totals?.profit ?? 0) - (spent.total ?? 0) >= 0 ? 'positive' : 'danger'}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
           {branchRows.length > 0 && (
             <Card className="mt-5 overflow-hidden">
               <CardHeader
@@ -125,6 +174,8 @@ export default async function ReportsPage({
                     <TH numeric>Sales</TH>
                     <TH numeric>Transactions</TH>
                     {canSeeFinancial && <TH numeric>Gross profit</TH>}
+                    {spent && <TH numeric>Expenses</TH>}
+                    {spent && <TH numeric>Net</TH>}
                   </TR>
                 </THead>
                 <TBody>
@@ -134,6 +185,12 @@ export default async function ReportsPage({
                       <TD numeric>{formatMoney(row.totals?.gross ?? 0)}</TD>
                       <TD numeric>{(row.totals?.sales_count ?? 0).toLocaleString('en-GH')}</TD>
                       {canSeeFinancial && <TD numeric>{formatMoney(row.totals?.profit ?? 0)}</TD>}
+                      {spent && <TD numeric>{formatMoney(row.spent?.total ?? 0)}</TD>}
+                      {spent && (
+                        <TD numeric>
+                          {formatMoney((row.totals?.profit ?? 0) - (row.spent?.total ?? 0))}
+                        </TD>
+                      )}
                     </TR>
                   ))}
                 </TBody>
