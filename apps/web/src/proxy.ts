@@ -167,6 +167,14 @@ export async function proxy(request: NextRequest) {
      * application public, which is the opposite of what this list is for.
      */
     pathname === '/' ||
+    /*
+     * The scheduled health check.
+     *
+     * It carries a shared secret rather than a cookie, and checks it itself. Behind the session
+     * check it would be redirected to a sign-in page and every run would report a healthy
+     * deployment as broken.
+     */
+    pathname === '/api/monitor' ||
     // Browsers post CSP violation reports themselves, without cookies, often for the
     // sign-in page where there is no session at all. Behind the session check the reports
     // would be redirected and silently lost.

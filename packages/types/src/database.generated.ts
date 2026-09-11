@@ -6,7 +6,7 @@
  * Produced by introspecting the real migrations applied to an in-process PostgreSQL, so it
  * needs no Docker and stays correct in CI. See scripts/generate-db-types.mjs.
  *
- * 54 relations, 28 enums, 59 functions.
+ * 55 relations, 28 enums, 60 functions.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -14,6 +14,57 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     Tables: {
+      app_errors: {
+        Row: {
+          id: string;
+          occurred_at: string;
+          digest: string | null;
+          message: string;
+          route: string | null;
+          method: string | null;
+          surface: string | null;
+          tenant_id: string | null;
+          user_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          occurred_at?: string;
+          digest?: string | null;
+          message: string;
+          route?: string | null;
+          method?: string | null;
+          surface?: string | null;
+          tenant_id?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          occurred_at?: string;
+          digest?: string | null;
+          message?: string;
+          route?: string | null;
+          method?: string | null;
+          surface?: string | null;
+          tenant_id?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'app_errors_tenant_id_fkey';
+            columns: ['tenant_id'];
+            isOneToOne: false;
+            referencedRelation: 'tenants';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'app_errors_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       audit_logs: {
         Row: {
           id: string;
@@ -4194,6 +4245,11 @@ export interface Database {
     branch_id: string | null;
     membership_id: string | null;
   }[];
+      };
+      prune_app_errors: {
+        Args: {
+        };
+        Returns: number;
       };
       reactivate_tenant: {
         Args: {

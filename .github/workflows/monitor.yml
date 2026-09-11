@@ -1,0 +1,65 @@
+name: Production health
+
+# Nobody was told when Carl failed. This asks, every fifteen minutes, and opens an issue when
+# the answer is bad — an issue notifies by email, which is one fewer service to depend on.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: production-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Ask production how it is
+    runs-on: ubuntu-latest
+    steps:
+      - name: Liveness
+        id: live
+        run: |
+          set +e
+          code=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 20 "${{ vars.CARL_APP_URL || 'https://carl-red.vercel.app' }}/api/health")
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Health endpoint answered HTTP $code"
+          [ "$code" = "200" ] || echo "failed=liveness" >> "$GITHUB_OUTPUT"
+
+      # Counts only — the endpoint never returns an error's message, and the token is a secret.
+      - name: Recent server errors
+        id: errors
+        if: steps.live.outputs.code == '200'
+        run: |
+          set +e
+          code=$(curl -s -o /tmp/monitor.json -w '%{http_code}' --max-time 20 \
+            -H "authorization: Bearer ${{ secrets.CARL_MONITOR_TOKEN }}" \
+            "${{ vars.CARL_APP_URL || 'https://carl-red.vercel.app' }}/api/monitor")
+          if [ "$code" != "200" ]; then
+            echo "Monitoring endpoint answered HTTP $code"
+            echo "skipped=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          recent=$(jq -r '.errors.last15m' /tmp/monitor.json)
+          day=$(jq -r '.errors.last24h' /tmp/monitor.json)
+          echo "recent=$recent" >> "$GITHUB_OUTPUT"
+          echo "Errors: $recent in the last 15 minutes, $day in the last 24 hours"
+          [ "$recent" = "0" ] || echo "failed=errors" >> "$GITHUB_OUTPUT"
+
+      - name: Raise or update an issue
+        if: steps.live.outputs.failed != '' || steps.errors.outputs.failed != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Production health check failed"
+          body="Liveness: HTTP ${{ steps.live.outputs.code }}. Server errors in the last 15 minutes: ${{ steps.errors.outputs.recent || 'unknown' }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --label health --json number --jq '.[0].number' 2>/dev/null)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh label create health --description "Automated production health checks" --color B60205 2>/dev/null || true
+            gh issue create --title "$title" --body "$body" --label health
+          fi
+        working-directory: ${{ github.workspace }}

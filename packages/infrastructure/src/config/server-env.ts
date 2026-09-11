@@ -25,6 +25,16 @@ const serverEnvSchema = z.object({
       'CARL_DEVICE_SECRET_PEPPER must be at least 32 characters. Generate with: openssl rand -base64 48',
   }),
   CARL_LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
+  /*
+   * The shared secret the scheduled health check presents.
+   *
+   * Optional: without it the monitoring endpoint does not exist at all, which is the right
+   * behaviour for a deployment nobody is watching. Long enough that guessing is not a strategy.
+   */
+  CARL_MONITOR_TOKEN: z
+    .string()
+    .min(32, { error: 'CARL_MONITOR_TOKEN must be at least 32 characters.' })
+    .optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   SENTRY_DSN: z.string().optional(),
 });

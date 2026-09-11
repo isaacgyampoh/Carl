@@ -19,6 +19,7 @@ import {
   Package,
   Receipt,
   Settings,
+  ShieldAlert,
   ShoppingCart,
   Store,
   Truck,
@@ -184,6 +185,7 @@ export const PLATFORM_NAV: readonly (readonly [href: string, label: string])[] =
   ['/platform/devices', 'Terminals'],
   ['/platform/branches', 'Branches'],
   ['/platform/audit', 'Activity'],
+  ['/platform/health', 'Health'],
   ['/platform/settings', 'Settings'],
 ];
 
@@ -196,6 +198,7 @@ const PLATFORM_ICONS: Readonly<Record<string, LucideIcon>> = {
   '/platform/devices': MonitorSmartphone,
   '/platform/branches': Store,
   '/platform/audit': Activity,
+  '/platform/health': ShieldAlert,
   '/platform/settings': Settings,
 };
 

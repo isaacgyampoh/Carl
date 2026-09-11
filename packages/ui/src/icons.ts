@@ -22,6 +22,7 @@ export {
   PackagePlus,
   Receipt,
   Settings,
+  ShieldAlert,
   ShoppingCart,
   Store,
   Truck,
