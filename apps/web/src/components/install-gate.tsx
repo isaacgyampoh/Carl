@@ -106,7 +106,7 @@ export function InstallGate({
   return (
     <div className="w-full">
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      <p className="mt-2 text-sm text-[color:var(--color-text-muted)]">{description}</p>
+      <p className="mt-2 text-sm text-[color:var(--color-ink-muted)]">{description}</p>
 
       {prompt ? (
         <Button className="mt-6 w-full" onClick={() => void install()} loading={busy}>
@@ -115,17 +115,17 @@ export function InstallGate({
       ) : (
         <div className="mt-6 rounded-lg border border-[color:var(--color-border)] p-4 text-sm">
           <p className="font-medium">Install from your browser menu</p>
-          <ul className="mt-2 space-y-1 text-[color:var(--color-text-muted)]">
+          <ul className="mt-2 space-y-1 text-[color:var(--color-ink-muted)]">
             <li>
-              <span className="font-medium text-[color:var(--color-text)]">Windows</span> — Edge or
+              <span className="font-medium text-[color:var(--color-ink)]">Windows</span> — Edge or
               Chrome: the install icon at the right of the address bar, or menu → Apps → Install.
             </li>
             <li>
-              <span className="font-medium text-[color:var(--color-text)]">Android</span> — menu →
+              <span className="font-medium text-[color:var(--color-ink)]">Android</span> — menu →
               Add to home screen.
             </li>
             <li>
-              <span className="font-medium text-[color:var(--color-text)]">iPhone or iPad</span> —
+              <span className="font-medium text-[color:var(--color-ink)]">iPhone or iPad</span> —
               Share → Add to Home Screen.
             </li>
           </ul>
@@ -137,7 +137,7 @@ export function InstallGate({
       <button
         type="button"
         onClick={() => setProceeding(true)}
-        className="mt-6 w-full text-sm text-[color:var(--color-text-muted)] underline-offset-4 hover:underline"
+        className="mt-6 w-full text-sm text-[color:var(--color-ink-muted)] underline-offset-4 hover:underline"
       >
         Continue in this browser
       </button>

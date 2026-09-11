@@ -55,7 +55,7 @@ export default async function BranchesPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium">{b.name}</div>
-                      <div className="truncate text-sm text-[color:var(--color-text-muted)]">
+                      <div className="truncate text-sm text-[color:var(--color-ink-muted)]">
                         {b.tenantName} · {b.code}
                       </div>
                     </div>
@@ -66,7 +66,7 @@ export default async function BranchesPage() {
                       {!b.isActive && <Badge tone="neutral">Closed</Badge>}
                     </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-text-muted)]">
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-ink-muted)]">
                     <span>
                       {b.deviceCount} {b.deviceCount === 1 ? 'terminal' : 'terminals'}
                     </span>

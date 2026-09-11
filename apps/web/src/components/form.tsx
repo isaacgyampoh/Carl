@@ -90,7 +90,7 @@ export function LabelledField({
 }
 
 export const inputClass =
-  'h-10 w-full rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 text-sm ' +
+  'h-10 w-full rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 text-sm pointer-coarse:h-11 ' +
   'focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[color:var(--color-brand)] ' +
   'aria-[invalid=true]:border-[color:var(--color-danger)]';
 

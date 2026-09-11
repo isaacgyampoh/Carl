@@ -68,7 +68,7 @@ export default async function AuditPage() {
                       <div className="font-medium">
                         {LABELS[e.action] ?? e.action.replace(/_/g, ' ').toLowerCase()}
                       </div>
-                      <div className="truncate text-sm text-[color:var(--color-text-muted)]">
+                      <div className="truncate text-sm text-[color:var(--color-ink-muted)]">
                         {e.tenantId ? (
                           <Link
                             href={`/platform/clients/${e.tenantId}`}
@@ -85,7 +85,7 @@ export default async function AuditPage() {
                     </div>
                     <time
                       dateTime={e.occurredAt}
-                      className="shrink-0 text-sm text-[color:var(--color-text-muted)]"
+                      className="shrink-0 text-sm text-[color:var(--color-ink-muted)]"
                     >
                       {new Date(e.occurredAt).toLocaleString('en-GB', {
                         day: 'numeric',
@@ -99,7 +99,7 @@ export default async function AuditPage() {
                     reference !== null ||
                     invoice !== null ||
                     reason !== null) && (
-                    <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-text-muted)]">
+                    <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-ink-muted)]">
                       {amount !== null && (
                         <span className="tabular-nums">{(amount / 100).toFixed(2)}</span>
                       )}

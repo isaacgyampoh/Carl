@@ -34,7 +34,7 @@ export function ServiceWorker() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-40 bg-[color:var(--color-warning)] px-4 py-2 text-center text-sm font-medium text-[color:var(--color-ink)]"
+      className="fixed inset-x-0 top-0 z-[60] bg-[color:var(--color-warning)] px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-[color:var(--color-ink)]"
     >
       No connection. Carl cannot record a sale until this is restored.
     </div>

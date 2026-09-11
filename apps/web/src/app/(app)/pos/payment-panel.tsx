@@ -61,7 +61,14 @@ export function PaymentPanel({
     .reduce((sum, tender) => sum + tender.amount, 0);
 
   useEffect(() => {
-    amountRef.current?.focus();
+    // Not on a touch-only screen: the keyboard would cover the quick-cash buttons, which are
+    // how most cash sales are settled there.
+    if (
+      window.matchMedia('(any-pointer: fine)').matches ||
+      !window.matchMedia('(pointer: coarse)').matches
+    ) {
+      amountRef.current?.focus();
+    }
   }, []);
 
   /** Round notes at or above the outstanding amount. */
@@ -269,7 +276,7 @@ export function PaymentPanel({
           </dl>
         </div>
 
-        <footer className="flex gap-2 border-t border-[color:var(--color-border)] px-5 py-4">
+        <footer className="flex gap-2 border-t border-[color:var(--color-border)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
           <Button variant="secondary" size="lg" onClick={onCancel} disabled={submitting}>
             Cancel
           </Button>

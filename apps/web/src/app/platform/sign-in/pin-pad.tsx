@@ -132,9 +132,9 @@ export function PinPad() {
                   'flex h-[4.5rem] w-16 items-center justify-center rounded-2xl border text-3xl',
                   'transition-[border-color,box-shadow] duration-150',
                   done
-                    ? 'border-[color:var(--color-text)] bg-[color:var(--color-surface)]'
+                    ? 'border-[color:var(--color-ink)] bg-[color:var(--color-surface)]'
                     : 'border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]',
-                  active ? 'ring-2 ring-[color:var(--color-text)] ring-offset-2' : '',
+                  active ? 'ring-2 ring-[color:var(--color-ink)] ring-offset-2' : '',
                   status === 'error' ? 'border-[color:var(--color-danger)]' : '',
                   status === 'checking' ? 'opacity-60' : '',
                 ].join(' ')}
@@ -148,7 +148,7 @@ export function PinPad() {
 
       <div className="min-h-16 text-center" role="status" aria-live="polite">
         {status === 'checking' && (
-          <span className="text-sm text-[color:var(--color-text-muted)]">Checking…</span>
+          <span className="text-sm text-[color:var(--color-ink-muted)]">Checking…</span>
         )}
         {error && (
           <div className="space-y-3">

@@ -106,7 +106,7 @@ export default async function ClientsPage({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-[color:var(--color-text-muted)]">Sort</span>
+        <span className="text-[color:var(--color-ink-muted)]">Sort</span>
         {SORTS.map(([key, label]) => (
           <Link
             key={key}
@@ -114,7 +114,7 @@ export default async function ClientsPage({
             className={
               key === sort
                 ? 'rounded-full bg-[color:var(--color-surface-muted)] px-3 py-1 font-medium'
-                : 'rounded-full px-3 py-1 text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-surface-muted)]'
+                : 'rounded-full px-3 py-1 text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-muted)]'
             }
           >
             {label}
@@ -149,7 +149,7 @@ export default async function ClientsPage({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="truncate font-medium">{c.name}</div>
-                        <div className="truncate text-sm text-[color:var(--color-text-muted)]">
+                        <div className="truncate text-sm text-[color:var(--color-ink-muted)]">
                           {c.contactPerson ?? c.email ?? c.slug}
                           {c.phone ? ` · ${c.phone}` : ''}
                         </div>
@@ -163,7 +163,7 @@ export default async function ClientsPage({
                         )}
                       </div>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[color:var(--color-text-muted)]">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[color:var(--color-ink-muted)]">
                       <span>{c.planName ?? 'No plan'}</span>
                       <span>
                         {c.branchCount} {c.branchCount === 1 ? 'branch' : 'branches'}

@@ -31,7 +31,7 @@ export default function ErrorBoundary({
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-2">
           <h1 className="text-lg font-medium">Something went wrong</h1>
-          <p className="text-sm text-[color:var(--color-text-muted)]">
+          <p className="text-sm text-[color:var(--color-ink-muted)]">
             This page didn’t load. Nothing you were doing has been lost.
           </p>
         </div>
@@ -39,7 +39,7 @@ export default function ErrorBoundary({
           <button
             type="button"
             onClick={reset}
-            className="h-11 rounded-lg bg-[color:var(--color-text)] px-5 text-sm font-medium text-[color:var(--color-surface)]"
+            className="h-11 rounded-lg bg-[color:var(--color-ink)] px-5 text-sm font-medium text-[color:var(--color-surface)]"
           >
             Try again
           </button>

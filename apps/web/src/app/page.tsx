@@ -40,12 +40,12 @@ export default async function HomePage() {
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
           Run your shop, not your software.
         </h1>
-        <p className="mt-5 text-lg text-[color:var(--color-text-muted)]">
+        <p className="mt-5 text-lg text-[color:var(--color-ink-muted)]">
           Carl is a point of sale and stock system for shops with one counter or twenty. It keeps
           selling when the internet drops, and tells you what you actually made at the end of the
           day.
         </p>
-        <p className="mt-6 text-sm text-[color:var(--color-text-muted)]">
+        <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
           Already using Carl? Open the link your provider gave you.
         </p>
       </section>
@@ -79,30 +79,30 @@ export default async function HomePage() {
         ].map((feature) => (
           <div key={feature.title}>
             <h2 className="font-medium">{feature.title}</h2>
-            <p className="mt-2 text-sm text-[color:var(--color-text-muted)]">{feature.body}</p>
+            <p className="mt-2 text-sm text-[color:var(--color-ink-muted)]">{feature.body}</p>
           </div>
         ))}
       </section>
 
       <section className="mt-20 border-t border-[color:var(--color-border)] pt-10 sm:mt-28">
         <h2 className="text-xl font-medium">Getting started</h2>
-        <ol className="mt-4 space-y-3 text-sm text-[color:var(--color-text-muted)]">
+        <ol className="mt-4 space-y-3 text-sm text-[color:var(--color-ink-muted)]">
           <li>
-            <span className="font-medium text-[color:var(--color-text)]">1.</span> Your Carl
-            provider sets up your business and gives you a link and a four-digit PIN.
+            <span className="font-medium text-[color:var(--color-ink)]">1.</span> Your Carl provider
+            sets up your business and gives you a link and a four-digit PIN.
           </li>
           <li>
-            <span className="font-medium text-[color:var(--color-text)]">2.</span> Open the link,
+            <span className="font-medium text-[color:var(--color-ink)]">2.</span> Open the link,
             enter the PIN, and choose your own.
           </li>
           <li>
-            <span className="font-medium text-[color:var(--color-text)]">3.</span> Install Carl on
+            <span className="font-medium text-[color:var(--color-ink)]">3.</span> Install Carl on
             the counter machine to sell offline, or use it straight from a phone.
           </li>
         </ol>
       </section>
 
-      <footer className="mt-20 flex flex-wrap items-center justify-between gap-4 border-t border-[color:var(--color-border)] pt-8 text-sm text-[color:var(--color-text-muted)] sm:mt-28">
+      <footer className="mt-20 flex flex-wrap items-center justify-between gap-4 border-t border-[color:var(--color-border)] pt-8 text-sm text-[color:var(--color-ink-muted)] sm:mt-28">
         <span>Carl</span>
         <span>Already a customer? Open the address your business was given.</span>
       </footer>

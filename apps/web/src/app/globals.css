@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 
 /*
+ * @carl/ui is consumed as source from outside this app's directory, which Tailwind does not
+ * scan on its own. Declared so a class used only inside a shared component is generated
+ * whether or not a page happens to use it too.
+ */
+@source '../../../../packages/ui/src';
+
+/*
  * Carl's design tokens.
  *
  * A POS is used for eight-hour shifts under fluorescent light, and often on a cheap touch
@@ -36,6 +43,8 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    /* The grey flash a tap leaves on iOS and Android reads as a web page, not an app. */
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -43,6 +52,19 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    /* No rubber-band bounce of the whole window: the shell scrolls its content area only. */
+    overscroll-behavior: none;
+  }
+
+  /* Removes the double-tap-to-zoom delay, so a tap acts the moment the finger lifts. */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  summary {
+    touch-action: manipulation;
   }
 
   /* Money and stock figures must align vertically down a column to be scannable. */
@@ -55,5 +77,32 @@
   :focus-visible {
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
+  }
+}
+
+/*
+ * iOS zooms the whole page when a field under 16px takes focus, and does not zoom back out.
+ * Unlayered on purpose, so it wins over the text-sm utility on every input without
+ * !important.
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range']),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* The shell fixes its height to the screen; paper has no screen. */
+@media print {
+  [data-shell],
+  [data-shell] main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  [data-shell] nav,
+  [data-shell] aside,
+  [data-shell] > div > header {
+    display: none !important;
   }
 }

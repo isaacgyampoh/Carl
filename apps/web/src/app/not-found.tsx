@@ -13,9 +13,9 @@ export default function NotFound() {
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-[color:var(--color-text-muted)]">404</p>
+          <p className="text-sm font-medium text-[color:var(--color-ink-muted)]">404</p>
           <h1 className="text-lg font-medium">Page not found</h1>
-          <p className="text-sm text-[color:var(--color-text-muted)]">
+          <p className="text-sm text-[color:var(--color-ink-muted)]">
             The address may be mistyped, or the page has moved.
           </p>
         </div>

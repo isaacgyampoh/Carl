@@ -115,7 +115,7 @@ export default async function DevicesPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium">{d.name}</div>
-                      <div className="truncate text-sm text-[color:var(--color-text-muted)]">
+                      <div className="truncate text-sm text-[color:var(--color-ink-muted)]">
                         {d.tenantName} · {d.branchName}
                       </div>
                     </div>
@@ -124,7 +124,7 @@ export default async function DevicesPage({
                       {d.pendingActivation && <Badge tone="warning">Code issued</Badge>}
                     </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-text-muted)]">
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-ink-muted)]">
                     <span>last seen {when(d.lastSeenAt)}</span>
                     {d.activatedAt && <span>activated {when(d.activatedAt)}</span>}
                     {d.revokedAt && <span>revoked {when(d.revokedAt)}</span>}

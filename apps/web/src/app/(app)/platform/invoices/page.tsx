@@ -105,7 +105,7 @@ export default async function InvoicesPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium">{i.tenantName}</div>
-                      <div className="truncate text-sm text-[color:var(--color-text-muted)]">
+                      <div className="truncate text-sm text-[color:var(--color-ink-muted)]">
                         {i.invoiceNumber}
                       </div>
                     </div>
@@ -116,7 +116,7 @@ export default async function InvoicesPage({
                       <Badge tone={statusTone(i.status)}>{i.status}</Badge>
                     </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-text-muted)]">
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-ink-muted)]">
                     <span>
                       {date(i.periodStart)} – {date(i.periodEnd)}
                     </span>

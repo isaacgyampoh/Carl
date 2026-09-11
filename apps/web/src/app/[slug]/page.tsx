@@ -82,7 +82,7 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
         <InstallGate>
           <header className="mb-10 text-center">
             <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
-            <p className="mt-1 text-sm text-[color:var(--color-text-muted)]">
+            <p className="mt-1 text-sm text-[color:var(--color-ink-muted)]">
               Enter your 4-digit PIN
             </p>
           </header>

@@ -20,7 +20,7 @@ export const buttonClasses = cva(
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-brand)]',
     'disabled:pointer-events-none disabled:opacity-50',
     // Stops a double-tap from selecting the label text on a touch panel.
-    'select-none',
+    'select-none touch-manipulation',
   ],
   {
     variants: {
@@ -36,12 +36,14 @@ export const buttonClasses = cva(
         danger: 'bg-[color:var(--color-danger)] text-white hover:opacity-90',
         positive: 'bg-[color:var(--color-positive)] text-white hover:opacity-90',
       },
+      // On a touch screen the compact sizes grow to the 44px minimum a finger needs; a mouse
+      // keeps the desktop density.
       size: {
-        sm: 'h-8 px-3 text-sm',
-        md: 'h-10 px-4 text-sm',
+        sm: 'h-8 px-3 text-sm pointer-coarse:h-10',
+        md: 'h-10 px-4 text-sm pointer-coarse:h-11',
         lg: 'h-12 px-6 text-base',
         pos: 'h-14 px-6 text-lg font-semibold',
-        icon: 'size-10',
+        icon: 'size-10 pointer-coarse:size-12',
       },
       block: { true: 'w-full', false: '' },
     },

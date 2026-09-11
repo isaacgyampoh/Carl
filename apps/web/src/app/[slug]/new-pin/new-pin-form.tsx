@@ -85,7 +85,7 @@ export function NewPinForm({ tenantId }: { tenantId: string }) {
       >
         {busy ? 'Saving…' : 'Save my PIN'}
       </button>
-      <p className="text-center text-xs text-[color:var(--color-text-muted)]">
+      <p className="text-center text-xs text-[color:var(--color-ink-muted)]">
         Do not use 1234, 0000, or your year of birth.
       </p>
     </form>

@@ -29,7 +29,7 @@ export function BranchSwitcher({ tenant }: { tenant: TenantContext }) {
     <label className="flex min-w-0 items-center gap-2 text-sm">
       <span className="sr-only">Branch</span>
       <select
-        className="h-8 max-w-48 truncate rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-2 text-sm"
+        className="pointer-coarse:h-10 h-9 max-w-40 truncate rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-2 text-sm sm:max-w-48"
         value={tenant.activeBranchId ?? ''}
         disabled={pending}
         onChange={(event) => {

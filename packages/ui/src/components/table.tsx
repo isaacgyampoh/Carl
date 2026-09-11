@@ -10,8 +10,18 @@ import { cn } from '../cn';
  */
 export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto">
-      <table className={cn('w-full border-collapse text-sm', className)} {...props} />
+    <div className="w-full overflow-x-auto overscroll-x-contain">
+      <table
+        className={cn(
+          'w-full border-collapse text-sm',
+          // The first column (what the row IS) stays put while the rest scrolls, so a phone
+          // reading the fifth column still knows which sale or product it belongs to.
+          '[&_td:first-child]:sticky [&_td:first-child]:left-0 [&_td:first-child]:z-[1] [&_td:first-child]:bg-inherit',
+          '[&_th:first-child]:sticky [&_th:first-child]:left-0 [&_th:first-child]:z-[1] [&_th:first-child]:bg-inherit',
+          className,
+        )}
+        {...props}
+      />
     </div>
   );
 }
@@ -34,7 +44,8 @@ export function TR({ className, ...props }: HTMLAttributes<HTMLTableRowElement>)
     <tr
       className={cn(
         'border-b border-[color:var(--color-border)] last:border-0',
-        'hover:bg-[color:var(--color-surface-muted)]',
+        // Opaque, so the sticky first cell can inherit it rather than show content scrolling beneath.
+        'bg-[color:var(--color-surface)] hover:bg-[color:var(--color-surface-muted)]',
         className,
       )}
       {...props}
@@ -56,7 +67,7 @@ export function TH({
     <th
       scope="col"
       className={cn(
-        'px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)]',
+        'whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)] sm:px-4',
         numeric && 'text-right',
         className,
       )}
@@ -73,8 +84,8 @@ export function TD({
   return (
     <td
       className={cn(
-        'px-4 py-3 text-[color:var(--color-ink)]',
-        numeric && 'text-right tabular-nums',
+        'px-3 py-3 text-[color:var(--color-ink)] sm:px-4',
+        numeric && 'whitespace-nowrap text-right tabular-nums',
         className,
       )}
       {...props}

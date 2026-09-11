@@ -13,3 +13,4 @@ export * from './components/stat';
 export * from './components/badge';
 export * from './components/table';
 export * from './components/alert';
+export * from './icons';

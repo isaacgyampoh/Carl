@@ -32,7 +32,7 @@ export default async function NewPinPage({
       <div className="w-full max-w-sm">
         <header className="mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Choose your PIN</h1>
-          <p className="mt-2 text-sm text-[color:var(--color-text-muted)]">
+          <p className="mt-2 text-sm text-[color:var(--color-ink-muted)]">
             Pick four digits only you know. You will use these to sign in from now on.
           </p>
         </header>

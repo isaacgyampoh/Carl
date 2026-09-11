@@ -101,7 +101,7 @@ export default async function BillingPage() {
                     >
                       {tenant?.name ?? 'Unknown'}
                     </Link>
-                    <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                    <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                       {new Date(p.paid_at).toLocaleDateString('en-GB')} ·{' '}
                       {p.method.replace('_', ' ').toLowerCase()}
                       {p.reference ? ` · ${p.reference}` : ''}
@@ -164,7 +164,7 @@ function Section({
                 >
                   {client.name}
                 </Link>
-                <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                   {client.contactPerson ?? '—'}
                   {client.phone ? ` · ${client.phone}` : ''}
                 </span>
@@ -178,7 +178,7 @@ function Section({
                     {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d`}
                   </Badge>
                 ) : (
-                  <span className="text-sm text-[color:var(--color-text-muted)]">
+                  <span className="text-sm text-[color:var(--color-ink-muted)]">
                     in {days} {days === 1 ? 'day' : 'days'}
                   </span>
                 )}

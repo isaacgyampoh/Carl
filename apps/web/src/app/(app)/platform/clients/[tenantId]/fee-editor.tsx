@@ -25,7 +25,7 @@ export function FeeEditor({ tenantId, currentFee }: { tenantId: string; currentF
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
           Change monthly fee
         </Button>
-        {message && <span className="text-sm text-[color:var(--color-text-muted)]">{message}</span>}
+        {message && <span className="text-sm text-[color:var(--color-ink-muted)]">{message}</span>}
       </div>
     );
   }

@@ -75,21 +75,19 @@ export default async function SettingsPage() {
                       {!p.is_active && <Badge tone="neutral">Inactive</Badge>}
                     </div>
                     {p.description && (
-                      <p className="text-sm text-[color:var(--color-text-muted)]">
-                        {p.description}
-                      </p>
+                      <p className="text-sm text-[color:var(--color-ink-muted)]">{p.description}</p>
                     )}
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="tabular-nums">
                       {formatMoney(p.price, (p.currency_code as Currency) ?? Currency.GHS)}
                     </div>
-                    <div className="text-sm text-[color:var(--color-text-muted)]">
+                    <div className="text-sm text-[color:var(--color-ink-muted)]">
                       {p.interval.toLowerCase()}
                     </div>
                   </div>
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-text-muted)]">
+                <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-[color:var(--color-ink-muted)]">
                   <span>
                     {p.max_branches ? `${p.max_branches} branches` : 'Unlimited branches'}
                   </span>
@@ -119,13 +117,13 @@ export default async function SettingsPage() {
                 <li key={a.user_id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{profile?.full_name ?? '—'}</span>
-                    <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                    <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                       {profile?.email ?? a.user_id}
                     </span>
                   </span>
                   <time
                     dateTime={a.granted_at}
-                    className="shrink-0 text-sm text-[color:var(--color-text-muted)]"
+                    className="shrink-0 text-sm text-[color:var(--color-ink-muted)]"
                   >
                     {new Date(a.granted_at).toLocaleDateString('en-GB')}
                   </time>
@@ -140,7 +138,7 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader title="What a platform administrator cannot do" />
-        <div className="space-y-2 p-4 text-sm text-[color:var(--color-text-muted)]">
+        <div className="space-y-2 p-4 text-sm text-[color:var(--color-ink-muted)]">
           <p>
             Platform access covers the commercial relationship — clients, branches, terminals,
             subscriptions, billing and platform activity. It does not include any customer&apos;s

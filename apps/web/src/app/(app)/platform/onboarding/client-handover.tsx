@@ -92,7 +92,7 @@ export function ClientHandover({
             </div>
             {/* Said plainly, because it is true and it is the one thing the owner must not
                 assume they can look up later. */}
-            <p className="text-sm text-[color:var(--color-text-muted)]">
+            <p className="text-sm text-[color:var(--color-ink-muted)]">
               Shown once. Carl stores it hashed, so it cannot be read back — write it down or read
               it to {ownerEmail} now. Carl will ask them to choose their own the first time they
               sign in.
@@ -116,7 +116,7 @@ export function ClientHandover({
             >
               <span className="min-w-0">
                 <span className="block font-medium">Carl for {d.platform}</span>
-                <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                   {d.note}
                 </span>
               </span>
@@ -125,14 +125,14 @@ export function ClientHandover({
                   Download
                 </a>
               ) : (
-                <span className="shrink-0 rounded-full bg-[color:var(--color-surface-muted)] px-3 py-1 text-sm text-[color:var(--color-text-muted)]">
+                <span className="shrink-0 rounded-full bg-[color:var(--color-surface-muted)] px-3 py-1 text-sm text-[color:var(--color-ink-muted)]">
                   Not yet available
                 </span>
               )}
             </li>
           ))}
         </ul>
-        <p className="text-sm text-[color:var(--color-text-muted)]">
+        <p className="text-sm text-[color:var(--color-ink-muted)]">
           The web application works in any browser meanwhile, including on a phone. The desktop till
           is what keeps selling when the internet does not.
         </p>
@@ -140,7 +140,7 @@ export function ClientHandover({
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Setting up their terminal</h3>
-        <p className="text-sm text-[color:var(--color-text-muted)]">
+        <p className="text-sm text-[color:var(--color-ink-muted)]">
           Open {businessName} below, add a terminal for {branchName}, and issue an activation code.
           The code is shown once — read it to them, and they enter it on the till.
         </p>
@@ -153,7 +153,7 @@ export function ClientHandover({
           ['Next billing', new Date(nextBillingAt).toLocaleDateString('en-GB')],
         ].map(([label, value]) => (
           <div key={label}>
-            <dt className="text-sm text-[color:var(--color-text-muted)]">{label}</dt>
+            <dt className="text-sm text-[color:var(--color-ink-muted)]">{label}</dt>
             <dd className="font-medium">{value}</dd>
           </div>
         ))}

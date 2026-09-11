@@ -41,7 +41,7 @@ export default async function PlatformSignInPage() {
             <header className="mb-12 text-center">
               <div className="text-2xl font-semibold tracking-tight">Carl</div>
               <h1 className="mt-8 text-lg font-medium">Owner</h1>
-              <p className="mt-1.5 text-sm text-[color:var(--color-text-muted)]">
+              <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
                 Enter your 4-digit PIN to continue
               </p>
             </header>
@@ -49,9 +49,7 @@ export default async function PlatformSignInPage() {
           </InstallGate>
         </div>
       </div>
-      <footer className="pb-8 text-center text-xs text-[color:var(--color-text-muted)]">
-        Carl
-      </footer>
+      <footer className="pb-8 text-center text-xs text-[color:var(--color-ink-muted)]">Carl</footer>
     </main>
   );
 }

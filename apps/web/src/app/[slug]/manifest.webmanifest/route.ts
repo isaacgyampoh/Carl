@@ -45,9 +45,24 @@ export async function GET(
       background_color: '#ffffff',
       theme_color: '#ffffff',
       categories: ['business', 'productivity', 'finance'],
+      // PNGs first: iOS ignores SVG home-screen icons, and Android builds its installed app
+      // from raster sizes. The SVG stays for browsers that prefer it.
       icons: [
+        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        {
+          src: '/icons/icon-maskable-192.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+        {
+          src: '/icons/icon-maskable-512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
         { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-        { src: '/icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
       ],
     },
     {

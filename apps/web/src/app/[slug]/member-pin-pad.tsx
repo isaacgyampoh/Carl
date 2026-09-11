@@ -133,7 +133,7 @@ export function MemberPinPad({ slug }: { slug: string }) {
 
       <div className="min-h-16 text-center" role="status" aria-live="polite">
         {status === 'checking' && (
-          <span className="text-sm text-[color:var(--color-text-muted)]">Checking…</span>
+          <span className="text-sm text-[color:var(--color-ink-muted)]">Checking…</span>
         )}
         {error && (
           <div className="space-y-3">

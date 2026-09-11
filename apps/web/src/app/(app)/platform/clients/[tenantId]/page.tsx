@@ -158,7 +158,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
               ['Client ID', tenant.id],
             ].map(([label, value]) => (
               <div key={label} className="min-w-0">
-                <dt className="text-[color:var(--color-text-muted)]">{label}</dt>
+                <dt className="text-[color:var(--color-ink-muted)]">{label}</dt>
                 <dd className="break-words font-medium">{value}</dd>
               </div>
             ))}
@@ -173,7 +173,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
                 <li key={b.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{b.name}</span>
-                    <span className="text-sm text-[color:var(--color-text-muted)]">{b.code}</span>
+                    <span className="text-sm text-[color:var(--color-ink-muted)]">{b.code}</span>
                   </span>
                   <Badge tone={b.is_active ? 'positive' : 'neutral'}>
                     {b.is_active ? 'Active' : 'Closed'}
@@ -194,7 +194,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
                 <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{d.name}</span>
-                    <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                    <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                       {branchName.get(d.branch_id) ?? '—'} · last seen {date(d.last_seen_at)}
                     </span>
                   </span>
@@ -222,7 +222,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
                       <span className="block truncate font-medium">
                         {profile?.full_name ?? '—'}
                       </span>
-                      <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                      <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                         {profile?.email ?? ''}
                       </span>
                     </span>
@@ -251,7 +251,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
                 <li key={i.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{i.invoice_number}</span>
-                    <span className="text-sm text-[color:var(--color-text-muted)]">
+                    <span className="text-sm text-[color:var(--color-ink-muted)]">
                       due {date(i.due_at)}
                     </span>
                   </span>
@@ -275,7 +275,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
                 <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block font-medium">{date(p.paid_at)}</span>
-                    <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                    <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                       {p.method.replace('_', ' ').toLowerCase()}
                       {p.reference ? ` · ${p.reference}` : ''}
                     </span>
@@ -297,7 +297,7 @@ export default async function ClientPage({ params }: { params: Promise<{ tenantI
             {activity.data.map((a) => (
               <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <span className="font-medium">{a.action.replace(/_/g, ' ').toLowerCase()}</span>
-                <span className="shrink-0 text-[color:var(--color-text-muted)]">
+                <span className="shrink-0 text-[color:var(--color-ink-muted)]">
                   {new Date(a.occurred_at).toLocaleString('en-GB', {
                     day: 'numeric',
                     month: 'short',

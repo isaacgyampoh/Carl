@@ -14,7 +14,7 @@ import {
   updateQuantity,
 } from '@carl/domain';
 import { formatMoney, formatQuantity, newIdempotencyKey } from '@carl/shared';
-import { Alert, Button } from '@carl/ui';
+import { Alert, Button, cn } from '@carl/ui';
 
 import { completeSale, searchProducts, type SearchResult } from '@/server/pos-actions';
 import { PaymentPanel } from './payment-panel';
@@ -65,7 +65,18 @@ export function PosTerminal({
     change: number;
   } | null>(null);
 
+  // Phones only: the basket is a sheet over the search rather than a column beside it.
+  const [basketOpen, setBasketOpen] = useState(false);
+
   const searchRef = useRef<HTMLInputElement>(null);
+  /*
+   * Whether this till is worked from a keyboard or scanner rather than a finger.
+   *
+   * Decided once on mount. On a touch-only screen, focusing the search field raises the
+   * on-screen keyboard over half the till after every tap; there, a scanner's keystrokes are
+   * routed into the search by the key listener instead.
+   */
+  const keyboardFirst = useRef(true);
   /*
    * The idempotency key for the sale currently being paid for, held across retries.
    *
@@ -101,7 +112,8 @@ export function PosTerminal({
    * Called after every action that could have moved it. A scanner types into whatever has
    * focus, so this is what keeps scanning working at all.
    */
-  const focusSearch = useCallback(() => {
+  const focusSearch = useCallback((force = false) => {
+    if (!force && !keyboardFirst.current) return;
     searchRef.current?.focus();
     searchRef.current?.select();
   }, []);
@@ -178,22 +190,51 @@ export function PosTerminal({
   // barcode being typed into the search field.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable === true;
+
+      // Printable keys with nothing focused (a scanner, or a keyboard after tapping the
+      // basket) belong to the search. A touch till leaves the field unfocused on purpose.
+      if (
+        !typing &&
+        !paying &&
+        !receipt &&
+        event.key.length === 1 &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        setQuery((current) => current + event.key);
+        return;
+      }
+
       if (event.key === 'F2') {
         event.preventDefault();
-        focusSearch();
+        focusSearch(true);
       } else if (event.key === 'F4' && cart.lines.length > 0) {
         event.preventDefault();
         openPayment();
       } else if (event.key === 'Escape') {
         closePayment();
+        setBasketOpen(false);
         focusSearch();
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cart.lines.length, focusSearch, openPayment, closePayment]);
+  }, [cart.lines.length, focusSearch, openPayment, closePayment, paying, receipt]);
 
-  useEffect(focusSearch, [focusSearch]);
+  useEffect(() => {
+    keyboardFirst.current =
+      window.matchMedia('(any-pointer: fine)').matches ||
+      !window.matchMedia('(pointer: coarse)').matches;
+    focusSearch();
+  }, [focusSearch]);
 
   async function onPay(payments: { method: string; amount: number; reference?: string }[]) {
     setError(null);
@@ -263,10 +304,11 @@ export function PosTerminal({
     });
     setCart((current) => clearCart(current));
     setPaying(false);
+    setBasketOpen(false);
   }
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-4 lg:h-[calc(100dvh-6.5rem)] lg:flex-row">
+    <div className="flex h-full min-h-[24rem] flex-col gap-3 md:flex-row md:gap-4">
       {/* Search and results */}
       <section className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="flex items-center gap-2">
@@ -274,6 +316,8 @@ export function PosTerminal({
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            type="search"
+            enterKeyHint="search"
             placeholder="Scan a barcode or search by name or SKU"
             aria-label="Scan or search for a product"
             autoComplete="off"
@@ -302,7 +346,7 @@ export function PosTerminal({
               <p className="text-sm text-[color:var(--color-ink-muted)]">
                 {searching ? 'Searching…' : 'Scan an item, or type to search.'}
               </p>
-              <p className="text-xs text-[color:var(--color-ink-muted)]">
+              <p className="pointer-fine:block hidden text-xs text-[color:var(--color-ink-muted)]">
                 F2 search · F4 pay · Esc cancel
               </p>
             </div>
@@ -313,7 +357,7 @@ export function PosTerminal({
                   <button
                     type="button"
                     onClick={() => addProduct(result)}
-                    className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-[color:var(--color-surface-muted)]"
+                    className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-surface-muted)]"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{result.name}</span>
@@ -338,24 +382,45 @@ export function PosTerminal({
       </section>
 
       {/* Cart */}
-      <section className="flex min-h-0 w-full flex-col rounded-[var(--radius-card)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] lg:w-[26rem]">
+      <section
+        aria-label="Basket"
+        className={cn(
+          'min-h-0 flex-col border-[color:var(--color-border)] bg-[color:var(--color-surface)]',
+          // A column beside the search from tablet width up. On a phone, a full-screen sheet
+          // opened from the basket bar, so the search results keep the screen.
+          'md:flex md:w-80 md:rounded-[var(--radius-card)] md:border lg:w-[26rem]',
+          basketOpen
+            ? 'fixed inset-0 z-40 flex pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] md:static md:z-auto md:p-0'
+            : 'hidden',
+        )}
+      >
         <header className="flex items-center justify-between border-b border-[color:var(--color-border)] px-4 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{branchName}</p>
             <p className="truncate text-xs text-[color:var(--color-ink-muted)]">{cashierName}</p>
           </div>
-          {cart.lines.length > 0 && (
+          <div className="flex shrink-0 items-center gap-1">
+            {cart.lines.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCart(clearCart);
+                  focusSearch();
+                }}
+              >
+                Clear
+              </Button>
+            )}
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
-              onClick={() => {
-                setCart(clearCart);
-                focusSearch();
-              }}
+              className="md:hidden"
+              onClick={() => setBasketOpen(false)}
             >
-              Clear
+              Done
             </Button>
-          )}
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -383,7 +448,7 @@ export function PosTerminal({
                           setCart((c) => removeFromCart(c, line.productId));
                           focusSearch();
                         }}
-                        className="shrink-0 text-sm text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-danger)]"
+                        className="-mr-2 shrink-0 rounded-md px-2 py-1.5 text-sm text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-danger)] active:bg-[color:var(--color-surface-muted)]"
                       >
                         Remove
                       </button>
@@ -459,6 +524,31 @@ export function PosTerminal({
           </Button>
         </footer>
       </section>
+
+      {/* A phone's way to the basket, in thumb reach under the results. */}
+      <div className="flex shrink-0 items-center gap-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => setBasketOpen(true)}
+          className="flex h-14 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-4 text-left active:bg-[color:var(--color-surface-muted)]"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">Basket</span>
+            <span className="block truncate text-xs text-[color:var(--color-ink-muted)]">
+              {cart.lines.length === 0
+                ? 'Empty'
+                : `${cart.lines.length} ${cart.lines.length === 1 ? 'item' : 'items'}`}
+              {short.length > 0 && ' · check stock'}
+            </span>
+          </span>
+          <span className="shrink-0 text-lg font-semibold tabular-nums">
+            {formatMoney(totals.total)}
+          </span>
+        </button>
+        <Button size="pos" disabled={cart.lines.length === 0} onClick={openPayment}>
+          Pay
+        </Button>
+      </div>
 
       {paying && (
         <PaymentPanel

@@ -118,7 +118,7 @@ export default async function PlatformPage() {
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{c.name}</span>
-                      <span className="block truncate text-sm text-[color:var(--color-text-muted)]">
+                      <span className="block truncate text-sm text-[color:var(--color-ink-muted)]">
                         {c.planName ?? 'No plan'}
                         {c.price != null ? ` · ${money(c.price)}` : ''}
                       </span>
