@@ -142,18 +142,29 @@ const chrome = spawn(
     `--user-data-dir=${mkdtempSync(join(tmpdir(), 'carl-e2e-'))}`,
     '--no-first-run',
     '--no-default-browser-check',
+    // A CI runner has no user namespace to sandbox into, and /dev/shm is too small there.
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
     'about:blank',
   ],
   { stdio: ['ignore', 'ignore', 'pipe'] },
 );
 const ws = new WebSocket(
-  await new Promise((res) => {
-    let b = '';
-    chrome.stderr.on('data', (d) => {
-      b += d;
-      const m = /DevTools listening on (ws:\S+)/.exec(b);
-      if (m) res(m[1]);
+  await new Promise((res, rej) => {
+    let output = '';
+    chrome.stderr.on('data', (chunk) => {
+      output += chunk;
+      const found = /DevTools listening on (ws:\S+)/.exec(output);
+      if (found) res(found[1]);
     });
+    chrome.on('exit', (code) =>
+      rej(new Error(`the browser exited (${code}): ${output.slice(-400)}`)),
+    );
+    // Without this the run hangs on an unsettled await and says nothing about why.
+    setTimeout(
+      () => rej(new Error(`the browser did not start within 30s: ${output.slice(-400)}`)),
+      30_000,
+    );
   }),
 );
 await new Promise((r) => ws.addEventListener('open', r));
