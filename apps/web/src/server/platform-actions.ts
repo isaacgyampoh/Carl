@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { createLogger } from '@carl/shared';
+import { createLogger, ErrorCode } from '@carl/shared';
 import { z } from '@carl/validation';
 
 import { requirePlatformAdmin } from '@/lib/auth';
@@ -34,7 +34,17 @@ const onboardSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/, 'Use lowercase letters, numbers and hyphens.'),
   ownerEmail: z.email(),
   ownerName: z.string().trim().min(2).max(120),
-  planId: z.uuid(),
+  /*
+   * Optional, and resolved server-side when absent.
+   *
+   * Every customer is on the same terms today, so requiring the owner to choose is asking a
+   * question with one possible answer — and it was worse than pointless: the form defaulted
+   * the selector to `plans[0]?.id ?? ''`, which fails `z.uuid()`, so with no plans seeded the
+   * form failed its own validation and onboarding appeared to do nothing.
+   *
+   * The field stays so real plans are an insert later rather than a schema change.
+   */
+  planId: z.uuid().optional(),
   branchName: z.string().trim().min(2).max(80).default('Main Branch'),
   branchCode: z.string().trim().min(1).max(20).default('main'),
   contactPerson: z.string().trim().max(120).optional(),
@@ -108,13 +118,42 @@ export async function onboardClient(input: unknown): Promise<ActionResult<Onboar
     if (!ownerUserId) throw new Error('Could not resolve an owner account for this business.');
 
     const client = await supabase();
+
+    /*
+     * The plan. Chosen explicitly if the caller said so, otherwise the standard one.
+     *
+     * Resolved here rather than in the browser so onboarding cannot be blocked by an empty
+     * dropdown, and so a caller that does not care about billing does not have to know that
+     * billing exists.
+     */
+    let planId = parsed.planId;
+    if (!planId) {
+      const { data: plan } = await client
+        .from('subscription_plans')
+        .select('id')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      planId = plan?.id;
+      if (!planId) {
+        return {
+          ok: false,
+          code: ErrorCode.VALIDATION_FAILED,
+          message:
+            'No subscription plan is configured, so a business cannot be created yet. Apply ' +
+            'the standard-plan migration and try again.',
+        };
+      }
+    }
+
     const { data, error } = await client.rpc('onboard_client', {
       p_business_name: parsed.businessName,
       p_slug: parsed.slug,
       p_owner_email: parsed.ownerEmail,
       p_owner_name: parsed.ownerName,
       p_owner_user_id: ownerUserId,
-      p_plan_id: parsed.planId,
+      p_plan_id: planId,
       p_branch_name: parsed.branchName,
       p_branch_code: parsed.branchCode,
       p_contact_person: parsed.contactPerson ?? undefined,

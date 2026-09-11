@@ -3,7 +3,6 @@ import { Card, CardHeader } from '@carl/ui';
 
 import { PageHeader } from '@/components/page-header';
 import { requirePlatformAdmin } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 import { clientAppUrl, desktopDownloads } from '@/lib/downloads';
 import { OnboardingForm } from './onboarding-form';
 
@@ -12,12 +11,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function OnboardingPage() {
   await requirePlatformAdmin();
-  const client = await supabase();
-  const { data: plans } = await client
-    .from('subscription_plans')
-    .select('id, key, name, price, interval, currency_code, max_branches, max_devices')
-    .eq('is_active', true)
-    .order('sort_order');
 
   return (
     <div className="space-y-4">
@@ -30,11 +23,7 @@ export default async function OnboardingPage() {
           title="New business"
           description="Everything here is created together. If anything fails, nothing is created."
         />
-        <OnboardingForm
-          plans={plans ?? []}
-          appUrl={clientAppUrl()}
-          downloads={desktopDownloads()}
-        />
+        <OnboardingForm appUrl={clientAppUrl()} downloads={desktopDownloads()} />
       </Card>
     </div>
   );

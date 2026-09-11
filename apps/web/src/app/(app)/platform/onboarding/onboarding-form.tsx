@@ -5,22 +5,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from '@carl/validation';
 import { Alert, Field, buttonClasses } from '@carl/ui';
-import { Currency, formatMoney } from '@carl/shared';
 
 import type { DownloadTarget } from '@/lib/downloads';
 import { onboardClient, type OnboardedClient } from '@/server/platform-actions';
 import { ClientHandover } from './client-handover';
-
-export interface PlanOption {
-  id: string;
-  key: string;
-  name: string;
-  price: number;
-  interval: string;
-  currency_code: string;
-  max_branches: number | null;
-  max_devices: number | null;
-}
 
 /**
  * The form mirrors the server action's schema rather than restating it loosely: a field
@@ -36,7 +24,6 @@ const schema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/, 'Lowercase letters, numbers and hyphens.'),
   ownerName: z.string().trim().min(2, "The owner's name is required.").max(120),
   ownerEmail: z.email('A valid email is required — the owner signs in with it.'),
-  planId: z.uuid('Choose a plan.'),
   branchName: z.string().trim().min(2).max(80).default('Main Branch'),
   branchCode: z.string().trim().min(1).max(20).default('main'),
   contactPerson: z.string().trim().max(120).optional(),
@@ -51,11 +38,9 @@ type FormValues = z.input<typeof schema>;
 type FormOutput = z.output<typeof schema>;
 
 export function OnboardingForm({
-  plans,
   appUrl,
   downloads,
 }: {
-  plans: PlanOption[];
   appUrl: string;
   downloads: DownloadTarget[];
 }) {
@@ -69,7 +54,6 @@ export function OnboardingForm({
       branchCode: 'main',
       trialDays: 14,
       graceDays: 7,
-      planId: plans[0]?.id ?? '',
     },
   });
 
@@ -80,8 +64,6 @@ export function OnboardingForm({
     setValue,
     formState: { errors, isSubmitting },
   } = form;
-
-  const plan = plans.find((p) => p.id === watch('planId'));
 
   async function submit(values: FormOutput) {
     setFailure(null);
@@ -195,31 +177,10 @@ export function OnboardingForm({
       </fieldset>
 
       <fieldset className="space-y-4">
-        <legend className="text-sm font-medium">Subscription</legend>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="planId" className="text-sm font-medium">
-            Plan
-          </label>
-          <select id="planId" {...register('planId')} className={inputClass}>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {formatMoney(p.price, (p.currency_code as Currency) ?? Currency.GHS)} /{' '}
-                {p.interval.toLowerCase()}
-              </option>
-            ))}
-          </select>
-          {errors.planId?.message && (
-            <p role="alert" className="text-sm text-[color:var(--color-danger)]">
-              {errors.planId.message}
-            </p>
-          )}
-        </div>
-        {plan && (
-          <p className="text-sm text-[color:var(--color-text-muted)]">
-            {plan.max_branches ? `Up to ${plan.max_branches} branches` : 'Unlimited branches'} ·{' '}
-            {plan.max_devices ? `${plan.max_devices} terminals` : 'Unlimited terminals'}
-          </p>
-        )}
+        {/* Every customer is on the same terms while payment is collected directly, so there
+            is no plan to choose. The server resolves the standard plan; the subscription
+            columns still exist, so real plans later are an insert rather than a rewrite. */}
+        <legend className="text-sm font-medium">Trial and billing</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Trial days"
