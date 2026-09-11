@@ -20,7 +20,7 @@ interface MembershipRow {
   job_title: string | null;
   profiles: { full_name: string } | null;
   membership_roles: { roles: { name: string; key: string; rank: number } | null }[];
-  membership_branches: { branches: { name: string } | null }[];
+  membership_branches: { branch_id: string; branches: { name: string } | null }[];
 }
 
 interface RoleRow {
@@ -49,7 +49,7 @@ export default async function StaffPage() {
         `id, user_id, status, is_owner, job_title,
          profiles(full_name),
          membership_roles(roles(name, key, rank)),
-         membership_branches(branches(name))`,
+         membership_branches(branch_id, branches(name))`,
       )
       .eq('tenant_id', auth.tenant.tenantId)
       .neq('status', 'REMOVED')
@@ -166,6 +166,8 @@ export default async function StaffPage() {
                             status={member.status}
                             currentRoleKey={member.membership_roles[0]?.roles?.key ?? null}
                             roles={grantable}
+                            branches={auth.tenant.branches.map((b) => ({ id: b.id, name: b.name }))}
+                            currentBranchIds={member.membership_branches.map((b) => b.branch_id)}
                           />
                         ) : (
                           <span className="text-xs text-[color:var(--color-ink-muted)]">—</span>

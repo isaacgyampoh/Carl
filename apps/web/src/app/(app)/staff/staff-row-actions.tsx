@@ -4,12 +4,17 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Button, Field } from '@carl/ui';
 
-import { formText } from '@/lib/form-data';
+import { formText, formTexts } from '@/lib/form-data';
 import { inputClass } from '@/components/form';
-import { resetStaffPin, setStaffRole, setStaffStatus } from '@/server/staff-actions';
-import type { RoleOption } from './add-staff-form';
+import {
+  resetStaffPin,
+  setStaffBranches,
+  setStaffRole,
+  setStaffStatus,
+} from '@/server/staff-actions';
+import type { BranchOption, RoleOption } from './add-staff-form';
 
-type Panel = 'role' | 'pin' | null;
+type Panel = 'role' | 'branches' | 'pin' | null;
 
 /**
  * Changing one member of staff.
@@ -23,11 +28,16 @@ export function StaffRowActions({
   status,
   currentRoleKey,
   roles,
+  branches,
+  currentBranchIds,
 }: {
   membershipId: string;
   status: string;
   currentRoleKey: string | null;
   roles: RoleOption[];
+  branches: BranchOption[];
+  /** Empty means every branch. */
+  currentBranchIds: string[];
 }) {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
@@ -48,17 +58,20 @@ export function StaffRowActions({
     });
   }
 
+  const toggle = (next: Panel) => setPanel(panel === next ? null : next);
+
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap justify-end gap-1.5">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setPanel(panel === 'role' ? null : 'role')}
-        >
+        <Button size="sm" variant="ghost" onClick={() => toggle('role')}>
           Role
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setPanel(panel === 'pin' ? null : 'pin')}>
+        {branches.length > 1 && (
+          <Button size="sm" variant="ghost" onClick={() => toggle('branches')}>
+            Branches
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => toggle('pin')}>
           Reset PIN
         </Button>
         {status === 'ACTIVE' ? (
@@ -106,6 +119,40 @@ export function StaffRowActions({
               </option>
             ))}
           </select>
+          <Button size="sm" type="submit" loading={pending}>
+            Save
+          </Button>
+        </form>
+      )}
+
+      {panel === 'branches' && (
+        <form
+          className="flex flex-col items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const branchIds = formTexts(new FormData(event.currentTarget), 'branchIds');
+            run(
+              () => setStaffBranches({ membershipId, branchIds }),
+              branchIds.length === 0 ? 'Can now work at every branch.' : 'Branches updated.',
+            );
+          }}
+        >
+          <p className="text-xs text-[color:var(--color-ink-muted)]">
+            Leave all unticked to allow every branch.
+          </p>
+          <div className="flex flex-wrap justify-end gap-3">
+            {branches.map((branch) => (
+              <label key={branch.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="branchIds"
+                  value={branch.id}
+                  defaultChecked={currentBranchIds.includes(branch.id)}
+                />
+                {branch.name}
+              </label>
+            ))}
+          </div>
           <Button size="sm" type="submit" loading={pending}>
             Save
           </Button>
