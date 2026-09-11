@@ -27,7 +27,8 @@ env:
   # Public by design: the anon key grants nothing on its own because RLS decides what a
   # signed-in user may do. No service-role key, database URL or device pepper is available
   # to this workflow, and verify-desktop-bundle.mjs fails the build if one appears.
-  VITE_CARL_URL: https://carl-red.vercel.app
+  # The shops' address. carl-red.vercel.app still serves, for tills installed before the domain.
+  VITE_CARL_URL: https://thecarl.cc
   VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
   VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
 

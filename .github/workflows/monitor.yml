@@ -23,7 +23,7 @@ jobs:
         id: live
         run: |
           set +e
-          code=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 20 "${{ vars.CARL_APP_URL || 'https://carl-red.vercel.app' }}/api/health")
+          code=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 20 "${{ vars.CARL_APP_URL || 'https://thecarl.cc' }}/api/health")
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "Health endpoint answered HTTP $code"
           [ "$code" = "200" ] || echo "failed=liveness" >> "$GITHUB_OUTPUT"
@@ -36,7 +36,7 @@ jobs:
           set +e
           code=$(curl -s -o /tmp/monitor.json -w '%{http_code}' --max-time 20 \
             -H "authorization: Bearer ${{ secrets.CARL_MONITOR_TOKEN }}" \
-            "${{ vars.CARL_APP_URL || 'https://carl-red.vercel.app' }}/api/monitor")
+            "${{ vars.CARL_APP_URL || 'https://thecarl.cc' }}/api/monitor")
           if [ "$code" != "200" ]; then
             echo "Monitoring endpoint answered HTTP $code"
             echo "skipped=1" >> "$GITHUB_OUTPUT"

@@ -29,7 +29,7 @@ const env = import.meta.env as unknown as DesktopEnv;
  * The Tauri CSP must be changed to match: connect-src confines the WebView to named
  * origins, so a build pointed elsewhere without that change has every request blocked.
  */
-export const CARL_URL: string = env.VITE_CARL_URL ?? 'https://carl-red.vercel.app';
+export const CARL_URL: string = env.VITE_CARL_URL ?? 'https://thecarl.cc';
 
 /** Reported at activation so an estate can be audited for out-of-date terminals. */
 export const APP_VERSION: string = env.VITE_APP_VERSION ?? '0.2.0';

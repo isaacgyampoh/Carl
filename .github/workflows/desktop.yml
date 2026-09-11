@@ -43,7 +43,7 @@ env:
   # What is NOT here, and must never be: the service-role key, the database URL and the
   # device-secret pepper. verify-desktop-bundle.mjs fails the build if any of them appears
   # in a bundle, so this is enforced rather than trusted.
-  VITE_CARL_URL: https://carl-red.vercel.app
+  VITE_CARL_URL: https://thecarl.cc
   VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://unset.supabase.co' }}
   # Supplied by a repository variable, not committed.
   #
