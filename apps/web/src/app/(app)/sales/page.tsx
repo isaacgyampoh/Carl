@@ -18,7 +18,9 @@ import {
 } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -46,13 +48,14 @@ export default async function SalesPage({
   const auth = await requirePermission(Permission.SALES_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
 
   const client = await supabase();
 
   // RLS decides which sales are visible: sales.view shows your own, sales.view_all shows
   // the branch's. The tenant filter is not the control either; it keeps someone who works
   // for two businesses looking at the one they chose.
-  const { data, count } = await client
+  let query = client
     .from('sales')
     .select(
       `id, sale_number, status, total, amount_refunded, sold_at, is_offline_sale,
@@ -61,8 +64,9 @@ export default async function SalesPage({
     )
     .eq('tenant_id', auth.tenant.tenantId)
     .order('sold_at', { ascending: false })
-    .range(from, to)
-    .returns<SaleRow[]>();
+    .range(from, to);
+  if (search) query = query.or(ilikeAny(['sale_number'], search));
+  const { data, count } = await query.returns<SaleRow[]>();
 
   const sales = toPage(data, count, page, pageSize);
 
@@ -73,10 +77,18 @@ export default async function SalesPage({
         description="Newest first. A sale is never deleted — it is voided or returned, and both are recorded."
       />
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by sale number"
+          label="Search sales"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         {sales.rows.length === 0 ? (
           <EmptyState
-            title="No sales yet"
+            title={search ? `Nothing matches “${search}”` : 'No sales yet'}
             description="Completed sales appear here as soon as they are taken."
             action={
               hasPermission(auth, Permission.SALES_CREATE) ? (

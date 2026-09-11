@@ -6,7 +6,9 @@ import { hasPermission } from '@carl/application';
 import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, buttonClasses } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -32,17 +34,19 @@ export default async function SuppliersPage({
   const auth = await requirePermission(Permission.SUPPLIERS_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
 
   const client = await supabase();
-  const { data, count } = await client
+  let query = client
     .from('suppliers')
     .select('id, name, contact_name, phone, payment_terms_days, balance, is_active', {
       count: 'exact',
     })
     .eq('tenant_id', auth.tenant.tenantId)
     .order('name')
-    .range(from, to)
-    .returns<SupplierRow[]>();
+    .range(from, to);
+  if (search) query = query.or(ilikeAny(['name', 'contact_name', 'phone'], search));
+  const { data, count } = await query.returns<SupplierRow[]>();
 
   const suppliers = toPage(data, count, page, pageSize);
 
@@ -60,10 +64,18 @@ export default async function SuppliersPage({
         }
       />
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by name, contact or phone"
+          label="Search suppliers"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         {suppliers.rows.length === 0 ? (
           <EmptyState
-            title="No suppliers recorded"
+            title={search ? `Nothing matches “${search}”` : 'No suppliers recorded'}
             description="Add a supplier before recording a purchase."
           />
         ) : (

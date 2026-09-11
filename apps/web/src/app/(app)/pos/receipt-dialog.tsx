@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import { formatMoney } from '@carl/shared';
+import type { ReceiptData } from '@carl/domain';
 import { Button } from '@carl/ui';
+
+import { PrintableReceipt } from '@/components/receipt';
 
 /**
  * Confirmation after a completed sale.
@@ -16,11 +19,14 @@ import { Button } from '@carl/ui';
  */
 export function ReceiptDialog({
   receipt,
+  printData,
   branchName,
   cashierName,
   onClose,
 }: {
   receipt: { saleNumber: string; total: number; paid: number; change: number };
+  /** The full receipt, printed by the Print button: items, payments, business details. */
+  printData: ReceiptData;
   branchName: string;
   cashierName: string;
   onClose: () => void;
@@ -48,6 +54,7 @@ export function ReceiptDialog({
       aria-label="Sale completed"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
     >
+      <PrintableReceipt data={printData} />
       <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-surface)] p-6 text-center">
         <p className="text-sm font-medium text-[color:var(--color-positive)]">Sale completed</p>
         <p className="mt-1 font-mono text-sm text-[color:var(--color-ink-muted)]">

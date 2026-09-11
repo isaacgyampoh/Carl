@@ -95,6 +95,19 @@
 
 /* The shell fixes its height to the screen; paper has no screen. */
 @media print {
+  /* A receipt printing: that and nothing else, on the width of a thermal roll. */
+  body:has(> [data-receipt-print]) > :not([data-receipt-print]) {
+    display: none !important;
+  }
+  [data-receipt-print] pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.35;
+    color: #000;
+    white-space: pre;
+  }
+
   [data-shell],
   [data-shell] main {
     height: auto !important;

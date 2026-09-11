@@ -5,7 +5,9 @@ import { formatMoney } from '@carl/shared';
 import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, statusTone } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -35,12 +37,13 @@ export default async function ExpensesPage({
   const auth = await requirePermission(Permission.EXPENSES_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
   const canApprove = hasPermission(auth, Permission.EXPENSES_APPROVE);
   const canRecord = hasPermission(auth, Permission.EXPENSES_CREATE);
   const branch = activeBranch(auth);
 
   const client = await supabase();
-  const { data, count } = await client
+  let query = client
     .from('expenses')
     .select(
       `id, reference, description, amount, method, status, expense_date,
@@ -50,8 +53,9 @@ export default async function ExpensesPage({
     // RLS confines this to businesses the caller belongs to; this, to the one being worked in.
     .eq('tenant_id', auth.tenant.tenantId)
     .order('expense_date', { ascending: false })
-    .range(from, to)
-    .returns<ExpenseRow[]>();
+    .range(from, to);
+  if (search) query = query.or(ilikeAny(['description', 'reference'], search));
+  const { data, count } = await query.returns<ExpenseRow[]>();
 
   const { data: categories } =
     canRecord && branch
@@ -88,10 +92,18 @@ export default async function ExpensesPage({
         </div>
       )}
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by description or reference"
+          label="Search expenses"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         {expenses.rows.length === 0 ? (
           <EmptyState
-            title="No expenses recorded"
+            title={search ? `Nothing matches “${search}”` : 'No expenses recorded'}
             description="Expenses recorded at a branch appear here and affect the cash reconciliation."
           />
         ) : (

@@ -19,8 +19,10 @@ import {
 } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
 import { AdjustStockForm } from '@/components/adjust-stock-form';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -44,6 +46,7 @@ export default async function InventoryPage({
   const auth = await requirePermission(Permission.INVENTORY_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
   const branch = activeBranch(auth);
   const canSeeCost = hasPermission(auth, Permission.PRODUCTS_VIEW_COST);
   const lowOnly = params.filter === 'low';
@@ -79,6 +82,23 @@ export default async function InventoryPage({
         .filter((id): id is string => id !== null)
     : null;
 
+  /*
+   * Stock rows carry no name of their own; the search is over the products they belong to,
+   * resolved to ids first, the same way the low-stock filter below narrows the list.
+   */
+  const matchingProductIds = search
+    ? (
+        (
+          await client
+            .from('products')
+            .select('id')
+            .eq('tenant_id', auth.tenant.tenantId)
+            .or(ilikeAny(['name', 'sku'], search))
+            .limit(500)
+        ).data ?? []
+      ).map((product) => product.id)
+    : null;
+
   let query = client
     .from('inventory')
     .select(
@@ -95,6 +115,12 @@ export default async function InventoryPage({
     query = query.in(
       'product_id',
       lowProductIds.length > 0 ? lowProductIds : ['00000000-0000-0000-0000-000000000000'],
+    );
+  }
+  if (matchingProductIds) {
+    query = query.in(
+      'product_id',
+      matchingProductIds.length > 0 ? matchingProductIds : ['00000000-0000-0000-0000-000000000000'],
     );
   }
   const { data, count } = await query.returns<StockRow[]>();
@@ -126,6 +152,14 @@ export default async function InventoryPage({
         <Stat label="Value at retail" value={formatMoney(totals?.retail_value ?? 0)} />
       </div>
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by product name or SKU"
+          label="Search stock"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         <CardHeader
           title={lowOnly ? 'Low stock' : 'Stock on hand'}
@@ -137,7 +171,13 @@ export default async function InventoryPage({
         />
         {stock.rows.length === 0 ? (
           <EmptyState
-            title={lowOnly ? 'Nothing needs reordering' : 'No stock recorded yet'}
+            title={
+              search
+                ? `Nothing matches “${search}”`
+                : lowOnly
+                  ? 'Nothing needs reordering'
+                  : 'No stock recorded yet'
+            }
             description={
               lowOnly
                 ? 'Every product is above its reorder level.'

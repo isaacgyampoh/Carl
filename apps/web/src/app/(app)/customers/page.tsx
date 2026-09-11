@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, buttonClasses } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -32,15 +34,17 @@ export default async function CustomersPage({
   const auth = await requirePermission(Permission.CUSTOMERS_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
 
   const client = await supabase();
-  const { data, count } = await client
+  let query = client
     .from('customers')
     .select('id, name, phone, email, default_tier, balance, is_active', { count: 'exact' })
     .eq('tenant_id', auth.tenant.tenantId)
     .order('name')
-    .range(from, to)
-    .returns<CustomerRow[]>();
+    .range(from, to);
+  if (search) query = query.or(ilikeAny(['name', 'phone', 'email'], search));
+  const { data, count } = await query.returns<CustomerRow[]>();
 
   const customers = toPage(data, count, page, pageSize);
 
@@ -58,10 +62,18 @@ export default async function CustomersPage({
         }
       />
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by name, phone or email"
+          label="Search customers"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         {customers.rows.length === 0 ? (
           <EmptyState
-            title="No customers recorded"
+            title={search ? `Nothing matches “${search}”` : 'No customers recorded'}
             description={
               hasPermission(auth, Permission.CUSTOMERS_CREATE)
                 ? 'Cashiers can add a customer at the till while taking a sale.'

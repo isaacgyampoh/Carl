@@ -18,7 +18,9 @@ import {
 } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -46,9 +48,10 @@ export default async function PurchasesPage({
   const auth = await requirePermission(Permission.PURCHASES_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
 
   const client = await supabase();
-  const { data, count } = await client
+  let query = client
     .from('purchases')
     .select(
       'id, reference, status, payment_status, total, ordered_at, received_at, suppliers(name), branches(name)',
@@ -56,8 +59,9 @@ export default async function PurchasesPage({
     )
     .eq('tenant_id', auth.tenant.tenantId)
     .order('created_at', { ascending: false })
-    .range(from, to)
-    .returns<PurchaseRow[]>();
+    .range(from, to);
+  if (search) query = query.or(ilikeAny(['reference'], search));
+  const { data, count } = await query.returns<PurchaseRow[]>();
 
   const purchases = toPage(data, count, page, pageSize);
 
@@ -75,10 +79,18 @@ export default async function PurchasesPage({
         }
       />
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by reference"
+          label="Search purchases"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         {purchases.rows.length === 0 ? (
           <EmptyState
-            title="No purchases yet"
+            title={search ? `Nothing matches “${search}”` : 'No purchases yet'}
             description="Record a purchase to bring stock in and keep cost prices accurate."
             action={
               hasPermission(auth, Permission.PURCHASES_CREATE) ? (

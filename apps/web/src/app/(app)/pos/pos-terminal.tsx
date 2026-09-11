@@ -9,13 +9,16 @@ import {
   cartTotals,
   clearCart,
   insufficientLines,
+  lineTotals,
   removeFromCart,
   toSalePayload,
   updateQuantity,
+  type ReceiptData,
 } from '@carl/domain';
 import { formatMoney, formatQuantity, newIdempotencyKey } from '@carl/shared';
 import { Alert, Button, cn } from '@carl/ui';
 
+import { PAYMENT_METHOD_LABEL } from '@/components/receipt';
 import { completeSale, searchProducts, type SearchResult } from '@/server/pos-actions';
 import { PaymentPanel } from './payment-panel';
 import { ReceiptDialog } from './receipt-dialog';
@@ -45,12 +48,22 @@ export function PosTerminal({
   cashierName,
   canDiscount,
   canSellWholesale,
+  receiptHeader,
 }: {
   branchId: string;
   branchName: string;
   cashierName: string;
   canDiscount: boolean;
   canSellWholesale: boolean;
+  /** What the business's receipts say about it, from Settings. */
+  receiptHeader: {
+    businessName: string;
+    addressLines: string[];
+    phone: string | null;
+    taxId: string | null;
+    footer: string | null;
+    currencyCode: string;
+  };
 }) {
   const [cart, setCart] = useState<Cart>(EMPTY_CART);
   const [query, setQuery] = useState('');
@@ -63,6 +76,7 @@ export function PosTerminal({
     total: number;
     paid: number;
     change: number;
+    print: ReceiptData;
   } | null>(null);
 
   // Phones only: the basket is a sheet over the search rather than a column beside it.
@@ -296,11 +310,44 @@ export function PosTerminal({
     }
 
     saleKey.current = null;
+    /*
+     * The receipt is taken from the basket as it was sold, before the basket is cleared, with
+     * the totals the server recorded. Lines are laid out by the same domain function the
+     * desktop till uses; no figure on it is computed here that the sale did not already have.
+     */
     setReceipt({
       saleNumber: result.data.saleNumber,
       total: result.data.total,
       paid: result.data.amountPaid,
       change: result.data.changeGiven,
+      print: {
+        ...receiptHeader,
+        branchName,
+        cashierName,
+        saleNumber: result.data.saleNumber,
+        soldAt: new Date(),
+        lines: cart.lines.map((line) => {
+          const figures = lineTotals(line);
+          return {
+            name: line.name,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: figures.total,
+            ...(figures.discount > 0 ? { discount: figures.discount } : {}),
+          };
+        }),
+        subtotal: totals.subtotal,
+        discountTotal: totals.orderDiscount,
+        taxTotal: totals.tax,
+        total: result.data.total,
+        payments: payments.map((payment) => ({
+          method: PAYMENT_METHOD_LABEL[payment.method] ?? payment.method,
+          amount: payment.amount,
+          reference: payment.reference ?? null,
+        })),
+        amountPaid: result.data.amountPaid,
+        changeGiven: result.data.changeGiven,
+      },
     });
     setCart((current) => clearCart(current));
     setPaying(false);
@@ -565,6 +612,7 @@ export function PosTerminal({
       {receipt && (
         <ReceiptDialog
           receipt={receipt}
+          printData={receipt.print}
           branchName={branchName}
           cashierName={cashierName}
           onClose={() => {

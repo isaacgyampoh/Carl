@@ -17,7 +17,9 @@ import {
 } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
+import { ilikeAny, searchTerm } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
+import { ListSearch } from '@/components/list-search';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -45,9 +47,10 @@ export default async function TransfersPage({
   const auth = await requirePermission(Permission.INVENTORY_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
+  const search = searchTerm(params.q);
 
   const client = await supabase();
-  const { data, count } = await client
+  let query = client
     .from('stock_transfers')
     .select(
       `id, reference, status, created_at, dispatched_at, received_at,
@@ -58,8 +61,9 @@ export default async function TransfersPage({
     )
     .eq('tenant_id', auth.tenant.tenantId)
     .order('created_at', { ascending: false })
-    .range(from, to)
-    .returns<TransferRow[]>();
+    .range(from, to);
+  if (search) query = query.or(ilikeAny(['reference'], search));
+  const { data, count } = await query.returns<TransferRow[]>();
 
   const transfers = toPage(data, count, page, pageSize);
 
@@ -77,10 +81,18 @@ export default async function TransfersPage({
         }
       />
 
+      <div className="mb-4">
+        <ListSearch
+          initialQuery={search ?? ''}
+          placeholder="Search by reference"
+          label="Search transfers"
+        />
+      </div>
+
       <Card className="overflow-hidden">
         {transfers.rows.length === 0 ? (
           <EmptyState
-            title="No transfers yet"
+            title={search ? `Nothing matches “${search}”` : 'No transfers yet'}
             description="Move stock between branches and every movement is recorded at both ends."
           />
         ) : (

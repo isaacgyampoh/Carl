@@ -10,7 +10,8 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
-import { ProductSearch } from './product-search';
+import { ListSearch } from '@/components/list-search';
+import { ilikeAny, searchTerm } from '@/lib/search';
 
 export const metadata: Metadata = { title: 'Products' };
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,7 @@ export default async function ProductsPage({
   const auth = await requirePermission(Permission.PRODUCTS_VIEW);
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
-  const search = params.q?.trim();
+  const search = searchTerm(params.q);
 
   // Cost prices expose the business's margins, so they are gated behind their own
   // permission rather than shown to anyone who can see the catalogue.
@@ -58,7 +59,7 @@ export default async function ProductsPage({
 
   if (search) {
     // Matches the POS search behaviour: name or SKU, case-insensitive.
-    query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+    query = query.or(ilikeAny(['name', 'sku'], search));
   }
 
   if (branchId) {
@@ -84,7 +85,11 @@ export default async function ProductsPage({
         }
       />
 
-      <ProductSearch initialQuery={search ?? ''} />
+      <ListSearch
+        initialQuery={search ?? ''}
+        placeholder="Search by name or SKU"
+        label="Search products"
+      />
 
       <Card className="mt-4 overflow-hidden">
         {products.rows.length === 0 ? (
