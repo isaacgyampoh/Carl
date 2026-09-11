@@ -92,23 +92,41 @@ export async function resolveAuthContext(
 
   const authUser = userData.user;
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, email, full_name')
-    .eq('id', authUser.id)
-    .maybeSingle<{ id: string; email: string; full_name: string }>();
+  /*
+   * Three questions about the same user id, asked at once.
+   *
+   * They used to be asked one after another, and every authenticated page in Carl waited for
+   * all three before its own data was even requested — three round trips to the database
+   * before the first row of a sales list. Nothing here depends on the answer to anything else
+   * here, so the wait is one round trip, not three. The only cost is that the memberships are
+   * read for a signed-in user who has no profile yet, which happens during provisioning and
+   * nowhere else.
+   */
+  const [{ data: profile }, { data: platformAdmin }, { data: memberships }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .eq('id', authUser.id)
+      .maybeSingle<{ id: string; email: string; full_name: string }>(),
+    // Platform administration is read from its own table, never from a claim the client
+    // could influence.
+    supabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', authUser.id)
+      .maybeSingle<{ user_id: string }>(),
+    supabase
+      .from('tenant_memberships')
+      .select('id, tenant_id, tenants(name, status)')
+      .eq('user_id', authUser.id)
+      .eq('status', 'ACTIVE')
+      .order('created_at')
+      .returns<MembershipRow[]>(),
+  ]);
 
   // A user may be signed in without a Carl profile only during provisioning. Treat that as
   // no context rather than inventing one.
   if (!profile) return null;
-
-  // Platform administration is read from its own table, never from a claim the client
-  // could influence.
-  const { data: platformAdmin } = await supabase
-    .from('platform_admins')
-    .select('user_id')
-    .eq('user_id', authUser.id)
-    .maybeSingle<{ user_id: string }>();
 
   const user: AuthenticatedUser = {
     userId: asId<'UserId'>(profile.id),
@@ -118,7 +136,7 @@ export async function resolveAuthContext(
   };
 
   const requestId = options.requestId ?? randomUuid();
-  const tenant = await resolveTenant(supabase, authUser.id, options);
+  const tenant = await resolveTenant(supabase, memberships ?? [], options);
 
   return { user, tenant, deviceId: null, requestId };
 }
@@ -149,18 +167,9 @@ export async function memberTenantAtSlug(
 
 async function resolveTenant(
   supabase: CarlSupabaseClient,
-  userId: string,
+  own: readonly MembershipRow[],
   options: ResolveOptions,
 ): Promise<TenantContext | null> {
-  const { data: memberships } = await supabase
-    .from('tenant_memberships')
-    .select('id, tenant_id, tenants(name, status)')
-    .eq('user_id', userId)
-    .eq('status', 'ACTIVE')
-    .order('created_at')
-    .returns<MembershipRow[]>();
-
-  const own = memberships ?? [];
   if (own.length === 0) return null;
 
   /*
