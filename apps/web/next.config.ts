@@ -1,7 +1,32 @@
+import { networkInterfaces } from 'node:os';
 import type { NextConfig } from 'next';
+
+/**
+ * This machine's own addresses on the local network, so `next dev` can be used from a phone
+ * or another computer on the same Wi-Fi.
+ *
+ * Next.js refuses dev-only assets (the page's scripts, hot reload) to any origin other than
+ * the host the dev server started on. Opened from a phone at http://192.168.x.y:3000, the HTML
+ * arrived but its scripts were refused, so the page drew and never became interactive: no
+ * button worked, no form submitted.
+ *
+ * Only this machine's private IPv4 addresses, read when the dev server starts (joining a
+ * different network needs a restart), and Bonjour names (*.local). Nothing public, and
+ * production builds ignore the option entirely.
+ */
+function localNetworkOrigins(): string[] {
+  const addresses = Object.values(networkInterfaces())
+    .flatMap((entries) => entries ?? [])
+    .filter((entry) => entry.family === 'IPv4' && !entry.internal)
+    .map((entry) => entry.address)
+    .filter((address) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(address));
+  return [...new Set(addresses), '*.local'];
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  allowedDevOrigins: localNetworkOrigins(),
 
   // Workspace packages ship as TypeScript source; Next compiles them in-place.
   transpilePackages: [
