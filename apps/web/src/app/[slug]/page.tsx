@@ -3,12 +3,30 @@ import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
 import { MemberPinPad } from './member-pin-pad';
-import { InstallGate } from './install-gate';
+import { InstallGate } from '@/components/install-gate';
 
-export const metadata: Metadata = {
-  title: 'Carl',
-  robots: { index: false, follow: false },
-};
+/*
+ * The manifest is set here, as page metadata, and not as a raw <link> in the body.
+ *
+ * The root layout declares `/manifest.webmanifest`. A raw link in the page ADDED a second
+ * manifest after it, and browsers use the first: live, a shop's page carried the generic
+ * manifest ahead of its own, so an installed shop application still opened on the marketing
+ * page. Page metadata overrides the layout's field, so exactly one manifest is emitted.
+ *
+ * Reads only the slug from the URL, never the database — see the page comment below.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  return {
+    title: 'Carl',
+    robots: { index: false, follow: false },
+    manifest: `/${slug}/manifest.webmanifest`,
+  };
+}
 export const dynamic = 'force-dynamic';
 
 /**
@@ -32,9 +50,6 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
-      {/* This business's own manifest, so installing from here produces an application that
-          opens on their till rather than on Carl's marketing page. */}
-      <link rel="manifest" href={`/${slug}/manifest.webmanifest`} />
       <div className="w-full max-w-sm">
         <InstallGate>
           <header className="mb-10 text-center">

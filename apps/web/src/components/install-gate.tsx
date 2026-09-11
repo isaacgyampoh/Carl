@@ -40,7 +40,16 @@ function isStandalone(): boolean {
   );
 }
 
-export function InstallGate({ children }: { children: React.ReactNode }) {
+export function InstallGate({
+  children,
+  title = 'Install Carl',
+  description = 'Carl runs as an application on this computer, phone or POS terminal. Installed, it opens in its own window and keeps selling when the internet drops.',
+}: {
+  children: React.ReactNode;
+  /** Shared by a shop's entry and the owner console, whose reasons to install differ. */
+  title?: string;
+  description?: string;
+}) {
   // `null` until the browser has been asked: rendering the gate first and then hiding it
   // makes an installed application flash a screen telling its user to install it.
   const [installed, setInstalled] = useState<boolean | null>(null);
@@ -96,11 +105,8 @@ export function InstallGate({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-semibold tracking-tight">Install Carl</h1>
-      <p className="mt-2 text-sm text-[color:var(--color-text-muted)]">
-        Carl runs as an application on this computer, phone or POS terminal. Installed, it opens in
-        its own window and keeps selling when the internet drops.
-      </p>
+      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-2 text-sm text-[color:var(--color-text-muted)]">{description}</p>
 
       {prompt ? (
         <Button className="mt-6 w-full" onClick={() => void install()} loading={busy}>

@@ -57,10 +57,21 @@ describe('a business gets its own manifest', () => {
     expect(route).not.toMatch(/supabase|from\(['"]tenants/);
   });
 
-  it('is linked from the business entry page', () => {
-    expect(read('src', 'app', '[slug]', 'page.tsx')).toContain(
-      'href={`/${slug}/manifest.webmanifest`}',
-    );
+  it('is declared by the business entry page as its ONLY manifest', () => {
+    /*
+     * Live, a raw <link> in the page body sat AFTER the root layout's generic manifest, and
+     * browsers use the first — so an installed shop app still opened on the marketing page.
+     * The manifest must come from page metadata, which overrides the layout's.
+     */
+    const page = read('src', 'app', '[slug]', 'page.tsx');
+    expect(page).toContain('manifest: `/${slug}/manifest.webmanifest`');
+    expect(page, 'a raw manifest link adds a second manifest').not.toContain('rel="manifest"');
+  });
+
+  it('is declared by the owner sign-in page, which sits outside the (app) layout', () => {
+    const page = read('src', 'app', 'platform', 'sign-in', 'page.tsx');
+    expect(page).toContain("manifest: '/platform.webmanifest'");
+    expect(page).not.toContain('rel="manifest"');
   });
 });
 
@@ -78,7 +89,7 @@ describe('the service worker', () => {
 });
 
 describe('installation comes before the PIN pad', () => {
-  const gate = read('src', 'app', '[slug]', 'install-gate.tsx');
+  const gate = read('src', 'components', 'install-gate.tsx');
 
   it('detects an already-installed application and gets out of the way', () => {
     expect(gate).toContain('display-mode: standalone');
@@ -89,6 +100,14 @@ describe('installation comes before the PIN pad', () => {
   it('holds the install prompt rather than firing it on load', () => {
     expect(gate).toContain('beforeinstallprompt');
     expect(gate).toContain('event.preventDefault()');
+  });
+
+  it('guards the owner console as well as a shop', () => {
+    // Owner access is PWA-first too; only the shop entry was gated before.
+    const owner = read('src', 'app', 'platform', 'sign-in', 'page.tsx');
+    expect(owner).toContain("from '@/components/install-gate'");
+    expect(owner).toContain('<InstallGate');
+    expect(read('src', 'app', '[slug]', 'page.tsx')).toContain('<InstallGate');
   });
 
   it('can always be passed', () => {
