@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
 import { MemberPinPad } from './member-pin-pad';
+import { InstallGate } from './install-gate';
 
 export const metadata: Metadata = {
   title: 'Carl',
@@ -31,14 +32,19 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
+      {/* This business's own manifest, so installing from here produces an application that
+          opens on their till rather than on Carl's marketing page. */}
+      <link rel="manifest" href={`/${slug}/manifest.webmanifest`} />
       <div className="w-full max-w-sm">
-        <header className="mb-10 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-text-muted)]">
-            Enter your 4-digit PIN
-          </p>
-        </header>
-        <MemberPinPad slug={slug} />
+        <InstallGate>
+          <header className="mb-10 text-center">
+            <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
+            <p className="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              Enter your 4-digit PIN
+            </p>
+          </header>
+          <MemberPinPad slug={slug} />
+        </InstallGate>
       </div>
     </main>
   );

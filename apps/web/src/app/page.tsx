@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
@@ -27,14 +26,14 @@ export default async function HomePage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
+      {/* No sign-in link anywhere on this page, deliberately.
+          This is the public marketing site. Carl's own administration console can onboard,
+          suspend and bill every customer on the platform, and advertising its entrance to
+          every visitor gains a shopkeeper nothing while handing an attacker the door to
+          knock on. Shops reach Carl through the address their business was given; the
+          platform owner reaches it through the installed application. */}
       <header className="flex items-center justify-between">
         <span className="text-lg font-semibold tracking-tight">Carl</span>
-        <Link
-          href="/platform/sign-in"
-          className="rounded-lg px-3 py-2 text-sm font-medium underline-offset-4 hover:underline"
-        >
-          Owner login
-        </Link>
       </header>
 
       <section className="mt-16 max-w-2xl sm:mt-24">
@@ -105,9 +104,7 @@ export default async function HomePage() {
 
       <footer className="mt-20 flex flex-wrap items-center justify-between gap-4 border-t border-[color:var(--color-border)] pt-8 text-sm text-[color:var(--color-text-muted)] sm:mt-28">
         <span>Carl</span>
-        <Link href="/platform/sign-in" className="underline-offset-4 hover:underline">
-          Owner login
-        </Link>
+        <span>Already a customer? Open the address your business was given.</span>
       </footer>
     </main>
   );
