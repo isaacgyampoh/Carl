@@ -83,6 +83,7 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
 
   return (
     <DoorScreen
+      picture="shopfront"
       footer={
         <>
           Setting up a till?{' '}

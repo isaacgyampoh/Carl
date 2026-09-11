@@ -50,7 +50,10 @@ export default async function PosEntryPage({ params }: { params: Promise<{ slug:
   }
 
   return (
-    <DoorScreen footer="This till belongs to one business and sells only at its own branch.">
+    <DoorScreen
+      footer="This till belongs to one business and sells only at its own branch."
+      picture="shopfront"
+    >
       <InstallGate
         title="Install Carl POS"
         description="The till app for this business. Installed, it opens straight to this business's POS in its own window. The business portal and the owner console stay in the browser."

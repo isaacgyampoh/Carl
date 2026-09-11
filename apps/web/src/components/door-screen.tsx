@@ -8,44 +8,56 @@ import type { ReactNode } from 'react';
  * shopkeeper sees of software they are paying for, and the first thing their customers see over
  * the counter — so it should look like a product rather than a blank tab.
  *
- * ## The picture behind it
+ * ## The pictures
  *
- * A real image file, /door-backdrop.png: a dark, softly lit field in Carl's own colours, drawn
- * by scripts/generate-door-backdrop.mjs so it can be changed and regenerated rather than
- * sourced. It is 600x400 and about 80 KB, with no edge anywhere in it, so it stretches across a
- * counter screen without showing and costs a shop on a slow connection almost nothing. The
- * colour underneath it is the image's own average, so a till that is still fetching it shows
- * the right screen rather than a white flash.
+ * Two of them, supplied by the owner and prepared for this: the storefront was cut off the paper
+ * it was drawn on and set on the same blue field as the other, so the five doors read as one
+ * family rather than two designs. The doors that belong to a single business get the shopfront;
+ * the owner's own door and the email sign-in get the other.
  *
- * To use a photograph instead — a shop, a counter, a market — replace that one file. Keep it
- * dark and quiet: everything here is read on top of it.
+ * Each comes in two shapes, because one crop cannot serve both a counter screen and a phone:
+ *
+ * - **wide** (1600x1000) for anything from a laptop up. It is composed with the subject left of
+ *   centre, which is why the card moves right on a wide screen — the picture is meant to be
+ *   looked at, not hidden behind a PIN pad.
+ * - **tall** (1000x1250) for phones and portrait tablets. The whole subject sits in the top two
+ *   thirds and the field settles into one flat colour at the bottom edge — the same colour this
+ *   component paints underneath — so the picture ends and the page carries on with no seam, and
+ *   a phone never shows a meaningless crop of a picture drawn for a laptop.
+ *
+ * A browser fetches only the one its screen matches, and each is under 50 KB, so a shop pays for
+ * its door once on whatever connection it has.
  *
  * ## Why the card is solid
  *
  * Decoration stays behind glass. Every word — a PIN prompt, an error, a business's name — sits
  * on plain surface colour at full contrast, so nothing a cashier must read is competing with a
- * picture. Only the one quiet line under the card sits on the image, in white.
+ * picture. Only the one quiet line under the card sits on the picture, in white, over a scrim
+ * dark enough to carry it.
  */
 export function DoorScreen({
   children,
   footer,
   wide = false,
+  picture = 'commerce',
 }: {
   children: ReactNode;
   /** Quiet text under the card: who this screen is for, or where else to go. */
   footer?: ReactNode;
   /** For the few doors that hold more than a PIN pad. */
   wide?: boolean;
+  /** A shopfront for the doors that belong to one business; the general one elsewhere. */
+  picture?: Picture;
 }) {
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-10">
-      <DoorBackdrop />
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-10 lg:items-end lg:px-[7vw]">
+      <DoorBackdrop picture={picture} />
       <div className={`relative w-full ${wide ? 'max-w-md' : 'max-w-sm'}`}>
-        <div className="rounded-2xl bg-[color:var(--color-surface)] p-6 shadow-[0_30px_80px_-24px_rgb(2_8_23/0.75)] sm:p-8">
+        <div className="rounded-2xl bg-[color:var(--color-surface)] p-6 shadow-[0_30px_80px_-24px_rgb(1_16_54/0.8)] sm:p-8">
           {children}
         </div>
         {footer && (
-          <div className="mt-6 text-center text-xs text-white/75 [text-shadow:0_1px_2px_rgb(2_8_23/0.45)]">
+          <div className="mt-6 text-center text-xs text-white/80 [text-shadow:0_1px_3px_rgb(1_16_54/0.6)]">
             {footer}
           </div>
         )}
@@ -54,27 +66,36 @@ export function DoorScreen({
   );
 }
 
+type Picture = 'commerce' | 'shopfront';
+
+/**
+ * Tall first, wide from a laptop up. Written out rather than built from the name because
+ * Tailwind reads these files as text: a class it cannot see in the source is a class it does
+ * not generate, and the door would come up plain blue.
+ */
+const PICTURES: Record<Picture, string> = {
+  commerce: "bg-[url('/door/commerce-tall.webp')] lg:bg-[url('/door/commerce-wide.webp')]",
+  shopfront: "bg-[url('/door/shopfront-tall.webp')] lg:bg-[url('/door/shopfront-wide.webp')]",
+};
+
 /** Decoration, and nothing else: hidden from screen readers, and it cannot be clicked through. */
-function DoorBackdrop() {
+function DoorBackdrop({ picture }: { picture: Picture }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 -z-10 bg-[#1f405e] bg-[url('/door-backdrop.png')] bg-cover bg-center"
+      /*
+       * #062a86 is the colour both tall pictures end on, so it is what the page is painted with:
+       * under the picture while it is still arriving, and below it once it has. On a wide screen
+       * the picture covers everything and the subject's third of the frame is what stays in view.
+       */
+      className={`pointer-events-none absolute inset-0 -z-10 bg-[#062a86] bg-[length:100%_auto] bg-top bg-no-repeat lg:bg-cover lg:bg-[position:36%_center] ${PICTURES[picture]}`}
     >
-      {/* Graph paper, faint enough to read as texture rather than as lines. */}
-      <div
-        className="absolute inset-0 opacity-[0.09] [background-size:34px_34px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]"
-        style={{
-          backgroundImage:
-            'linear-gradient(to right, white 1px, transparent 1px),' +
-            'linear-gradient(to bottom, white 1px, transparent 1px)',
-        }}
-      />
       {/*
-       * A little more dark at the very bottom than the picture has on its own, so the line under
-       * the card is read against something settled on every screen shape.
+       * The scrim. On a phone it only settles the bottom, where the quiet line goes; the picture
+       * itself is left bright. On a wide screen it darkens the side the card moved to and thins
+       * out to nothing over the picture.
        */}
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[rgb(2_8_23/0.45)] to-transparent" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_45%,rgb(1_16_54/0.45))] lg:bg-[linear-gradient(to_left,rgb(1_16_54/0.86),rgb(1_16_54/0.4)_42%,transparent_72%)]" />
     </div>
   );
 }

@@ -16,7 +16,10 @@ export const metadata: Metadata = {
  */
 export default function FindShopPage() {
   return (
-    <DoorScreen footer="Your manager has the address. It looks like kofi-stores.">
+    <DoorScreen
+      footer="Your manager has the address. It looks like kofi-stores."
+      picture="shopfront"
+    >
       <header className="mb-8 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Open your till</h1>
         <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 /**
  * The screens someone meets before signing in.
@@ -17,8 +17,10 @@ import { join } from 'node:path';
 const repo = (...p: string[]) => join(import.meta.dirname, '..', '..', ...p);
 const web = (...p: string[]) => readFileSync(repo('apps', 'web', 'src', ...p), 'utf8');
 
-/** The one file every door downloads. Everything else on these screens is markup. */
-const BACKDROP = repo('apps', 'web', 'public', 'door-backdrop.png');
+/** The only files these screens download. Everything else on them is markup. */
+const PICTURES = ['commerce', 'shopfront'].flatMap((n) =>
+  ['tall', 'wide'].map((shape) => repo('apps', 'web', 'public', 'door', `${n}-${shape}.webp`)),
+);
 
 const DOORS: [string, string[]][] = [
   ["the owner's PIN and the till finder on the shops' hostname", ['app', 'page.tsx']],
@@ -45,19 +47,34 @@ describe('every door', () => {
 describe('the backdrop', () => {
   const door = web('components', 'door-screen.tsx');
 
-  it('is one picture, shared by all five doors', () => {
-    expect(door).toContain("bg-[url('/door-backdrop.png')]");
-    expect(existsSync(BACKDROP)).toBe(true);
+  it.each(PICTURES)('%s is a file the doors actually ship', (file) => {
+    expect(existsSync(file)).toBe(true);
+    expect(door).toContain(`bg-[url('/door/${basename(file)}')]`);
   });
 
-  it('is small enough for a shop on one bar of signal', () => {
-    // Soft everywhere and 600x400, so it stretches to a counter screen without showing. If a
-    // photograph ever replaces it, this is the budget that photograph has to meet.
-    expect(statSync(BACKDROP).size).toBeLessThan(120 * 1024);
+  it.each(PICTURES)('%s is small enough for a shop on one bar of signal', (file) => {
+    // Whatever picture is put here has to meet the budget the first two met.
+    expect(statSync(file).size).toBeLessThan(90 * 1024);
+  });
+
+  it('gives the doors that belong to one business the shopfront', () => {
+    for (const path of [
+      ['app', 'page.tsx'],
+      ['app', 'find-shop', 'page.tsx'],
+      ['app', '[slug]', 'page.tsx'],
+      ['app', '[slug]', 'pos', 'page.tsx'],
+    ]) {
+      expect(web(...path)).toContain('picture="shopfront"');
+    }
   });
 
   it('paints its own colour under the picture, so a slow door is never a white flash', () => {
     expect(door).toMatch(/bg-\[#[0-9a-f]{6}\]/);
+  });
+
+  it('keeps a scrim, so the line under the card is readable on the picture', () => {
+    expect(door).toContain('text-white/80');
+    expect(door).toContain('linear-gradient');
   });
 
   it('is decoration: hidden from screen readers and not in the way of a tap', () => {

@@ -51,7 +51,10 @@ export default async function OwnerEntryPage({
   // The shops' hostname, where this address is theirs and the console lives elsewhere.
   if ((await currentSurface()) === 'business') {
     return (
-      <DoorScreen footer="Ask your manager for the address if you do not have it.">
+      <DoorScreen
+        footer="Ask your manager for the address if you do not have it."
+        picture="shopfront"
+      >
         <header className="mb-8 text-center">
           <div className="text-2xl font-semibold tracking-tight">Carl</div>
           <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
