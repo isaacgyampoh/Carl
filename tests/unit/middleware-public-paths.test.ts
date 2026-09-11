@@ -178,7 +178,9 @@ describe('shop entry URLs do not expose the application', () => {
    * Everything NOT in this set must correspond to a real route directory, so a stale entry
    * cannot quietly accumulate and mislead the next person reading the list.
    */
-  const RESERVED_WITHOUT_ROUTE = new Set(['settings']);
+  // `settings` used to be held back here with no route behind it. The client business
+  // settings page now exists, so, as the test below demands, the exception is gone.
+  const RESERVED_WITHOUT_ROUTE = new Set<string>([]);
 
   it('reserves nothing that does not exist, except where deliberate', () => {
     const onDisk = new Set(actualRoutes);

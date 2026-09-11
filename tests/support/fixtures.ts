@@ -33,7 +33,13 @@ const nextSuffix = () =>
 /** Creates an auth user and its profile. */
 export async function createUser(
   db: TestDatabase,
-  options: { email?: string; fullName?: string; isPlatformAdmin?: boolean } = {},
+  options: {
+    email?: string;
+    fullName?: string;
+    isPlatformAdmin?: boolean;
+    /** Scaffolding only: give a platform admin a cheap throwaway PIN instead of the trigger's. */
+    scaffoldingPin?: boolean;
+  } = {},
 ): Promise<string> {
   const suffix = nextSuffix();
   const email = options.email ?? `user-${suffix}@example.test`;
@@ -84,7 +90,28 @@ export async function createUser(
       options.fullName ?? `Test User ${suffix}`,
     ]);
     if (options.isPlatformAdmin) {
-      await db.query(`insert into platform_admins (user_id) values ($1)`, [userId]);
+      if (options.scaffoldingPin) {
+        /*
+         * A throwaway PIN at bcrypt cost 4, supplied so migration 0035's trigger does not hash
+         * the documented default at cost 12.
+         *
+         * Measured in PGlite: cost 12 takes 272 ms per hash, cost 4 takes 3 ms, and a platform
+         * administrator created through the trigger took 267 ms against 2 ms for a plain user.
+         * createTenant creates one of these on every call purely to run provisioning, so that
+         * hash was the dominant cost of every tenant fixture in the suite.
+         *
+         * Only scaffolding uses this. Tests that exercise the trigger — platform-pin,
+         * owner-session — create their administrators without it, through the production path.
+         */
+        await db.query(
+          `insert into platform_admins (user_id, pin_hash, pin_set_at, pin_is_default)
+           values ($1, extensions.crypt(lpad((floor(random() * 10000))::int::text, 4, '0'),
+                                        extensions.gen_salt('bf', 4)), now(), false)`,
+          [userId],
+        );
+      } else {
+        await db.query(`insert into platform_admins (user_id) values ($1)`, [userId]);
+      }
     }
   });
 
@@ -120,7 +147,7 @@ export async function createTenant(
   );
 
   // Provisioning requires a platform administrator; the harness supplies one.
-  const platformAdmin = await createUser(db, { isPlatformAdmin: true });
+  const platformAdmin = await createUser(db, { isPlatformAdmin: true, scaffoldingPin: true });
 
   const result = await db.asUser(platformAdmin, () =>
     db.query<{ tenant_id: string; branch_id: string; membership_id: string }>(

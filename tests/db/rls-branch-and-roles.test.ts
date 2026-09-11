@@ -333,23 +333,30 @@ describe('branch scoping and role restrictions', () => {
     });
 
     it('lets a manager grant a role no stronger than their own', async () => {
+      /*
+       * Through `set_staff_role`, not a direct insert.
+       *
+       * Migration 0038 revoked direct writes to membership_roles: the table policy let an
+       * administrator delete the owner's role and could be used to skip every guard the staff
+       * functions enforce. Granting a role is still allowed; the assertion is unchanged —
+       * the newcomer ends up holding exactly the role granted.
+       */
       const t = await createTenant(db);
       const admin = await addMember(db, t.tenantId, { roleKey: 'tenant_admin' });
       const newStaff = await addMember(db, t.tenantId);
 
-      const cashierRole = await db.asServiceRole(() =>
-        db.query<{ id: string }>(`select id from roles where tenant_id = $1 and key = 'cashier'`, [
-          t.tenantId,
-        ]),
+      await db.asUser(admin.userId, () =>
+        db.query(`select set_staff_role($1, 'cashier')`, [newStaff.membershipId]),
       );
 
-      await db.asUser(admin.userId, async () => {
-        const { rows } = await db.query(
-          `insert into membership_roles (membership_id, role_id) values ($1, $2) returning id`,
-          [newStaff.membershipId, cashierRole.rows[0]!.id],
-        );
-        expect(rows).toHaveLength(1);
-      });
+      const { rows } = await db.asServiceRole(() =>
+        db.query<{ key: string }>(
+          `select r.key from membership_roles mr join roles r on r.id = mr.role_id
+            where mr.membership_id = $1`,
+          [newStaff.membershipId],
+        ),
+      );
+      expect(rows.map((r) => r.key)).toEqual(['cashier']);
     });
 
     it('stops a member with no role granting any role at all', async () => {

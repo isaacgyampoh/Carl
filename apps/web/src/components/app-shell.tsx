@@ -67,6 +67,7 @@ const NAV_SECTIONS: readonly { heading: string; items: readonly NavItem[] }[] = 
       { href: '/branches', label: 'Branches', permissions: [Permission.BRANCHES_VIEW] },
       { href: '/staff', label: 'Staff', permissions: [Permission.STAFF_VIEW] },
       { href: '/devices', label: 'Terminals', permissions: [Permission.DEVICES_VIEW] },
+      { href: '/settings', label: 'Settings', permissions: [Permission.SETTINGS_MANAGE] },
     ],
   },
 ];

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Permission } from '@carl/domain';
-import { hasPermission } from '@carl/application';
+import { activeBranch, hasPermission } from '@carl/application';
 import { formatMoney } from '@carl/shared';
 import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, statusTone } from '@carl/ui';
 
@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
 import { ExpenseApproval } from './expense-approval';
+import { RecordExpenseForm } from './record-expense-form';
 
 export const metadata: Metadata = { title: 'Expenses' };
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,8 @@ export default async function ExpensesPage({
   const params = await searchParams;
   const { page, pageSize, from, to } = pageParams(params);
   const canApprove = hasPermission(auth, Permission.EXPENSES_APPROVE);
+  const canRecord = hasPermission(auth, Permission.EXPENSES_CREATE);
+  const branch = activeBranch(auth);
 
   const client = await supabase();
   const { data, count } = await client
@@ -44,9 +47,21 @@ export default async function ExpensesPage({
        expense_categories(name), profiles!expenses_created_by_fkey(full_name)`,
       { count: 'exact' },
     )
+    // RLS confines this to businesses the caller belongs to; this, to the one being worked in.
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('expense_date', { ascending: false })
     .range(from, to)
     .returns<ExpenseRow[]>();
+
+  const { data: categories } =
+    canRecord && branch
+      ? await client
+          .from('expense_categories')
+          .select('id, name')
+          .eq('tenant_id', auth.tenant.tenantId)
+          .eq('is_active', true)
+          .order('name')
+      : { data: [] as { id: string; name: string }[] };
 
   const expenses = toPage(data, count, page, pageSize);
   const pending = expenses.rows.filter((row) => row.status === 'PENDING_APPROVAL');
@@ -56,6 +71,15 @@ export default async function ExpensesPage({
       <PageHeader
         title="Expenses"
         description="Money out. Recording and approving are separate permissions on purpose."
+        action={
+          canRecord && branch ? (
+            <RecordExpenseForm
+              branchId={branch.id}
+              branchName={branch.name}
+              categories={categories ?? []}
+            />
+          ) : undefined
+        }
       />
 
       {canApprove && pending.length > 0 && (
