@@ -90,6 +90,54 @@ export async function requirePermission(permission: Permission): Promise<TenantA
   return auth;
 }
 
+/**
+ * The owner console's second factor, as the Auth server sees it.
+ *
+ * A four-digit PIN at a public address is the whole barrier in front of a console that can
+ * onboard, suspend and bill every customer on the platform. A second factor makes a stolen or
+ * guessed PIN insufficient on its own.
+ *
+ * Read from Supabase Auth rather than from a table of our own: the assurance level is a claim
+ * in the session the Auth server signs, so it cannot be set by anything the browser sends.
+ */
+export interface OwnerMfaState {
+  /** A confirmed authenticator app exists on this account. */
+  readonly enrolled: boolean;
+  /** This session must reach the second factor before the console opens. */
+  readonly required: boolean;
+  /** It already has. */
+  readonly satisfied: boolean;
+  readonly factorId: string | null;
+}
+
+export async function ownerMfaState(): Promise<OwnerMfaState> {
+  const client = await supabase();
+  const [factors, levels] = await Promise.all([
+    client.auth.mfa.listFactors(),
+    client.auth.mfa.getAuthenticatorAssuranceLevel(),
+  ]);
+  const verified = factors.data?.totp?.find((factor) => factor.status === 'verified') ?? null;
+  return {
+    enrolled: verified !== null,
+    // `nextLevel` is aal2 exactly when the account has a confirmed factor.
+    required: levels.data?.nextLevel === 'aal2',
+    satisfied: levels.data?.currentLevel === 'aal2',
+    factorId: verified?.id ?? null,
+  };
+}
+
+/**
+ * The owner's session before the second factor.
+ *
+ * Only the entry page and the code check itself may use this: everything else must be behind
+ * `requirePlatformAdmin`, which insists on the second factor once one is enrolled.
+ */
+export async function requireOwnerSession(): Promise<AuthContext> {
+  const auth = await currentAuth();
+  if (!auth?.user.isPlatformAdmin) redirect('/');
+  return auth;
+}
+
 export async function requirePlatformAdmin(): Promise<AuthContext> {
   /*
    * The owner console's guard, on the owner console's own session (lib/surface.ts).
@@ -97,8 +145,15 @@ export async function requirePlatformAdmin(): Promise<AuthContext> {
    * Signed out, or signed in only to a business on this device, the answer is the owner's PIN
    * at the main address — never the merchant sign-in page, which asks for an email and
    * password the platform owner does not use, and never a business screen.
+   *
+   * A session that has not passed the second factor is turned back to the same place, where
+   * the entry page asks for the code. The PIN alone never opens the console.
    */
   const auth = await currentAuth();
   if (!auth?.user.isPlatformAdmin) redirect('/');
+
+  const mfa = await ownerMfaState();
+  if (mfa.required && !mfa.satisfied) redirect('/');
+
   return auth;
 }

@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { OwnerPinPad } from '@/components/owner-pin-pad';
-import { currentAuth } from '@/lib/auth';
+import { OwnerTotpPrompt } from '@/components/owner-totp-prompt';
+import { currentAuth, ownerMfaState } from '@/lib/auth';
 import { ownerDestination } from '@/lib/destinations';
 
 export const metadata: Metadata = {
@@ -25,6 +26,10 @@ export const dynamic = 'force-dynamic';
  * offers nothing to install on this page. The installed Carl app is the POS, installed from a
  * business's own POS address; the owner console stays here, in the browser.
  *
+ * Two steps, when the owner has an authenticator app: the PIN, then the code. The second step
+ * happens here rather than on a page of its own, so a session that has the PIN and not the code
+ * has nowhere else to be — every console screen sends it back here.
+ *
  * Not a door to any business. It reads only the owner console's own session (lib/surface.ts),
  * so a cashier or shop administrator signed in on this device is invisible here, and no
  * business PIN opens it: `verify_platform_pin` accepts only a platform administrator's.
@@ -36,7 +41,9 @@ export default async function OwnerEntryPage({
 }) {
   const { next } = await searchParams;
   const auth = await currentAuth();
-  if (auth?.user.isPlatformAdmin) redirect(ownerDestination(next));
+  const mfa = auth?.user.isPlatformAdmin ? await ownerMfaState() : null;
+  const awaitingCode = mfa !== null && mfa.required && !mfa.satisfied;
+  if (auth?.user.isPlatformAdmin && !awaitingCode) redirect(ownerDestination(next));
 
   return (
     <main className="flex min-h-dvh flex-col px-6">
@@ -46,10 +53,12 @@ export default async function OwnerEntryPage({
             <div className="text-2xl font-semibold tracking-tight">Carl</div>
             <h1 className="mt-8 text-lg font-medium">Owner console</h1>
             <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
-              Enter your 4-digit PIN to continue
+              {awaitingCode
+                ? 'Enter the 6-digit code from your authenticator app'
+                : 'Enter your 4-digit PIN to continue'}
             </p>
           </header>
-          <OwnerPinPad next={next} />
+          {awaitingCode ? <OwnerTotpPrompt next={next} /> : <OwnerPinPad next={next} />}
         </div>
       </div>
       <footer className="pb-8 text-center text-xs text-[color:var(--color-ink-muted)]">

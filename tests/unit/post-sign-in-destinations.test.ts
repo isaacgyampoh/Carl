@@ -122,7 +122,10 @@ describe('the main address is the owner entry', () => {
   it('asks for the owner PIN, and sends a signed-in owner to the console', () => {
     expect(entry).toContain('<OwnerPinPad');
     expect(entry).toContain('Owner console');
-    expect(entry).toContain('if (auth?.user.isPlatformAdmin) redirect(ownerDestination(next))');
+    // Once an authenticator app is enrolled the code comes first; see owner-two-factor.test.ts.
+    expect(entry).toContain(
+      'if (auth?.user.isPlatformAdmin && !awaitingCode) redirect(ownerDestination(next));',
+    );
   });
 
   it('leads to no business screen', () => {

@@ -3,9 +3,10 @@ import { Badge, Card, CardHeader, EmptyState } from '@carl/ui';
 import { Currency, formatMoney } from '@carl/shared';
 
 import { PageHeader } from '@/components/page-header';
-import { requirePlatformAdmin } from '@/lib/auth';
+import { ownerMfaState, requirePlatformAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PinSection } from './pin-section';
+import { TwoFactorSection } from './two-factor-section';
 
 export const metadata: Metadata = { title: 'Settings · Carl platform' };
 export const dynamic = 'force-dynamic';
@@ -27,24 +28,27 @@ export default async function SettingsPage() {
 
   const auth = await requirePlatformAdmin();
 
-  const [plans, admins, pin] = await Promise.all([
-    client
-      .from('subscription_plans')
-      .select(
-        'id, key, name, description, price, currency_code, interval, max_branches, max_devices, max_users, is_active',
-      )
-      .order('sort_order'),
-    client
-      .from('platform_admins')
-      .select('user_id, granted_at, note, profiles(full_name, email)')
-      .order('granted_at'),
-    // Only whether the default is still in use. The hash itself is never selected: there is
-    // no reason for a page to hold it, and selecting it is how it ends up somewhere else.
-    client
-      .from('platform_admins')
-      .select('pin_is_default')
-      .eq('user_id', auth.user.userId)
-      .maybeSingle(),
+  const [mfa, [plans, admins, pin]] = await Promise.all([
+    ownerMfaState(),
+    Promise.all([
+      client
+        .from('subscription_plans')
+        .select(
+          'id, key, name, description, price, currency_code, interval, max_branches, max_devices, max_users, is_active',
+        )
+        .order('sort_order'),
+      client
+        .from('platform_admins')
+        .select('user_id, granted_at, note, profiles(full_name, email)')
+        .order('granted_at'),
+      // Only whether the default is still in use. The hash itself is never selected: there is
+      // no reason for a page to hold it, and selecting it is how it ends up somewhere else.
+      client
+        .from('platform_admins')
+        .select('pin_is_default')
+        .eq('user_id', auth.user.userId)
+        .maybeSingle(),
+    ]),
   ]);
 
   return (
@@ -57,6 +61,14 @@ export default async function SettingsPage() {
           description="Four digits, verified by the server and rate-limited. Never stored in plain text."
         />
         <PinSection isDefault={pin.data?.pin_is_default === true} />
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Two-step verification"
+          description="A code from an authenticator app, after the PIN. A PIN on its own can be watched over a shoulder or guessed; a code from a device in your pocket cannot."
+        />
+        <TwoFactorSection enrolled={mfa.enrolled} />
       </Card>
 
       <Card>
