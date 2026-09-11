@@ -1,8 +1,21 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Permission } from '@carl/domain';
+import { hasPermission } from '@carl/application';
 import { formatMoney } from '@carl/shared';
-import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR, statusTone } from '@carl/ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  statusTone,
+  buttonClasses,
+} from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -65,6 +78,13 @@ export default async function SalesPage({
           <EmptyState
             title="No sales yet"
             description="Completed sales appear here as soon as they are taken."
+            action={
+              hasPermission(auth, Permission.SALES_CREATE) ? (
+                <Link href="/pos" className={buttonClasses({ size: 'sm' })}>
+                  Open the till
+                </Link>
+              ) : undefined
+            }
           />
         ) : (
           <>

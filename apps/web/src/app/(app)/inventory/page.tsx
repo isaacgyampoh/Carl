@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Permission } from '@carl/domain';
 import { activeBranch, hasPermission } from '@carl/application';
 import { formatMoney, formatQuantity } from '@carl/shared';
@@ -14,6 +15,7 @@ import {
   TH,
   THead,
   TR,
+  buttonClasses,
 } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
@@ -140,6 +142,13 @@ export default async function InventoryPage({
               lowOnly
                 ? 'Every product is above its reorder level.'
                 : 'Receive a purchase, or open a product and adjust its stock.'
+            }
+            action={
+              !lowOnly && hasPermission(auth, Permission.PRODUCTS_CREATE) ? (
+                <Link href="/products/new" className={buttonClasses({ size: 'sm' })}>
+                  Add a product
+                </Link>
+              ) : undefined
             }
           />
         ) : (
