@@ -88,7 +88,7 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
           Setting up a till?{' '}
           <Link
             href={`/${slug}/pos`}
-            className="font-medium text-[color:var(--color-ink)] underline-offset-4 hover:underline"
+            className="font-medium text-white underline underline-offset-4"
           >
             Open Carl POS
           </Link>
