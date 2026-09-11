@@ -22,7 +22,7 @@ import { join } from 'node:path';
  */
 describe('middleware public paths', () => {
   const source = readFileSync(
-    join(import.meta.dirname, '..', '..', 'apps', 'web', 'src', 'middleware.ts'),
+    join(import.meta.dirname, '..', '..', 'apps', 'web', 'src', 'proxy.ts'),
     'utf8',
   );
 
@@ -97,7 +97,7 @@ describe('middleware public paths', () => {
  */
 describe('shop entry URLs do not expose the application', () => {
   const source = readFileSync(
-    join(import.meta.dirname, '..', '..', 'apps', 'web', 'src', 'middleware.ts'),
+    join(import.meta.dirname, '..', '..', 'apps', 'web', 'src', 'proxy.ts'),
     'utf8',
   );
 

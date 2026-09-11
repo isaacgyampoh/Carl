@@ -34,12 +34,17 @@ export function Stat({
   return (
     <div
       className={cn(
-        'rounded-[var(--radius-card)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-4',
+        'rounded-[var(--radius-card)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-4 py-3.5 sm:px-5 sm:py-4',
         className,
       )}
     >
       <p className="text-sm font-medium text-[color:var(--color-ink-muted)]">{label}</p>
-      <p className={cn('mt-1 text-2xl font-semibold tabular-nums tracking-tight', toneClass)}>
+      <p
+        className={cn(
+          'mt-1 text-lg font-semibold tabular-nums tracking-tight sm:text-2xl',
+          toneClass,
+        )}
+      >
         {value}
       </p>
       {(delta ?? hint) && (

@@ -4,6 +4,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 /**
  * Session refresh and route protection.
  *
+ * Named `proxy` because Next.js 16 renamed the `middleware` file convention; the behaviour is
+ * unchanged. It still runs before every matched request.
+ *
  * ## What this is for
  *
  * Supabase access tokens are short-lived. Without a refresh on each request, a user is
@@ -22,9 +25,9 @@ import { NextResponse, type NextRequest } from 'next/server';
  * forged cookie decodes perfectly well.
  */
 /**
- * Read directly from `process.env` rather than through the shared config module: middleware
- * runs in the Edge runtime, and pulling in the infrastructure package would drag the
- * browser Supabase client along with it.
+ * Read directly from `process.env` rather than through the shared config module: the proxy
+ * runs apart from the render code, where Next.js advises against relying on shared modules,
+ * and pulling in the infrastructure package would drag the browser Supabase client along.
  *
  * A missing value throws with a message naming the variable. The alternative — a non-null
  * assertion — surfaces as an opaque 401 on every request instead.
@@ -37,7 +40,7 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -84,7 +84,9 @@ export function TD({
   return (
     <td
       className={cn(
-        'px-3 py-3 text-[color:var(--color-ink)] sm:px-4',
+        // One line per row on a phone: the table scrolls sideways, so wrapping only made each
+        // row three lines tall and split references like S-00412 across two.
+        'px-3 py-3 text-[color:var(--color-ink)] max-md:whitespace-nowrap sm:px-4',
         numeric && 'whitespace-nowrap text-right tabular-nums',
         className,
       )}

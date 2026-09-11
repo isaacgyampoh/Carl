@@ -42,11 +42,13 @@ export function MobileTabBar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const closeRef = useRef<HTMLButtonElement>(null);
+  // The panel, not its close button, takes focus on open: focusing a button draws its focus
+  // ring, which reads as a web page on a phone. Keyboard users still Tab straight to Close.
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
+    panelRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
@@ -99,7 +101,11 @@ export function MobileTabBar({
             onClick={() => setOpen(false)}
             className="absolute inset-0 h-full w-full bg-black/40"
           />
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col rounded-t-2xl bg-[color:var(--color-surface)] pb-[env(safe-area-inset-bottom)] shadow-xl">
+          <div
+            ref={panelRef}
+            tabIndex={-1}
+            className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col rounded-t-2xl bg-[color:var(--color-surface)] pb-[env(safe-area-inset-bottom)] shadow-xl outline-none"
+          >
             <div
               aria-hidden
               className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-[color:var(--color-border)]"
@@ -109,13 +115,7 @@ export function MobileTabBar({
                 <p className="truncate text-sm font-semibold">{userName}</p>
                 <p className="truncate text-xs text-[color:var(--color-ink-muted)]">{userEmail}</p>
               </div>
-              <Button
-                ref={closeRef}
-                variant="ghost"
-                size="icon"
-                aria-label="Close"
-                onClick={() => setOpen(false)}
-              >
+              <Button variant="ghost" size="icon" aria-label="Close" onClick={() => setOpen(false)}>
                 <X className="size-5" />
               </Button>
             </div>

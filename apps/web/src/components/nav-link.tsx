@@ -38,7 +38,7 @@ export function navClasses(variant: NavVariant, active: boolean): string {
       );
     case 'tab':
       return cn(
-        'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium leading-none [&_svg]:size-6',
+        'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium leading-tight [&_svg]:size-6',
         active
           ? 'text-[color:var(--color-brand)]'
           : 'text-[color:var(--color-ink-muted)] active:bg-[color:var(--color-surface-muted)]',
