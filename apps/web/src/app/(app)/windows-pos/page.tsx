@@ -42,7 +42,9 @@ export default async function WindowsPosPage() {
       .returns<TillRow[]>(),
   ]);
 
-  const megabytes = installer.sizeBytes ? `${(installer.sizeBytes / 1024 / 1024).toFixed(0)} MB` : null;
+  const megabytes = installer.sizeBytes
+    ? `${(installer.sizeBytes / 1024 / 1024).toFixed(0)} MB`
+    : null;
 
   return (
     <>
@@ -53,24 +55,37 @@ export default async function WindowsPosPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="1. Download the installer" description="Run it on the Windows till or laptop." />
+          <CardHeader
+            title="1. Download the installer"
+            description="Run it on the Windows till or laptop."
+          />
           <CardBody className="space-y-3 text-sm">
             {installer.available && installer.downloadUrl ? (
               <>
-                <a href={installer.downloadUrl} className={buttonClasses({ size: 'lg' })} rel="noopener">
+                <a
+                  href={installer.downloadUrl}
+                  className={buttonClasses({ size: 'lg' })}
+                  rel="noopener"
+                >
                   Download Carl POS for Windows
                 </a>
                 <p className="text-[color:var(--color-ink-muted)]">
-                  {[installer.version, megabytes, 'Windows 10 or 11, 64-bit'].filter(Boolean).join(' · ')}
+                  {[installer.version, megabytes, 'Windows 10 or 11, 64-bit']
+                    .filter(Boolean)
+                    .join(' · ')}
                 </p>
                 <p className="text-xs text-[color:var(--color-ink-muted)]">
-                  If Windows shows “Windows protected your PC”, choose <strong>More info</strong> then{' '}
-                  <strong>Run anyway</strong>. The installer includes everything it needs, so no
-                  internet is required while installing.
+                  If Windows shows “Windows protected your PC”, choose <strong>More info</strong>{' '}
+                  then <strong>Run anyway</strong>. The installer includes everything it needs, so
+                  no internet is required while installing.
                   {installer.checksumsUrl && (
                     <>
                       {' '}
-                      <a href={installer.checksumsUrl} className="underline underline-offset-4" rel="noopener">
+                      <a
+                        href={installer.checksumsUrl}
+                        className="underline underline-offset-4"
+                        rel="noopener"
+                      >
                         Checksums
                       </a>
                     </>
@@ -88,10 +103,16 @@ export default async function WindowsPosPage() {
         </Card>
 
         <Card>
-          <CardHeader title="2. Add the till and get its code" description="One code per till. It works once." />
+          <CardHeader
+            title="2. Add the till and get its code"
+            description="One code per till. It works once."
+          />
           <CardBody>
             <AddTerminalForm
-              branches={auth.tenant.branches.map((branch) => ({ id: branch.id, name: branch.name }))}
+              branches={auth.tenant.branches.map((branch) => ({
+                id: branch.id,
+                name: branch.name,
+              }))}
               defaultBranchId={auth.tenant.activeBranchId}
               suggestedName={`Till ${(tills?.length ?? 0) + 1}`}
             />
@@ -103,10 +124,20 @@ export default async function WindowsPosPage() {
         <CardHeader title="3. On the till" />
         <CardBody>
           <ol className="grid list-decimal gap-2 pl-5 text-sm text-[color:var(--color-ink-muted)] sm:grid-cols-2">
-            <li>Run the installer, then open <strong className="text-[color:var(--color-ink)]">Carl POS</strong> from the Start menu.</li>
-            <li>Type the 12-character code from step 2. The till joins this business and downloads your products.</li>
+            <li>
+              Run the installer, then open{' '}
+              <strong className="text-[color:var(--color-ink)]">Carl POS</strong> from the Start
+              menu.
+            </li>
+            <li>
+              Type the 12-character code from step 2. The till joins this business and downloads
+              your products.
+            </li>
             <li>Each cashier signs in on the till with their own PIN from Staff.</li>
-            <li>Sell. Without internet the till keeps working and sends every sale when the connection returns.</li>
+            <li>
+              Sell. Without internet the till keeps working and sends every sale when the connection
+              returns.
+            </li>
           </ol>
         </CardBody>
       </Card>
@@ -121,16 +152,23 @@ export default async function WindowsPosPage() {
           }
         />
         {(tills ?? []).length === 0 ? (
-          <EmptyState title="No tills yet" description="Add one above, then enter its code on the till." />
+          <EmptyState
+            title="No tills yet"
+            description="Add one above, then enter its code on the till."
+          />
         ) : (
           <ul className="divide-y divide-[color:var(--color-border)]">
             {(tills ?? []).map((till) => (
-              <li key={till.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+              <li
+                key={till.id}
+                className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+              >
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{till.name}</span>
                   <span className="block text-xs text-[color:var(--color-ink-muted)]">
                     {till.code}
-                    {till.last_seen_at && ` · last seen ${new Date(till.last_seen_at).toLocaleString('en-GH', { dateStyle: 'medium', timeStyle: 'short' })}`}
+                    {till.last_seen_at &&
+                      ` · last seen ${new Date(till.last_seen_at).toLocaleString('en-GH', { dateStyle: 'medium', timeStyle: 'short' })}`}
                     {till.pending_sync_count > 0 && ` · ${till.pending_sync_count} waiting to send`}
                   </span>
                 </span>

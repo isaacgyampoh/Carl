@@ -27,22 +27,32 @@ export function AddTerminalForm({
   const [name, setName] = useState(suggestedName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [issued, setIssued] = useState<{ code: string; name: string; expiresAt: string } | null>(null);
+  const [issued, setIssued] = useState<{ code: string; name: string; expiresAt: string } | null>(
+    null,
+  );
   const [copied, setCopied] = useState(false);
 
-  const grouped = issued ? `${issued.code.slice(0, 4)}-${issued.code.slice(4, 8)}-${issued.code.slice(8)}` : '';
+  const grouped = issued
+    ? `${issued.code.slice(0, 4)}-${issued.code.slice(4, 8)}-${issued.code.slice(8)}`
+    : '';
 
   if (issued) {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-[color:var(--color-brand)]/30 bg-[color:var(--color-brand-soft)] px-4 py-3">
+        <div className="border-[color:var(--color-brand)]/30 rounded-lg border bg-[color:var(--color-brand-soft)] px-4 py-3">
           <p className="text-xs font-medium text-[color:var(--color-brand-strong)]">
             Activation code for {issued.name} · shown once
           </p>
-          <p className="mt-1 break-all font-mono text-2xl font-semibold tracking-wider sm:text-3xl">{grouped}</p>
+          <p className="mt-1 break-all font-mono text-2xl font-semibold tracking-wider sm:text-3xl">
+            {grouped}
+          </p>
           <p className="mt-1 text-xs text-[color:var(--color-ink-muted)]">
-            Expires {new Date(issued.expiresAt).toLocaleString('en-GH', { dateStyle: 'medium', timeStyle: 'short' })}.
-            If it is lost, issue a new one from Terminals.
+            Expires{' '}
+            {new Date(issued.expiresAt).toLocaleString('en-GH', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            })}
+            . If it is lost, issue a new one from Terminals.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -93,7 +103,11 @@ export function AddTerminalForm({
       {branches.length > 1 && (
         <label className="flex flex-col gap-1.5 text-sm font-medium">
           Branch
-          <select value={branchId} onChange={(event) => setBranchId(event.target.value)} className={inputClass}>
+          <select
+            value={branchId}
+            onChange={(event) => setBranchId(event.target.value)}
+            className={inputClass}
+          >
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
                 {branch.name}
@@ -102,7 +116,13 @@ export function AddTerminalForm({
           </select>
         </label>
       )}
-      <Field label="Till name" value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} />
+      <Field
+        label="Till name"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        required
+        maxLength={60}
+      />
       <Button type="submit" loading={busy} disabled={name.trim().length < 2 || !branchId} block>
         Add till and get code
       </Button>
