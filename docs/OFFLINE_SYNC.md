@@ -197,22 +197,45 @@ stay on the server: a stolen terminal should yield a catalogue, not a business.
 | Tauri desktop application (Carl POS for Windows)              | ✅ Built by CI on a Windows runner           |
 | One business per till (re-activation wipes or refuses)        | ✅ `tenant-boundary.ts`, tested              |
 | A till sells only at its own branch                           | ✅ Migration 0040, tested                    |
-| IndexedDB queue (PWA)                                         | Not built, by decision (see below)           |
+| Bounded offline selling on a phone (PWA)                      | ✅ Implemented, tested (see below)           |
 | Installed on a physical Windows till                          | ⬜ First client onboarding                   |
 
-### Why the web app has no offline selling
+### Selling offline on a phone, and why it is bounded
 
-The web till and the installed web app are **online only**. An offline sale must be written
-durably before the receipt prints and later proved to belong to a registered terminal. A
-browser can clear its own storage and cannot hold a device secret out of reach of the page,
-so a web offline queue would be the weaker of two copies of the logic that handles money.
-Merchants who need to sell through outages, or who want to sell offline first, use Carl POS
-for Windows.
+The Windows till is the one built to trade through an outage: SQLite on a machine the shop
+owns, a device secret in the operating system's credential store, and sales proved to belong
+to a registered terminal by `sync_offline_sale`.
 
-The engine is deliberately storage-agnostic. Carl Desktop will back it with SQLite and the
-PWA with IndexedDB, and both run the same code against the same tests — a second
-implementation of "did this transaction sync" would be a second thing that can be wrong
-about money.
+A phone cannot offer any of that. Browser storage can be cleared by the browser, taken by a
+dropped handset, and holds nothing out of reach of the page — so a phone must not become the
+only record of a day's takings. It is also the till most Ghanaian shops actually have in their
+hand, and a connection that drops for twenty minutes should not stop them selling.
+
+So the installed web till sells offline, **bounded**, and says so:
+
+- The catalogue is copied to the device while there is a connection (`catalogueSnapshot`), and
+  searched locally when there is not. It is a convenience, never an authority.
+- A sale made with no connection is held in IndexedDB with the idempotency key it was rung up
+  with, and its receipt is marked as not yet reaching Carl.
+- When the connection returns, held sales are sent oldest first **through the same server
+  action an online sale uses**. The server resolves price, stock and identity as it always
+  does; the key means a sale that did reach Carl before the connection dropped is recognised
+  rather than recorded twice.
+- A sale the server refuses — no stock, a price that no longer exists — is kept and marked for
+  a person to look at. A customer has already paid for it, so it is never dropped quietly.
+- The bounds are 100 held sales or 12 hours, whichever comes first (`lib/offline-policy.ts`).
+  Past either, the till stops taking sales and tells the cashier to reconnect, rather than
+  filling up with money nobody can reconcile.
+- The device holds no credential of any kind: no session, no device secret, no PIN. That is
+  asserted by a test, because it is the line between "a convenience" and "a second way in".
+
+What a phone still does not get: the desktop's durable queue, its conflict records, or selling
+through a week-long outage. A shop that needs those uses Carl POS for Windows.
+
+The engine is deliberately storage-agnostic. Carl Desktop backs it with SQLite; the phone's
+bounded queue is deliberately simpler — it replays the ordinary sale path rather than carrying
+a second implementation of "did this transaction sync", which would be a second thing that can
+be wrong about money.
 
 ### On testing a genuine race
 

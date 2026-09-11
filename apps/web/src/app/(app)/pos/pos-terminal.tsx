@@ -19,7 +19,25 @@ import { formatMoney, formatQuantity, newIdempotencyKey } from '@carl/shared';
 import { Alert, Button, cn } from '@carl/ui';
 
 import { PAYMENT_METHOD_LABEL } from '@/components/receipt';
-import { completeSale, searchProducts, type SearchResult } from '@/server/pos-actions';
+import { canSellOffline, queueSummary, type QueueState } from '@/lib/offline-policy';
+import {
+  listQueue,
+  loadCatalogue,
+  markQueued,
+  queueSale,
+  removeQueued,
+  saveCatalogue,
+  searchCatalogue,
+  storageAvailable,
+  type CatalogueItem,
+  type QueuedSale,
+} from '@/lib/offline-store';
+import {
+  catalogueSnapshot,
+  completeSale,
+  searchProducts,
+  type SearchResult,
+} from '@/server/pos-actions';
 import { PaymentPanel } from './payment-panel';
 import { ReceiptDialog } from './receipt-dialog';
 
@@ -81,6 +99,21 @@ export function PosTerminal({
 
   // Phones only: the basket is a sheet over the search rather than a column beside it.
   const [basketOpen, setBasketOpen] = useState(false);
+  /*
+   * Selling with no connection.
+   *
+   * The catalogue is copied to the device while there is a connection, and a sale made without
+   * one is held there until it can be sent. Bounded by lib/offline-policy.ts: browser storage is
+   * not where a week of takings should live, and the till says so rather than filling up quietly.
+   */
+  const [offline, setOffline] = useState(false);
+  const [held, setHeld] = useState<QueuedSale[]>([]);
+  const catalogue = useRef<CatalogueItem[]>([]);
+  const queueState: QueueState = {
+    queued: held.filter((sale) => sale.state === 'waiting').length,
+    oldestQueuedAt: held.find((sale) => sale.state === 'waiting')?.soldAt ?? null,
+    needingAttention: held.filter((sale) => sale.state === 'attention').length,
+  };
 
   const searchRef = useRef<HTMLInputElement>(null);
   /*
@@ -132,6 +165,40 @@ export function PosTerminal({
     searchRef.current?.select();
   }, []);
 
+  const refreshHeld = useCallback(async () => {
+    if (!storageAvailable()) return;
+    setHeld(await listQueue());
+  }, []);
+
+  /**
+   * Sends what the device is holding, oldest first.
+   *
+   * Each sale carries the key it was rung up with, so a sale that did reach Carl before the
+   * connection dropped is recognised rather than recorded twice. A sale the server refuses — no
+   * stock, a price that no longer exists — is kept and marked for a person to look at; it is
+   * never silently dropped, because a customer has already paid for it.
+   */
+  const sendHeld = useCallback(async () => {
+    if (!storageAvailable() || !navigator.onLine) return;
+    for (const sale of await listQueue()) {
+      if (sale.state === 'attention') continue;
+      try {
+        const result = await completeSale({
+          ...sale.payload,
+          branchId: sale.branchId,
+          idempotencyKey: sale.key,
+          soldAt: sale.soldAt,
+        });
+        if (result.ok) await removeQueued(sale.key);
+        else await markQueued(sale.key, { state: 'attention', message: result.message });
+      } catch {
+        // Still unreachable. Stop, keep everything, try again on the next connection.
+        break;
+      }
+    }
+    await refreshHeld();
+  }, [refreshHeld]);
+
   const addProduct = useCallback(
     (result: SearchResult) => {
       setCart((current) =>
@@ -168,6 +235,20 @@ export function PosTerminal({
 
     const timer = setTimeout(() => {
       setSearching(true);
+      // No connection: the copy on the device answers, and a scanned barcode still adds itself.
+      if (offline) {
+        const matches = searchCatalogue(catalogue.current, term);
+        const needle = term.toLowerCase();
+        const exact = matches.find(
+          (item) =>
+            item.sku.toLowerCase() === needle ||
+            item.barcodes.some((code) => code.toLowerCase() === needle),
+        );
+        if (exact) addProduct({ ...exact, isExact: true });
+        else setResults(matches.map((item) => ({ ...item, isExact: false })));
+        setSearching(false);
+        return;
+      }
       searchProducts({ branchId, query: term, tier: cart.tier, limit: 20 })
         .then((result) => {
           if (!result.ok) {
@@ -198,7 +279,7 @@ export function PosTerminal({
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [query, branchId, cart.tier, addProduct]);
+  }, [query, branchId, cart.tier, addProduct, offline]);
 
   // Shortcuts. F-keys rather than letter combinations, so they cannot collide with a
   // barcode being typed into the search field.
@@ -243,6 +324,45 @@ export function PosTerminal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [cart.lines.length, focusSearch, openPayment, closePayment, paying, receipt]);
 
+  // Whether there is a connection, and sending anything held the moment there is one again.
+  useEffect(() => {
+    const update = () => {
+      const nowOffline = !navigator.onLine;
+      setOffline(nowOffline);
+      if (!nowOffline) void sendHeld();
+    };
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, [sendHeld]);
+
+  /*
+   * The catalogue this till can sell from without a connection.
+   *
+   * Read from the device first so a till that opens offline is usable immediately, then replaced
+   * with a fresh copy when there is a connection. It is a convenience, never an authority: the
+   * price and the stock that count are resolved by the server when the sale reaches it.
+   */
+  useEffect(() => {
+    if (!storageAvailable()) return;
+    void (async () => {
+      const cached = await loadCatalogue(branchId);
+      if (cached) catalogue.current = cached.items;
+      await refreshHeld();
+      if (!navigator.onLine) return;
+      const snapshot = await catalogueSnapshot({ branchId, tier: cart.tier }).catch(() => null);
+      if (snapshot?.ok) {
+        catalogue.current = snapshot.data;
+        await saveCatalogue(branchId, snapshot.data);
+      }
+      await sendHeld();
+    })();
+  }, [branchId, cart.tier, refreshHeld, sendHeld]);
+
   useEffect(() => {
     keyboardFirst.current =
       window.matchMedia('(any-pointer: fine)').matches ||
@@ -266,6 +386,117 @@ export function PosTerminal({
      */
     saleKey.current ??= newIdempotencyKey();
     const idempotencyKey = saleKey.current;
+    const soldAt = new Date();
+    const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
+
+    /** The receipt for this basket, as sold. `pending` marks one Carl has not seen yet. */
+    const receiptFor = (
+      sale: { saleNumber: string; total: number; amountPaid: number; changeGiven: number },
+      pending: boolean,
+    ) => ({
+      saleNumber: sale.saleNumber,
+      total: sale.total,
+      paid: sale.amountPaid,
+      change: sale.changeGiven,
+      print: {
+        ...receiptHeader,
+        branchName,
+        cashierName,
+        saleNumber: sale.saleNumber,
+        soldAt,
+        lines: cart.lines.map((line) => {
+          const figures = lineTotals(line);
+          return {
+            name: line.name,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: figures.total,
+            ...(figures.discount > 0 ? { discount: figures.discount } : {}),
+          };
+        }),
+        subtotal: totals.subtotal,
+        discountTotal: totals.orderDiscount,
+        taxTotal: totals.tax,
+        total: sale.total,
+        payments: payments.map((payment) => ({
+          method: PAYMENT_METHOD_LABEL[payment.method] ?? payment.method,
+          amount: payment.amount,
+          reference: payment.reference ?? null,
+        })),
+        amountPaid: sale.amountPaid,
+        changeGiven: sale.changeGiven,
+        ...(pending ? { pendingSync: true } : {}),
+      },
+    });
+
+    /**
+     * Keeps the sale on this device until Carl can be told about it.
+     *
+     * The totals printed here are the till's own. The ones that count are the server's, resolved
+     * when the sale is sent — which is why the receipt says the sale has not reached Carl yet.
+     */
+    const hold = async (): Promise<boolean> => {
+      if (!storageAvailable()) return false;
+      const receipt = receiptFor(
+        {
+          saleNumber: `Held ${soldAt.toISOString().slice(11, 19)}`,
+          total: totals.total,
+          amountPaid: paidTotal,
+          changeGiven: Math.max(0, paidTotal - totals.total),
+        },
+        true,
+      );
+      try {
+        await queueSale({
+          key: idempotencyKey,
+          branchId,
+          soldAt: soldAt.toISOString(),
+          payload: {
+            ...toSalePayload(cart),
+            payments,
+            tier: cart.tier,
+            ...(cart.customerId ? { customerId: cart.customerId } : {}),
+            ...(cart.orderDiscount.kind !== DiscountKind.NONE
+              ? {
+                  orderDiscount: {
+                    type: cart.orderDiscount.kind,
+                    value: cart.orderDiscount.value,
+                  },
+                }
+              : {}),
+          },
+          total: totals.total,
+          receipt: { ...receipt.print, soldAt: soldAt.toISOString() },
+          state: 'waiting',
+        });
+      } catch {
+        return false;
+      }
+      // Held, so this basket is finished here. The key goes with it, not with the next sale.
+      saleKey.current = null;
+      await refreshHeld();
+      setReceipt(receipt);
+      setCart((current) => clearCart(current));
+      setPaying(false);
+      setBasketOpen(false);
+      return true;
+    };
+
+    if (offline) {
+      const verdict = canSellOffline(queueState);
+      if (!verdict.allowed) {
+        setError(verdict.reason ?? 'This device cannot hold another sale.');
+        setPaying(false);
+        return;
+      }
+      if (!(await hold())) {
+        setError(
+          'This browser will not store anything, so a sale cannot be held here. Reconnect before selling.',
+        );
+        setPaying(false);
+      }
+      return;
+    }
 
     let result: Awaited<ReturnType<typeof completeSale>>;
     try {
@@ -294,6 +525,9 @@ export function PosTerminal({
        * reloading the page and ringing the sale afresh, which is how a customer gets charged
        * twice.
        */
+      // Held on the device instead, under the same key: if the sale did reach Carl before the
+      // connection dropped, sending it again is recognised rather than recorded twice.
+      if (await hold()) return;
       setError(
         'Carl could not be reached, so it is not known whether this sale was recorded. ' +
           'Press Confirm again — it cannot be recorded twice.',
@@ -315,40 +549,7 @@ export function PosTerminal({
      * the totals the server recorded. Lines are laid out by the same domain function the
      * desktop till uses; no figure on it is computed here that the sale did not already have.
      */
-    setReceipt({
-      saleNumber: result.data.saleNumber,
-      total: result.data.total,
-      paid: result.data.amountPaid,
-      change: result.data.changeGiven,
-      print: {
-        ...receiptHeader,
-        branchName,
-        cashierName,
-        saleNumber: result.data.saleNumber,
-        soldAt: new Date(),
-        lines: cart.lines.map((line) => {
-          const figures = lineTotals(line);
-          return {
-            name: line.name,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
-            lineTotal: figures.total,
-            ...(figures.discount > 0 ? { discount: figures.discount } : {}),
-          };
-        }),
-        subtotal: totals.subtotal,
-        discountTotal: totals.orderDiscount,
-        taxTotal: totals.tax,
-        total: result.data.total,
-        payments: payments.map((payment) => ({
-          method: PAYMENT_METHOD_LABEL[payment.method] ?? payment.method,
-          amount: payment.amount,
-          reference: payment.reference ?? null,
-        })),
-        amountPaid: result.data.amountPaid,
-        changeGiven: result.data.changeGiven,
-      },
-    });
+    setReceipt(receiptFor(result.data, false));
     setCart((current) => clearCart(current));
     setPaying(false);
     setBasketOpen(false);
@@ -386,6 +587,32 @@ export function PosTerminal({
         </div>
 
         {error && <Alert tone="danger">{error}</Alert>}
+
+        {(offline || held.length > 0) && (
+          <Alert tone={offline ? 'warning' : 'info'}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {offline ? 'No connection. Sales are kept on this device.' : 'Back online.'}
+                {queueSummary(queueState) ? ` ${queueSummary(queueState)}.` : ''}
+                {(queueState.needingAttention ?? 0) > 0
+                  ? ` ${queueState.needingAttention} need attention.`
+                  : ''}
+              </span>
+              {!offline && held.length > 0 && (
+                <Button variant="secondary" size="sm" onClick={() => void sendHeld()}>
+                  Send now
+                </Button>
+              )}
+            </div>
+            {held
+              .filter((sale) => sale.state === 'attention')
+              .map((sale) => (
+                <p key={sale.key} className="mt-1 text-sm">
+                  {new Date(sale.soldAt).toLocaleTimeString('en-GB')} · {sale.message}
+                </p>
+              ))}
+          </Alert>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-card)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)]">
           {results.length === 0 ? (

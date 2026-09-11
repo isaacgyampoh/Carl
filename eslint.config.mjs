@@ -239,7 +239,13 @@ export default tseslint.config(
   // The rules are merged rather than replaced: assigning `rules` after the spread would
   // discard exactly the "off" switches that make this block work.
   {
-    files: ['**/*.config.{ts,mts,mjs,js}', '**/*.setup.{ts,mts,mjs}', 'scripts/**/*.mjs'],
+    files: [
+      '**/*.config.{ts,mts,mjs,js}',
+      '**/*.setup.{ts,mts,mjs}',
+      'scripts/**/*.mjs',
+      // The end-to-end suite: a standalone script, run by node against a deployment.
+      'tests/e2e/**/*.mjs',
+    ],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       parserOptions: { projectService: false, project: null },

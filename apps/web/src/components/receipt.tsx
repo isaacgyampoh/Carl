@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { renderReceipt, type ReceiptData } from '@carl/domain';
 
+import type { ReceiptSource } from '@/lib/receipt-data';
 import { whatsappNumber } from '@/lib/receipt-sharing';
 import { Button, buttonClasses } from '@carl/ui';
 
@@ -44,8 +45,8 @@ export function PrintableReceipt({ data }: { data: ReceiptData }) {
   );
 }
 
-/** Serialisable from a server component: the sale time travels as an ISO string. */
-export type ReceiptSource = Omit<ReceiptData, 'soldAt'> & { soldAt: string };
+// Declared in a plain module so code with no JSX — the offline store, the tests — can hold one.
+export type { ReceiptSource } from '@/lib/receipt-data';
 
 /** The receipt as plain text, narrow enough to read in a chat window. */
 function receiptText(data: ReceiptData): string {

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { createLogger } from '@carl/shared';
+import { z } from '@carl/validation';
 import {
   completeSaleSchema,
   processReturnSchema,
@@ -61,6 +62,82 @@ export async function searchProducts(input: unknown): Promise<ActionResult<Searc
         packSize: row.pack_size ?? 1,
       })),
     );
+  } catch (error) {
+    return toActionResult(error);
+  }
+}
+
+/** A product as the till holds it on the device, so it can sell with no connection. */
+export interface CatalogueRow extends SearchResult {
+  barcodes: string[];
+}
+
+const catalogueSchema = z.object({
+  branchId: z.uuid(),
+  tier: z.enum(['RETAIL', 'WHOLESALE']).default('RETAIL'),
+});
+
+interface ProductRow {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  product_prices: { tier: string; amount: number; branch_id: string | null }[] | null;
+  product_barcodes: { barcode: string; pack_size: number; is_primary: boolean }[] | null;
+  inventory: { branch_id: string; quantity: number }[] | null;
+}
+
+/**
+ * The whole sellable catalogue for one branch, in one request.
+ *
+ * The till takes a copy when it has a connection so it can keep selling when it does not. It is
+ * the same data the search returns, read the same way — as the signed-in user, so RLS decides
+ * what is in it — and it is a convenience, never an authority: prices and stock are resolved
+ * again by `complete_sale` when the sale reaches the server.
+ *
+ * Bounded at two thousand products. A shop larger than that needs a till with a real database,
+ * which is the Windows one.
+ */
+export async function catalogueSnapshot(input: unknown): Promise<ActionResult<CatalogueRow[]>> {
+  try {
+    const { branchId, tier } = catalogueSchema.parse(input);
+    await requireTenant();
+
+    const client = await supabase();
+    const { data, error } = await client
+      .from('products')
+      .select(
+        'id, name, sku, unit, product_prices(tier, amount, branch_id), product_barcodes(barcode, pack_size, is_primary), inventory(branch_id, quantity)',
+      )
+      .eq('is_active', true)
+      .order('name')
+      .limit(2000)
+      .returns<ProductRow[]>();
+    if (error) throw error;
+
+    const rows = (data ?? []).map((product) => {
+      const prices = (product.product_prices ?? []).filter((price) => price.tier === tier);
+      // A price set for this branch wins over the business-wide one, as it does in the database.
+      const price = prices.find((row) => row.branch_id === branchId) ?? prices[0];
+      const barcodes = product.product_barcodes ?? [];
+      const primary = barcodes.find((code) => code.is_primary) ?? barcodes[0];
+      const stock = (product.inventory ?? []).find((row) => row.branch_id === branchId);
+      return {
+        productId: product.id,
+        name: product.name,
+        sku: product.sku,
+        unit: product.unit,
+        unitPrice: price?.amount ?? 0,
+        quantity: stock?.quantity ?? 0,
+        isExact: false,
+        packSize: primary?.pack_size ?? 1,
+        barcodes: barcodes.map((code) => code.barcode),
+      };
+    });
+
+    // A product with no price cannot be sold, and showing it offline only creates a refusal
+    // later, when the customer is already holding it.
+    return actionOk(rows.filter((row) => row.unitPrice > 0));
   } catch (error) {
     return toActionResult(error);
   }
