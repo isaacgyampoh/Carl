@@ -161,10 +161,35 @@ export async function middleware(request: NextRequest) {
     'transfers',
   ]);
   const segment = pathname.slice(1);
-  const isShopEntry =
-    /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(segment) && !RESERVED.has(segment) && !isPublic;
+  const SLUG = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
+  const isShopEntry = SLUG.test(segment) && !RESERVED.has(segment) && !isPublic;
 
-  if (!user && !isPublic && !isShopEntry) {
+  /*
+   * A shop's own manifest: exactly `/{slug}/manifest.webmanifest`, nothing else under a slug.
+   *
+   * A browser fetches the manifest before anyone has signed in — that is the point of it —
+   * and behind the session check this path answered with a redirect to /sign-in. The browser
+   * cannot install from a redirect, so every shop's install button silently did nothing: the
+   * per-business manifest existed, built, and was unreachable by the only client that asks
+   * for it.
+   *
+   * Two segments, matched in full. A prefix match on the slug would make everything a shop
+   * owns under its address public, and `/{slug}/new-pin` in particular requires a session.
+   * The slug half carries the same RESERVED guard as the front door, so `/pos/manifest...`
+   * and friends stay behind the check.
+   */
+  // Split on a regex rather than a quoted slash: middleware-public-paths.test.ts treats every
+  // single-quoted string beginning with a slash in this block as a public path, and that is
+  // the right guard to keep.
+  const [shopSegment, fileSegment, ...rest] = segment.split(/\//);
+  const isShopManifest =
+    rest.length === 0 &&
+    fileSegment === 'manifest.webmanifest' &&
+    shopSegment !== undefined &&
+    SLUG.test(shopSegment) &&
+    !RESERVED.has(shopSegment);
+
+  if (!user && !isPublic && !isShopEntry && !isShopManifest) {
     const signIn = request.nextUrl.clone();
     /*
      * The owner console has its own way in.

@@ -136,6 +136,30 @@ describe('shop entry URLs do not expose the application', () => {
     expect(reserved.has(route), `/${route} would be public`).toBe(true);
   });
 
+  describe("a shop's manifest", () => {
+    /*
+     * The regression: `/{slug}/manifest.webmanifest` was behind the session check. A browser
+     * fetches the manifest before anyone signs in, got a redirect to /sign-in, and cannot
+     * install from a redirect — so every shop's install button silently did nothing, while
+     * the manifest itself built and served correctly to anyone already signed in.
+     */
+    it('is let through without a session', () => {
+      expect(source).toContain('!isShopManifest');
+      expect(source).toMatch(/if \(!user && !isPublic && !isShopEntry && !isShopManifest\)/);
+    });
+
+    it('matches exactly two segments, never a prefix of the shop', () => {
+      // A prefix would make everything under a shop's address public, including /new-pin.
+      expect(source).toContain('rest.length === 0');
+      expect(source).toContain("fileSegment === 'manifest.webmanifest'");
+    });
+
+    it('keeps the RESERVED guard on the shop half', () => {
+      // Otherwise /pos/manifest.webmanifest and friends would slip past the check.
+      expect(source).toMatch(/SLUG\.test\(shopSegment\)\s*&&\s*!RESERVED\.has\(shopSegment\)/);
+    });
+  });
+
   it('still lets a real business slug through', () => {
     for (const slug of ['abc-fashion', 'kofi-stores', 'shop123']) {
       expect(shape.test(slug) && !reserved.has(slug), `${slug} would not reach its shop`).toBe(
