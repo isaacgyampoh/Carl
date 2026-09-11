@@ -137,7 +137,7 @@ export function InstallGate({
       <button
         type="button"
         onClick={() => setProceeding(true)}
-        className="mt-6 w-full text-sm text-[color:var(--color-ink-muted)] underline-offset-4 hover:underline"
+        className="mt-6 min-h-11 w-full text-sm text-[color:var(--color-ink-muted)] underline-offset-4 hover:underline"
       >
         Continue in this browser
       </button>
