@@ -449,7 +449,7 @@ try {
   await go(tab, `${BASE}/manifest.webmanifest`);
   await evaluate(
     tab,
-    `caches.open('carl-v1-shell').then((c) => c.put('/manifest.webmanifest', new Response('{"start_url":"/"}'))).then(() => caches.keys())`,
+    `caches.open('carl-v2-shell').then((c) => c.put('/manifest.webmanifest', new Response('{"start_url":"/"}'))).then(() => caches.keys())`,
   );
   await go(tab, `${BASE}/`);
   out(
@@ -472,7 +472,7 @@ try {
   let keys = [];
   for (let i = 0; i < 30; i++) {
     keys = await evaluate(tab, 'caches.keys()');
-    if (!keys.includes('carl-v1-shell') && keys.includes('carl-v2-shell')) break;
+    if (!keys.includes('carl-v2-shell') && keys.includes('carl-v3-shell')) break;
     await sleep(500);
   }
   out(
@@ -480,14 +480,14 @@ try {
     swScript === '/sw.js' &&
       (await evaluate(
         tab,
-        `fetch('/sw.js', { cache: 'no-store' }).then((r) => r.text()).then((t) => t.includes("'carl-v2'"))`,
+        `fetch('/sw.js', { cache: 'no-store' }).then((r) => r.text()).then((t) => t.includes("'carl-v3'"))`,
       )),
-    'the deployed worker is version carl-v2 and is active',
+    'the deployed worker is version carl-v3 and is active',
   );
   out(
     'Service worker',
-    !keys.includes('carl-v1-shell') && keys.includes('carl-v2-shell'),
-    'an old carl-v1 cache holding a stale manifest is deleted on activation',
+    !keys.includes('carl-v2-shell') && keys.includes('carl-v3-shell'),
+    'an old carl-v2 cache holding a stale manifest is deleted on activation',
     `caches: ${keys.join(', ')}`,
   );
 

@@ -140,7 +140,25 @@ const nextConfig: NextConfig = {
       'report-uri /api/csp-report',
     ].join('; ');
 
+    /*
+     * The files that never change without changing their name: the door pictures and the app
+     * icons. Next serves everything in public/ with `max-age=0, must-revalidate`, so a till
+     * opening its door asked the network about the same 40 KB picture every single time — a
+     * round trip before anything is drawn, on connections where the round trip is the slow
+     * part. A year, immutable: the second visit draws from disk.
+     *
+     * The cost of `immutable` is that replacing one of these files is not enough — it has to be
+     * renamed, or browsers that already have it will keep the old one for a year. The door
+     * screen's test asserts that the names in the markup and the files on disk agree, so a
+     * rename cannot be half done.
+     */
+    const forever = { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' };
+
     return [
+      { source: '/door/:file*', headers: [forever] },
+      { source: '/icons/:file*', headers: [forever] },
+      { source: '/icon.svg', headers: [forever] },
+      { source: '/icon-maskable.svg', headers: [forever] },
       {
         source: '/:path*',
         headers: [

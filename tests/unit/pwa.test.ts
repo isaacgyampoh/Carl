@@ -127,7 +127,7 @@ describe('the service worker', () => {
   });
 
   it('has a new version, and deletes every cache from another version when it activates', () => {
-    expect(sw).toMatch(/const VERSION = 'carl-v2'/);
+    expect(sw).toMatch(/const VERSION = 'carl-v3'/);
     expect(sw).toContain('keys.filter((key) => !key.startsWith(VERSION))');
   });
 

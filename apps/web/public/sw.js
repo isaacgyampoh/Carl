@@ -26,8 +26,12 @@
  * v2: the owner console moved to the main address and the installed app became the till
  * (start_url /{slug}/pos). No manifest is cached any more: a cached manifest is how an
  * installed app keeps an old start_url, and a browser fetches manifests itself.
+ *
+ * v3: the door pictures and the app icons are treated like build output — cached by name,
+ * because they are served immutable and a name is only reused for the same bytes. A till that
+ * loses its connection now still opens on its own door rather than an empty blue screen.
  */
-const VERSION = 'carl-v2';
+const VERSION = 'carl-v3';
 const SHELL_CACHE = `${VERSION}-shell`;
 
 /** Assets worth having before they are asked for. Pages and manifests are never among them. */
@@ -79,8 +83,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Immutable build output: cache first, because the filename changes when the content does.
-  if (url.pathname.startsWith('/_next/static/')) {
+  /*
+   * Anything whose name changes when its content does: the build output, the door pictures,
+   * the icons. Cache first — the network is never asked a second time for bytes that cannot
+   * have changed. These are also the only responses stored, and none of them is data.
+   */
+  if (
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/door/') ||
+    url.pathname.startsWith('/icons/') ||
+    url.pathname === '/icon.svg'
+  ) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
