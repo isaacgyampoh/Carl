@@ -13,9 +13,10 @@ So a terminal authenticates separately, and a sale carries both identities.
 ## The installation flow
 
 ```
-  Carl staff                         Installer                    Server
-  ──────────                         ─────────                    ──────
-  create device        ─────────────────────────────────────────► status PENDING
+  Business owner/admin               Installer                    Server
+  (portal → Windows POS)             ─────────                    ──────
+  ────────────────────
+  add till (register_device) ───────────────────────────────────► status PENDING
   issue activation code ────────────────────────────────────────► hash stored
         │
         └── code shown once ──────►  types it into a fresh till

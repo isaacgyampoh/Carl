@@ -3,9 +3,10 @@
 Carl POS keeps selling when the internet does not. This describes how, and — more
 importantly — what happens when the transactions come back and disagree with each other.
 
-> **Status.** The server side and the sync engine are implemented and tested. The Tauri
-> desktop application that hosts them is not yet built: the Rust toolchain is absent from
-> the current development machine. See [Current state](#current-state).
+> **Status.** The server side, the sync engine, the SQLite queue and the Tauri desktop
+> application (Carl POS for Windows) are implemented and tested, and the Windows installer is
+> built by CI. Not yet exercised on a physical Windows till; the first client's till is that
+> validation. See [Current state](#current-state).
 
 ---
 
@@ -192,9 +193,21 @@ stay on the server: a stolen terminal should yield a catalogue, not a business.
 | Device activation and offline authorisation window            | ✅ Implemented, 30 database tests            |
 | Sync engine (queue state machine, ordering, backoff, halting) | ✅ Implemented, 24 unit tests                |
 | `InMemorySyncQueue` reference implementation                  | ✅ The contract the durable queues must meet |
-| SQLite queue (Tauri)                                          | ⬜ Requires the Rust toolchain               |
-| IndexedDB queue (PWA)                                         | ⬜ Phase 10                                  |
-| Tauri desktop application                                     | ⬜ Requires the Rust toolchain               |
+| SQLite queue (Tauri)                                          | ✅ Implemented, tested against `schema.sql`  |
+| Tauri desktop application (Carl POS for Windows)              | ✅ Built by CI on a Windows runner           |
+| One business per till (re-activation wipes or refuses)        | ✅ `tenant-boundary.ts`, tested              |
+| A till sells only at its own branch                           | ✅ Migration 0040, tested                    |
+| IndexedDB queue (PWA)                                         | Not built, by decision (see below)           |
+| Installed on a physical Windows till                          | ⬜ First client onboarding                   |
+
+### Why the web app has no offline selling
+
+The web till and the installed web app are **online only**. An offline sale must be written
+durably before the receipt prints and later proved to belong to a registered terminal. A
+browser can clear its own storage and cannot hold a device secret out of reach of the page,
+so a web offline queue would be the weaker of two copies of the logic that handles money.
+Merchants who need to sell through outages, or who want to sell offline first, use Carl POS
+for Windows.
 
 The engine is deliberately storage-agnostic. Carl Desktop will back it with SQLite and the
 PWA with IndexedDB, and both run the same code against the same tests — a second

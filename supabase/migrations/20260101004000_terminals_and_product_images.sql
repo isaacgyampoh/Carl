@@ -188,3 +188,179 @@ create policy product_images_update on storage.objects
 create policy product_images_delete on storage.objects
   for delete to authenticated
   using (bucket_id = 'product-images' and app.product_image_writable(name));
+
+
+-- -----------------------------------------------------------------------------
+-- A till sells only at its own branch
+--
+-- app.authorize_device proves a terminal's secret, status and offline window, and nothing
+-- checked that the terminal belonged to the branch a sale was recorded at. Someone who works
+-- for two businesses could sign in on business A's till and record a sale at business B's
+-- branch, attributed to A's terminal; a till could likewise sell for another branch of its
+-- own business. With installed Windows tills on real counters that is not theoretical.
+--
+-- Enforced twice, for two different reasons:
+--   * on sales itself, so it holds for every path that records a sale (sync, a direct
+--     complete_sale call, anything written later), and
+--   * at the top of sync_offline_sale, so a mismatched till is a hard stop that writes
+--     nothing, not even a "conflict for review" filed into the other business.
+-- -----------------------------------------------------------------------------
+create or replace function app.assert_sale_device_in_branch()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.device_id is not null and not exists (
+    select 1 from public.devices d
+    where d.id = new.device_id
+      and d.tenant_id = new.tenant_id
+      and d.branch_id = new.branch_id
+  ) then
+    raise exception 'FORBIDDEN_BRANCH' using detail = 'This terminal belongs to another branch.';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function app.assert_sale_device_in_branch() from public, anon;
+
+create trigger sales_device_in_own_branch
+  before insert or update of device_id, branch_id, tenant_id on public.sales
+  for each row execute function app.assert_sale_device_in_branch();
+
+create or replace function sync_offline_sale(
+  p_branch_id       uuid,
+  p_items           jsonb,
+  p_payments        jsonb,
+  p_idempotency_key text,
+  p_sold_at         timestamptz,
+  p_device_id       uuid,
+  p_device_secret   text,
+  p_pepper          text,
+  p_customer_id     uuid default null,
+  p_tier            price_tier default 'RETAIL',
+  p_order_discount_type  discount_type default 'NONE',
+  p_order_discount_value numeric default null,
+  p_note            text default null
+)
+returns table (
+  sale_id       uuid,
+  sale_number   text,
+  total         bigint,
+  was_replayed  boolean,
+  had_conflict  boolean,
+  conflict_id   uuid
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant_id   uuid;
+  v_result      record;
+  v_conflict_id uuid;
+  v_message     text;
+  v_detail      text;
+  v_code        text;
+begin
+  -- The business comes from the terminal, never from the branch the request names, and the
+  -- terminal must belong to that branch. Checked before anything else so a mismatched till
+  -- stops here and writes nothing anywhere.
+  select d.tenant_id into v_tenant_id
+  from public.devices d
+  where d.id = p_device_id and d.branch_id = p_branch_id;
+  if not found then
+    raise exception 'FORBIDDEN_BRANCH' using detail = 'This terminal does not belong to that branch.';
+  end if;
+
+  if p_sold_at is null then
+    raise exception 'SYNC_PAYLOAD_INVALID'
+      using detail = 'An offline sale must carry the time it was made.';
+  end if;
+
+  if p_sold_at > now() + interval '1 hour' then
+    raise exception 'SYNC_PAYLOAD_INVALID'
+      using detail = 'This sale is dated in the future. Check the terminal clock.';
+  end if;
+
+  begin
+    select * into v_result
+    from public.complete_sale(
+      p_branch_id, p_items, p_payments, p_idempotency_key, p_customer_id, p_tier,
+      p_device_id, p_device_secret, p_pepper,
+      p_order_discount_type, p_order_discount_value, null, p_note, p_sold_at, 'POS'
+    );
+
+    update public.devices
+       set last_sync_at = now(),
+           last_seen_at = now(),
+           authorized_until = now() + make_interval(hours => offline_grace_hours),
+           pending_sync_count = greatest(pending_sync_count - 1, 0)
+     where id = p_device_id;
+
+    return query
+      select v_result.sale_id, v_result.sale_number, v_result.total,
+             v_result.was_replayed, false, null::uuid;
+    return;
+
+  exception
+    when others then
+      get stacked diagnostics
+        v_message = message_text,
+        v_detail  = pg_exception_detail;
+
+      v_code := split_part(v_message, ' ', 1);
+
+      if v_code in ('DEVICE_REVOKED', 'DEVICE_NOT_ACTIVATED', 'DEVICE_AUTHORIZATION_EXPIRED',
+                    'DEVICE_NOT_FOUND', 'TENANT_SUSPENDED', 'PERMISSION_DENIED', 'FORBIDDEN_BRANCH') then
+        raise;
+      end if;
+
+      insert into public.sync_conflicts (
+        tenant_id, branch_id, device_id, conflict_type, entity_type, payload, detail, occurred_at
+      )
+      values (
+        v_tenant_id, p_branch_id, p_device_id,
+        case v_code
+          when 'INSUFFICIENT_STOCK'  then 'INSUFFICIENT_STOCK'::public.sync_conflict_type
+          when 'PRODUCT_NOT_FOUND'   then 'PRODUCT_REMOVED'::public.sync_conflict_type
+          when 'PRODUCT_INACTIVE'    then 'PRODUCT_REMOVED'::public.sync_conflict_type
+          when 'PRICE_NOT_CONFIGURED' then 'PRICE_CHANGED'::public.sync_conflict_type
+          when 'IDEMPOTENCY_KEY_REUSED' then 'DUPLICATE_TRANSACTION'::public.sync_conflict_type
+          else 'VALIDATION_FAILED'::public.sync_conflict_type
+        end,
+        'sale',
+        jsonb_build_object(
+          'branch_id', p_branch_id,
+          'items', p_items,
+          'payments', p_payments,
+          'idempotency_key', p_idempotency_key,
+          'sold_at', p_sold_at,
+          'tier', p_tier,
+          'customer_id', p_customer_id
+        ),
+        coalesce(v_detail, v_message),
+        p_sold_at
+      )
+      returning id into v_conflict_id;
+
+      insert into public.notifications (tenant_id, branch_id, kind, severity, title, body, metadata)
+      values (
+        v_tenant_id, p_branch_id, 'SYNC_CONFLICT', 'WARNING',
+        'An offline sale needs review',
+        coalesce(v_detail, v_message),
+        jsonb_build_object('conflict_id', v_conflict_id, 'device_id', p_device_id)
+      );
+
+      update public.devices
+         set last_sync_at = now(), last_seen_at = now()
+       where id = p_device_id;
+
+      return query
+        select null::uuid, null::text, null::bigint, false, true, v_conflict_id;
+      return;
+  end;
+end;
+$$;

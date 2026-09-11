@@ -25,6 +25,32 @@ never been tested.
 Nobody on this project owns a Windows machine or any POS peripheral. Everything above
 marked ❌ is genuinely unknown, not merely unrecorded.
 
+## How a client installs it
+
+Everything starts in the client's own portal, under **Windows POS** (owners and anyone with
+`devices.manage`):
+
+1. **Download.** The portal links the installer from the latest published GitHub Release,
+   resolved on the server. With nothing published it shows no button, never a dead link.
+2. **Add the till.** Choose the branch and a name. `register_device` creates the terminal in
+   _that_ business and the portal shows a one-time 12-character activation code (24 hours).
+3. **On the till.** Run the installer, open Carl POS, type the code. `activate_device` binds
+   this machine to the terminal; the business and branch come from the server, never from
+   the till. The catalogue downloads and the device secret goes to Windows Credential Manager.
+4. **Sign in and sell.** Each cashier uses their own staff PIN. Sales are written to disk
+   first and synced when the connection allows; offline, the till keeps selling for the
+   device's offline window (7 days by default).
+
+A till serves exactly one business. Re-activating it for another business wipes the previous
+business's local data, and is refused while any sale has not reached Carl. A till can record
+sales only at its own branch.
+
+## Releasing a new version
+
+Push a `v*` tag. `windows-release.yml` builds the installer on a Windows runner, refuses to
+build without the Supabase settings a till needs to sign cashiers in, checksums it, and
+publishes the GitHub Release. Every client portal shows it within ten minutes.
+
 ## What the shop receives
 
 ```
