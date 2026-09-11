@@ -30,7 +30,7 @@ export function NavLink({
         href={href}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'flex flex-1 items-center justify-center px-2 py-3 text-xs font-medium',
+          'flex min-w-[5.5rem] flex-1 shrink-0 items-center justify-center whitespace-nowrap px-3 py-3 text-xs font-medium',
           active
             ? 'text-[color:var(--color-brand)]'
             : 'text-[color:var(--color-ink-muted)] active:bg-[color:var(--color-surface-muted)]',

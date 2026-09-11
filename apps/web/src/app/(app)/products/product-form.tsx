@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { productSchema, type ProductFormValues, type ProductInput } from '@carl/validation';
 import { formatMoney, parseMoney } from '@carl/shared';
@@ -83,19 +83,26 @@ export function ProductForm({
 
   const taxMode = watch('taxMode');
 
+  // Read directly rather than through the product schema: opening stock is not an attribute
+  // of the product, it is the first entry in its stock ledger.
+  const openingStockRef = useRef<HTMLInputElement>(null);
+
   async function onSubmit(values: ProductInput): Promise<void> {
     setServerError(null);
+    const openingStock = Number(openingStockRef.current?.value ?? 0);
     const result = await saveProduct({
       branchId,
       ...(productId ? { productId } : {}),
       product: values,
+      ...(!productId && openingStock > 0 ? { openingStock } : {}),
     });
 
     if (!result.ok) {
       setServerError(result.message);
       return;
     }
-    router.push('/products');
+    // The product exists either way; if its stock was not recorded, go where it can be.
+    router.push(result.data.stockWarning ? `/products/${result.data.productId}` : '/products');
     router.refresh();
   }
 
@@ -248,6 +255,26 @@ export function ProductForm({
           </LabelledField>
         </FormSection>
 
+        <FormSection title="Image">
+          <LabelledField
+            label="Image URL"
+            htmlFor="imageUrl"
+            error={errors.imageUrl}
+            hint="Optional. A link to a picture of the product."
+          >
+            <input
+              id="imageUrl"
+              type="url"
+              inputMode="url"
+              autoComplete="off"
+              className={inputClass}
+              {...register('imageUrl', {
+                setValueAs: (value: string) => (value === '' ? null : value),
+              })}
+            />
+          </LabelledField>
+        </FormSection>
+
         <FormSection title="Tax">
           <LabelledField label="Tax treatment" htmlFor="taxMode" error={errors.taxMode}>
             <select id="taxMode" className={inputClass} {...register('taxMode')}>
@@ -274,6 +301,24 @@ export function ProductForm({
         </FormSection>
 
         <FormSection title="Stock">
+          {!productId && (
+            <LabelledField
+              label="Opening stock"
+              htmlFor="openingStock"
+              hint="How many you have right now at this branch. Stock can be adjusted later."
+            >
+              <input
+                id="openingStock"
+                ref={openingStockRef}
+                type="number"
+                step="any"
+                min="0"
+                defaultValue=""
+                className={`${inputClass} tabular-nums`}
+              />
+            </LabelledField>
+          )}
+
           <LabelledField
             label="Reorder level"
             htmlFor="reorderLevel"

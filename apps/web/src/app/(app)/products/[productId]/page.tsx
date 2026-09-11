@@ -2,12 +2,14 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Permission } from '@carl/domain';
 import { activeBranch, hasPermission } from '@carl/application';
-import { EmptyState } from '@carl/ui';
+import { EmptyState, Card } from '@carl/ui';
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/page-header';
 import { ProductForm } from '../product-form';
+import { formatQuantity } from '@carl/shared';
+import { AdjustStockForm } from '@/components/adjust-stock-form';
 
 export const metadata: Metadata = { title: 'Edit product' };
 export const dynamic = 'force-dynamic';
@@ -42,7 +44,7 @@ export default async function EditProductPage({
   const branch = activeBranch(auth);
 
   const client = await supabase();
-  const [{ data: product }, { data: categories }] = await Promise.all([
+  const [{ data: product }, { data: categories }, { data: stock }] = await Promise.all([
     client
       .from('products')
       .select(
@@ -54,6 +56,15 @@ export default async function EditProductPage({
       .eq('id', productId)
       .maybeSingle<ProductDetail>(),
     client.from('categories').select('id, name').eq('is_active', true).order('name'),
+    // This branch's stock. A new product has no row until something is recorded.
+    branch
+      ? client
+          .from('inventory')
+          .select('quantity')
+          .eq('product_id', productId)
+          .eq('branch_id', branch.id)
+          .maybeSingle<{ quantity: number }>()
+      : Promise.resolve({ data: null }),
   ]);
 
   // RLS returns nothing for a product in another tenant, so a forbidden product and a
@@ -89,6 +100,23 @@ export default async function EditProductPage({
   return (
     <>
       <PageHeader title={product.name} description={product.sku} />
+      {product.is_stock_tracked && (
+        <Card className="mb-5 max-w-3xl p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-[color:var(--color-ink-muted)]">Stock at {branch.name}</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {formatQuantity(Math.round(Number(stock?.quantity ?? 0) * 1000), {
+                  unit: product.unit,
+                })}
+              </p>
+            </div>
+            {hasPermission(auth, Permission.INVENTORY_ADJUST) && (
+              <AdjustStockForm branchId={branch.id} productId={product.id} />
+            )}
+          </div>
+        </Card>
+      )}
       <div className="max-w-3xl">
         <ProductForm
           branchId={branch.id}

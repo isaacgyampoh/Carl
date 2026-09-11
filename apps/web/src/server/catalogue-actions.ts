@@ -33,13 +33,20 @@ const upsertProductSchema = z.object({
   branchId: z.uuid(),
   productId: z.uuid().optional(),
   product: productSchema,
+  /*
+   * Stock on hand when the product is first created, at this branch.
+   *
+   * Without it a new product could not be sold: the branch holds none, negative stock is
+   * refused by default, and the only other way in was raising and receiving a purchase.
+   */
+  openingStock: z.number().min(0).max(1_000_000_000).optional(),
 });
 
 export async function saveProduct(
   input: unknown,
-): Promise<ActionResult<{ productId: string; created: boolean }>> {
+): Promise<ActionResult<{ productId: string; created: boolean; stockWarning?: string }>> {
   try {
-    const { branchId, productId, product } = upsertProductSchema.parse(input);
+    const { branchId, productId, product, openingStock } = upsertProductSchema.parse(input);
     const auth = await requireTenant();
 
     const client = await supabase();
@@ -69,6 +76,34 @@ export async function saveProduct(
     const row = data?.[0];
     if (!row?.product_id) throw new Error('upsert_product returned no row');
 
+    /*
+     * Opening stock, recorded through the same function a manual adjustment uses, so it is
+     * permission-checked (`inventory.adjust`) and written to the movement ledger.
+     *
+     * Recorded only on creation. If it fails the product still exists and is correct; the
+     * caller is told, and stock can be added from the product page. Rolling back a
+     * successfully created product because its stock entry failed would lose the typing.
+     */
+    let stockWarning: string | undefined;
+    if (
+      row.was_created &&
+      product.isStockTracked &&
+      openingStock !== undefined &&
+      openingStock > 0
+    ) {
+      const { error: stockError } = await client.rpc('apply_stock_adjustment', {
+        p_branch_id: branchId,
+        p_product_id: row.product_id,
+        p_quantity: openingStock,
+        p_movement_type: 'OPENING_STOCK',
+        p_reason: 'Opening stock, recorded when the product was created',
+      });
+      if (stockError) {
+        stockWarning =
+          'The product was created, but its opening stock could not be recorded. Add it below.';
+      }
+    }
+
     log.info('product saved', {
       tenantId: auth.tenant.tenantId,
       userId: auth.user.userId,
@@ -80,7 +115,11 @@ export async function saveProduct(
     revalidatePath(`/products/${row.product_id}`);
     revalidatePath('/inventory');
 
-    return actionOk({ productId: row.product_id, created: row.was_created ?? false });
+    return actionOk({
+      productId: row.product_id,
+      created: row.was_created ?? false,
+      ...(stockWarning ? { stockWarning } : {}),
+    });
   } catch (error) {
     return toActionResult(error);
   }

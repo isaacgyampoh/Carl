@@ -18,6 +18,7 @@ import {
 
 import { requirePermission } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { AdjustStockForm } from '@/components/adjust-stock-form';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { pageParams, toPage } from '@/server/queries';
@@ -44,6 +45,7 @@ export default async function InventoryPage({
   const branch = activeBranch(auth);
   const canSeeCost = hasPermission(auth, Permission.PRODUCTS_VIEW_COST);
   const lowOnly = params.filter === 'low';
+  const canAdjust = hasPermission(auth, Permission.INVENTORY_ADJUST);
 
   const client = await supabase();
 
@@ -55,19 +57,47 @@ export default async function InventoryPage({
   });
   const totals = valuation?.[0];
 
+  /*
+   * "Low" compares two columns, which PostgREST cannot filter on. This used to fetch one page
+   * and then filter it in JavaScript, so a low product on page two never appeared, and the
+   * count and page links described the unfiltered list. The low products now come from the
+   * database over the whole branch, and the page is fetched from those.
+   */
+  const lowProductIds = lowOnly
+    ? (
+        (
+          await client.rpc('low_stock_items', {
+            p_tenant_id: auth.tenant.tenantId,
+            ...(branch ? { p_branch_id: branch.id } : {}),
+            p_limit: 100,
+          })
+        ).data ?? []
+      )
+        .map((item) => item.product_id)
+        .filter((id): id is string => id !== null)
+    : null;
+
   let query = client
     .from('inventory')
     .select(
       'quantity, reserved, reorder_level, last_counted_at, products(id, name, sku, unit, average_cost)',
       { count: 'exact' },
     )
+    .eq('tenant_id', auth.tenant.tenantId)
     .order('quantity')
     .range(from, to);
 
   if (branch) query = query.eq('branch_id', branch.id);
+  if (lowProductIds) {
+    // An empty `in` list is not valid; a nil id matches nothing, which is the right answer.
+    query = query.in(
+      'product_id',
+      lowProductIds.length > 0 ? lowProductIds : ['00000000-0000-0000-0000-000000000000'],
+    );
+  }
   const { data, count } = await query.returns<StockRow[]>();
 
-  const rows = (data ?? []).filter((row) => (lowOnly ? row.quantity <= row.reorder_level : true));
+  const rows = data ?? [];
   const stock = toPage(rows, count, page, pageSize);
 
   return (
@@ -109,7 +139,7 @@ export default async function InventoryPage({
             description={
               lowOnly
                 ? 'Every product is above its reorder level.'
-                : 'Receive a purchase or record opening stock to get started.'
+                : 'Receive a purchase, or open a product and adjust its stock.'
             }
           />
         ) : (
@@ -123,6 +153,7 @@ export default async function InventoryPage({
                   <TH numeric>Reorder at</TH>
                   {canSeeCost && <TH numeric>Value</TH>}
                   <TH>Last counted</TH>
+                  {canAdjust && branch && <TH className="text-right">Adjust</TH>}
                 </TR>
               </THead>
               <TBody>
@@ -172,6 +203,15 @@ export default async function InventoryPage({
                           <Badge tone="neutral">Never</Badge>
                         )}
                       </TD>
+                      {canAdjust && branch && row.products && (
+                        <TD className="text-right">
+                          <AdjustStockForm
+                            branchId={branch.id}
+                            productId={row.products.id}
+                            compact
+                          />
+                        </TD>
+                      )}
                     </TR>
                   );
                 })}

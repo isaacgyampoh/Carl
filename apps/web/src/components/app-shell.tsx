@@ -71,6 +71,19 @@ const NAV_SECTIONS: readonly { heading: string; items: readonly NavItem[] }[] = 
   },
 ];
 
+/** The owner console's sections, in the order an operator reaches for them. */
+export const PLATFORM_NAV: readonly (readonly [href: string, label: string])[] = [
+  ['/platform', 'Overview'],
+  ['/platform/clients', 'Clients'],
+  ['/platform/onboarding', 'Add client'],
+  ['/platform/billing', 'Billing'],
+  ['/platform/invoices', 'Invoices'],
+  ['/platform/devices', 'Terminals'],
+  ['/platform/branches', 'Branches'],
+  ['/platform/audit', 'Activity'],
+  ['/platform/settings', 'Settings'],
+];
+
 export function AppShell({ auth, children }: { auth: AuthContext; children: ReactNode }) {
   const tenant = auth.tenant;
 
@@ -118,18 +131,15 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
                 Carl platform
               </p>
               <ul className="flex flex-col gap-0.5">
-                <li>
-                  <NavLink href="/platform">Overview</NavLink>
-                </li>
-                <li>
-                  <NavLink href="/platform/tenants">Businesses</NavLink>
-                </li>
-                <li>
-                  <NavLink href="/platform/installations">Installations</NavLink>
-                </li>
-                <li>
-                  <NavLink href="/platform/maintenance">Maintenance</NavLink>
-                </li>
+                {/* Every link here is a route that exists. This list used to point at
+                    /platform/installations and /platform/maintenance, which had no pages, and
+                    at /platform/tenants, which only redirects — so the owner's navigation
+                    led to two 404s and a detour. */}
+                {PLATFORM_NAV.map(([href, label]) => (
+                  <li key={href}>
+                    <NavLink href={href}>{label}</NavLink>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
@@ -153,26 +163,41 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
             {tenant && <BranchSwitcher tenant={tenant} />}
           </div>
 
-          {tenant && tenant.status !== 'ACTIVE' && (
-            <Badge tone={statusTone(tenant.status)}>{tenant.status.replace('_', ' ')}</Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {tenant && tenant.status !== 'ACTIVE' && (
+              <Badge tone={statusTone(tenant.status)}>{tenant.status.replace('_', ' ')}</Badge>
+            )}
+            {/* Below the desktop breakpoint the sidebar, and the Sign out button in it, is
+                hidden — so a cashier on a tablet or phone had no way to end their shift. */}
+            <div className="w-24 lg:hidden">
+              <SignOutButton />
+            </div>
+          </div>
         </header>
 
         <main className="min-w-0 flex-1 px-4 py-5 lg:px-6 lg:py-6">{children}</main>
 
-        {/* Bottom navigation on mobile: the four things a phone user actually does. */}
+        {/*
+         * Bottom navigation on mobile: every section this person may use, scrolling sideways.
+         *
+         * It used to show the first four and drop the rest, so on a phone an owner could not
+         * reach Staff, Branches or Reports at all — and the platform owner, who holds no
+         * business permissions, got an empty bar. Their console sections are included.
+         */}
         <nav
-          className="sticky bottom-0 flex shrink-0 border-t border-[color:var(--color-border)] bg-[color:var(--color-surface)] lg:hidden"
+          className="sticky bottom-0 flex shrink-0 overflow-x-auto border-t border-[color:var(--color-border)] bg-[color:var(--color-surface)] lg:hidden"
           aria-label="Primary"
         >
-          {sections
-            .flatMap((section) => section.items)
-            .slice(0, 4)
-            .map((item) => (
-              <NavLink key={item.href} href={item.href} variant="bottom">
-                {item.label}
-              </NavLink>
-            ))}
+          {[
+            ...sections.flatMap((section) =>
+              section.items.map((item) => [item.href, item.label] as const),
+            ),
+            ...(auth.user.isPlatformAdmin ? PLATFORM_NAV : []),
+          ].map(([href, label]) => (
+            <NavLink key={href} href={href} variant="bottom">
+              {label}
+            </NavLink>
+          ))}
         </nav>
       </div>
     </div>
