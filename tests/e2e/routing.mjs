@@ -323,6 +323,56 @@ const pg = new Client({
   ssl: { rejectUnauthorized: false },
 });
 await pg.connect();
+
+/**
+ * Takes away everything this run created.
+ *
+ * The suite makes a business, an administrator and a cashier every time; left behind they pile
+ * up in staging until nothing about a failure is legible. Accounts go through the Auth admin
+ * API, never by deleting auth.users rows, and the tenant's immutability guards are suspended
+ * only inside this transaction.
+ */
+const createdAccounts = [];
+let createdTenant = null;
+async function teardown() {
+  const guards = [
+    ['audit_logs', 'audit_logs_immutable'],
+    ['cash_movements', 'cash_movements_immutable'],
+    ['inventory_movements', 'inventory_movements_immutable'],
+    ['subscription_payments', 'subscription_payments_immutable'],
+  ];
+  if (createdTenant) {
+    const tables = (
+      await pg.query(`select c.relname t from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        join pg_attribute a on a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped
+        where n.nspname = 'public' and c.relkind = 'r' order by 1`)
+    ).rows.map((r) => r.t);
+    await pg.query('begin');
+    try {
+      for (const [table, trigger] of guards) {
+        await pg.query(`alter table public.${table} disable trigger ${trigger}`);
+      }
+      for (const table of tables) {
+        await pg.query(`delete from public.${table} where tenant_id = $1`, [createdTenant]);
+      }
+      await pg.query(`delete from public.tenants where id = $1`, [createdTenant]);
+      for (const [table, trigger] of guards) {
+        await pg.query(`alter table public.${table} enable trigger ${trigger}`);
+      }
+      await pg.query('commit');
+    } catch (e) {
+      await pg.query('rollback');
+      log(`NOTE  the temporary business could not be removed: ${String(e.message).slice(0, 80)}`);
+    }
+  }
+  for (const id of createdAccounts) {
+    await fetch(`${SB_URL}/auth/v1/admin/users/${id}`, {
+      method: 'DELETE',
+      headers: { apikey: SB_SERVICE, authorization: `Bearer ${SB_SERVICE}` },
+    }).catch(() => undefined);
+  }
+}
 try {
   // ================= Setup: one temporary business =================
   const [{ user_id: ownerId }] = (
@@ -345,6 +395,7 @@ try {
     password: randomUUID() + randomUUID(),
     user_metadata: { full_name: 'Routing Test Admin' },
   });
+  if (adminAcct.json?.id) createdAccounts.push(adminAcct.json.id);
   const ownerDb = asUser(ownerTokens.access_token);
   const { data: plan } = await ownerDb
     .from('subscription_plans')
@@ -373,6 +424,7 @@ try {
   if (obError) throw new Error('setup failed');
   const tenantId = ob[0].tenant_id,
     branchId = ob[0].branch_id;
+  createdTenant = tenantId;
   const { data: pinRows } = await ownerDb.rpc('issue_initial_pin', { p_tenant_id: tenantId });
   const initialPin = pinRows?.[0]?.out_pin;
   out(
@@ -568,6 +620,7 @@ try {
     password: randomUUID() + randomUUID(),
     user_metadata: { full_name: 'Routing Test Cashier' },
   });
+  if (cashierAcct.json?.id) createdAccounts.push(cashierAcct.json.id);
   let cashierPin = null,
     staffError = null;
   for (let i = 0; i < 4 && !cashierPin; i++) {
@@ -791,6 +844,7 @@ try {
     // Best effort: the run is already reporting a failure.
   }
 } finally {
+  await teardown();
   await pg.end();
   ws.close();
   chrome.kill();
