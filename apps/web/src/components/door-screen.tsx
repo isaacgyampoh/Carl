@@ -54,8 +54,28 @@ export function DoorScreen({
   picture?: Picture;
 }) {
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[#062a86] px-5 py-10 lg:items-end lg:px-[7vw]">
+    <main
+      /*
+       * Names the picture this screen is showing, so a check outside the browser can tell a
+       * door from a screen that merely has a door's address — signed in, /{slug} is a
+       * dashboard — and can then look at the pixels and say whether the picture arrived.
+       */
+      data-door={picture}
+      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[#062a86] px-5 py-10 lg:items-end lg:px-[7vw]"
+    >
       <DoorBackdrop picture={picture} />
+      {/*
+       * The name, over the picture, on screens wide enough to have room for it. Every card
+       * already says where you are; this says whose software you are standing in front of,
+       * which on a counter screen facing a customer is the part that is worth saying twice.
+       * Hidden from screen readers for exactly that reason — it is the second time.
+       */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-[7vw] top-10 hidden text-xl font-semibold tracking-tight text-white/90 [text-shadow:0_1px_3px_rgb(1_16_54/0.5)] lg:block"
+      >
+        Carl
+      </div>
       <div className={`relative w-full ${wide ? 'max-w-md' : 'max-w-sm'}`}>
         <div className="rounded-2xl bg-[color:var(--color-surface)] p-6 shadow-[0_30px_80px_-24px_rgb(1_16_54/0.8)] sm:p-8">
           {children}
@@ -88,13 +108,25 @@ function DoorBackdrop({ picture }: { picture: Picture }) {
     <div
       aria-hidden
       /*
+       * Only the picture, and no `-z-10`.
+       *
+       * It had one, and the moment the screen itself was given a ground colour the picture
+       * vanished behind it on every door — flat blue, which is how a shopkeeper's screenshot
+       * found it. `main` is `relative` with `z-index: auto`, so it forms no stacking context,
+       * and a negatively-stacked child of it is painted beneath the backgrounds of ordinary
+       * blocks, main's own included. Document order does the job without that trap: this is
+       * painted before the card, and the card is positioned, so the card sits over it.
+       *
+       * A DOM audit cannot see this failure — every class was present and correct. The pixel
+       * check in scripts/ui-audit.mjs can, and does.
+       *
        * Only the picture. The colour under it is painted by the screen itself rather than here,
        * because this element is a sibling of the text, not an ancestor of it: anything reading
        * the page — a contrast audit, a browser's forced-colours mode — resolves what is behind
        * a word by walking up its ancestors, and would find the white page background and
        * conclude that the white line under the card is invisible.
        */
-      className={`pointer-events-none absolute inset-0 -z-10 bg-[#062a86] bg-[length:100%_auto] bg-top bg-no-repeat lg:bg-cover lg:bg-[position:36%_center] ${PICTURES[picture]}`}
+      className={`pointer-events-none absolute inset-0 bg-[length:100%_auto] bg-top bg-no-repeat lg:bg-cover lg:bg-[position:36%_center] ${PICTURES[picture]}`}
     >
       {/*
        * The scrim. On a phone it only settles the bottom, where the quiet line goes; the picture

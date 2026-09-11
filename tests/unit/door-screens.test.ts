@@ -90,7 +90,13 @@ describe('the backdrop', () => {
   });
 
   it('stays behind the card, which keeps its own solid background', () => {
-    expect(door).toContain('-z-10');
+    // No negative stacking on anything here. The screen paints its own ground colour, and a
+    // negatively-stacked child of a parent that forms no stacking context is painted beneath
+    // that ground — which hid the picture on every door until a shopkeeper's screenshot showed
+    // flat blue. Matched against class attributes only: the comment explaining it says -z-10.
+    for (const classes of door.match(/className=[^\n]*/g) ?? []) {
+      expect(classes, 'a negative z-index is what hid the pictures').not.toMatch(/-z-\d/);
+    }
     // Full contrast for every word: a PIN prompt, an error, a business's name.
     expect(door).toContain('bg-[color:var(--color-surface)]');
     expect(door).not.toMatch(/bg-\[color:var\(--color-surface\)\]\/\d/);
