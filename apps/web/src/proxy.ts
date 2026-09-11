@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { DOOR_COOKIE, shopDoor } from './lib/shop-door';
+import { OWNER_SESSION_COOKIE, SURFACE_HEADER, surfaceFor } from './lib/surface';
 
 /**
  * Session refresh and route protection.
@@ -25,6 +26,12 @@ import { DOOR_COOKIE, shopDoor } from './lib/shop-door';
  * `getUser()` is used rather than `getSession()` because only the former validates the
  * token with the auth server. `getSession()` decodes whatever the cookie contains, and a
  * forged cookie decodes perfectly well.
+ *
+ * ## Which application a request belongs to
+ *
+ * Decided here, from the path alone (lib/surface.ts): the owner console (`/` and
+ * `/platform/...`) or a business (its portal and its till). Each keeps its own session cookie,
+ * and the decision reaches the render code in a request header this proxy always overwrites.
  */
 /**
  * Read directly from `process.env` rather than through the shared config module: the proxy
@@ -43,12 +50,37 @@ function requiredEnv(name: string): string {
 }
 
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+  const surface = surfaceFor(pathname);
+
+  /*
+   * The owner's old PIN page.
+   *
+   * The owner's entry is the main address now. This one lives on in bookmarks and in "Carl
+   * Owner" apps installed before the move, and sends them to the entry that replaced it.
+   */
+  if (pathname === '/platform/sign-in') {
+    const entry = request.nextUrl.clone();
+    entry.pathname = '/';
+    entry.search = '';
+    return NextResponse.redirect(entry);
+  }
+
+  // Replaced, never appended: a browser that sends its own surface header changes nothing.
+  const forwardedHeaders = () => {
+    const forwarded = new Headers(request.headers);
+    forwarded.set(SURFACE_HEADER, surface);
+    return forwarded;
+  };
+
+  let response = NextResponse.next({ request: { headers: forwardedHeaders() } });
 
   const supabase = createServerClient(
     requiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
     requiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     {
+      // The owner console's session is its own; a business uses Supabase's default cookie.
+      ...(surface === 'owner' ? { cookieOptions: { name: OWNER_SESSION_COOKIE } } : {}),
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookies) => {
@@ -57,7 +89,7 @@ export async function proxy(request: NextRequest) {
           }
           // A fresh response is required so the rotated cookies are actually sent; mutating
           // the previous one after reading from it drops them.
-          response = NextResponse.next({ request });
+          response = NextResponse.next({ request: { headers: forwardedHeaders() } });
           for (const { name, value, options } of cookies) {
             response.cookies.set(name, value, options);
           }
@@ -69,8 +101,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
 
   /*
    * Routes that must work without a session.
@@ -100,19 +130,9 @@ export async function proxy(request: NextRequest) {
      */
     pathname.startsWith('/api/device/') ||
     /*
-     * The owner's PIN prompt.
+     * The owner's entry: the main address, where the platform owner types their PIN.
      *
-     * It has to be reachable without a session for the obvious reason: it is how the
-     * session is obtained. Behind the session check it would redirect to the merchant
-     * sign-in page, which asks for an email and password the platform owner does not use.
-     */
-    pathname === '/platform/sign-in' ||
-    // The owner console's manifest. A browser fetches it before any session exists, and
-    // behind the session check it returns a redirect, so the app cannot be installed.
-    pathname === '/platform.webmanifest' ||
-    /*
-     * The public site.
-     *
+     * It has to be reachable without a session because it is how that session is obtained.
      * Exactly `/` and nothing under it: a prefix match here would make the entire
      * application public, which is the opposite of what this list is for.
      */
@@ -123,6 +143,7 @@ export async function proxy(request: NextRequest) {
     pathname === '/api/csp-report' ||
     pathname === '/offline' ||
     pathname === '/sw.js' ||
+    // The till app's generic manifest. A browser fetches a manifest before anyone signs in.
     pathname === '/manifest.webmanifest';
 
   /*
@@ -188,25 +209,31 @@ export async function proxy(request: NextRequest) {
   // single-quoted string beginning with a slash in this block as a public path, and that is
   // the right guard to keep.
   const [shopSegment, fileSegment, ...rest] = segment.split(/\//);
+  const isShopAddress =
+    shopSegment !== undefined && SLUG.test(shopSegment) && !RESERVED.has(shopSegment);
   const isShopManifest =
-    rest.length === 0 &&
-    fileSegment === 'manifest.webmanifest' &&
-    shopSegment !== undefined &&
-    SLUG.test(shopSegment) &&
-    !RESERVED.has(shopSegment);
+    rest.length === 0 && fileSegment === 'manifest.webmanifest' && isShopAddress;
+  /*
+   * A business's till door: exactly `/{slug}/pos`, where the installed POS app starts.
+   *
+   * Public for the same reason as the business's own address: it is where a cashier's session
+   * is obtained. Two segments, matched in full, with the same RESERVED guard.
+   */
+  const isShopPosDoor = rest.length === 0 && fileSegment === 'pos' && isShopAddress;
 
-  if (!user && !isPublic && !isShopEntry && !isShopManifest) {
+  if (!user && !isPublic && !isShopEntry && !isShopManifest && !isShopPosDoor) {
     const signIn = request.nextUrl.clone();
     /*
-     * The owner console has its own way in.
+     * The owner console has its own way in: the owner's PIN at the main address.
      *
      * Sending an unauthenticated owner to the merchant sign-in page is a dead end: it asks
      * for an email and password, and the platform owner signs in with a PIN. The guard in
      * requirePlatformAdmin() says the same thing, but middleware runs first, so saying it
      * only there means it never runs.
      */
-    if (pathname.startsWith('/platform')) {
-      signIn.pathname = '/platform/sign-in';
+    if (surface === 'owner') {
+      signIn.pathname = '/';
+      signIn.search = '';
     } else {
       /*
        * A screen that belongs to a business goes back to that business's PIN door, not to the

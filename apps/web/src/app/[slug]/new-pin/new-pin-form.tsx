@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Alert, buttonClasses } from '@carl/ui';
 
@@ -16,8 +15,15 @@ const inputClass =
  * enforced in the database. Repeating them here would create a second definition of
  * "acceptable" that drifts, and the browser's copy is the one an attacker can skip.
  */
-export function NewPinForm({ tenantId }: { tenantId: string }) {
-  const router = useRouter();
+export function NewPinForm({
+  tenantId,
+  slug,
+  entry,
+}: {
+  tenantId: string;
+  slug: string;
+  entry: 'portal' | 'pos';
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,8 +37,8 @@ export function NewPinForm({ tenantId }: { tenantId: string }) {
     });
     setBusy(false);
     if (result.ok) {
-      router.replace('/dashboard');
-      router.refresh();
+      // On through the door they came in by, which decides where this person works.
+      window.location.replace(entry === 'pos' ? `/${slug}/enter?to=pos` : `/${slug}/enter`);
     } else {
       setError(result.message);
     }

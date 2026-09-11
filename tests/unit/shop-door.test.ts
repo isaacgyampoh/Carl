@@ -24,8 +24,14 @@ describe('the door for a signed-out request', () => {
     expect(shopDoor('/bobo/new-pin', 'another-shop', isShop)).toBe('/bobo');
   });
 
-  it('is the business this device last signed in at, for shared screens like /pos', () => {
-    expect(shopDoor('/pos', 'bobo', isShop)).toBe('/bobo');
+  it("is the business this device last signed in at, for the portal's shared screens", () => {
+    expect(shopDoor('/dashboard', 'bobo', isShop)).toBe('/bobo');
+  });
+
+  it("is that business's till door when the session ended at the till", () => {
+    // Back to the till app's door, which returns to the till — not to the portal's.
+    expect(shopDoor('/pos', 'bobo', isShop)).toBe('/bobo/pos');
+    expect(shopDoor('/pos/receipt', 'bobo', isShop)).toBe('/bobo/pos');
   });
 
   it('is never an application route mistaken for a business', () => {

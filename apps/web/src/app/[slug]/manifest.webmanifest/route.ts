@@ -1,24 +1,28 @@
 import { NextResponse } from 'next/server';
 
 /**
- * A web app manifest per business.
+ * The Carl POS app, per business.
  *
- * ## Why this is not the one manifest in `public/`
+ * ## What is installed
  *
- * That manifest has `start_url: "/"`. A shop that installed Carl from their own address got
- * an application that opened on the public marketing page — the sales pitch for software
- * they had just bought — and had to navigate back to their till every morning. `scope` was
- * the whole site too, so the installed window was not anchored to their business at all.
+ * The till. `start_url` is the business's POS door, `/{slug}/pos`, which leads a signed-in
+ * cashier straight to the till and anyone else to a PIN and then the till. It used to be the
+ * business's address, and before that `/` — so an installed app opened on the business portal,
+ * or on the public website, rather than on the POS it was installed to be.
  *
- * Each business therefore gets its own manifest, with `start_url` at their address and a
- * distinct `id`, so Windows and Android treat two shops as two applications rather than
- * reinstalling over each other, and the installed app always opens at its own business.
+ * Named "Carl POS" so nobody mistakes it for the owner console, which is not installable and is
+ * used in the browser at the main address.
  *
- * `scope` is the whole origin, deliberately. A business's own screens (/dashboard, /pos,
- * /products) are shared routes, not under /{slug}. Scoped to /{slug}, every screen after
- * the PIN was outside the app's scope, so the installed window showed a browser bar over the
- * till. Which business the app belongs to is carried by `id` and `start_url`; which business
- * a request operates in is decided by the server, never by scope.
+ * ## Identity
+ *
+ * `id` is `/{slug}`, unchanged since the first per-business manifest, so an app already
+ * installed updates in place to the new start_url instead of becoming a second app. Two
+ * businesses are two applications, never one reinstalling over the other.
+ *
+ * `scope` is the whole origin, deliberately. The till's own screens (/pos, /register, /sales)
+ * are shared routes, not under /{slug}; scoped narrower, every screen after the PIN was outside
+ * the app and showed a browser bar over the till. Which business a request operates in is
+ * decided by the server, never by scope.
  *
  * ## Why it does not look the business up
  *
@@ -41,10 +45,10 @@ export async function GET(
   return NextResponse.json(
     {
       id: `/${safe}`,
-      name: `Carl · ${safe}`,
-      short_name: 'Carl',
-      description: 'Point of sale, inventory and business management.',
-      start_url: `/${safe}`,
+      name: `Carl POS · ${safe}`,
+      short_name: 'Carl POS',
+      description: 'The Carl till for this business: sell, take payment and print receipts.',
+      start_url: `/${safe}/pos`,
       scope: '/',
       display: 'standalone',
       orientation: 'any',
@@ -74,9 +78,9 @@ export async function GET(
     {
       headers: {
         'content-type': 'application/manifest+json',
-        // A shop's manifest is not secret, but it is theirs; it should not sit in a shared
-        // cache keyed only by path.
-        'cache-control': 'public, max-age=3600',
+        // Revalidated on every fetch: an hour-old copy is how an installed app keeps an old
+        // start_url after it has changed.
+        'cache-control': 'no-cache',
       },
     },
   );

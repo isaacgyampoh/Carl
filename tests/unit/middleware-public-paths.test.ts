@@ -32,14 +32,12 @@ describe('middleware public paths', () => {
     ['/sign-in', 'the sign-in page itself'],
     ['/auth', 'the OAuth callback'],
     ['/api/health', 'the liveness probe'],
-    ['/', 'the public site, which is how anybody finds out what Carl is'],
+    ['/', "the owner's entry, which is how the owner's session is obtained"],
     ['/api/device/', 'terminals, which have no browser session'],
-    ['/platform/sign-in', 'the owner PIN prompt, which is how a session is obtained'],
-    ['/platform.webmanifest', 'fetched before any session exists, or the PWA cannot install'],
     ['/api/csp-report', 'browsers post violation reports without cookies'],
     ['/offline', 'the page shown when there is no connection'],
     ['/sw.js', 'the service worker'],
-    ['/manifest.webmanifest', 'the PWA manifest'],
+    ['/manifest.webmanifest', "the till app's generic manifest"],
   ])('%s is public — %s', (path) => {
     expect(publicBlock).toContain(`'${path}'`);
   });
@@ -56,22 +54,25 @@ describe('middleware public paths', () => {
       '/auth',
       '/manifest.webmanifest',
       '/offline',
-      '/platform.webmanifest',
-      '/platform/sign-in',
       '/sign-in',
       '/sw.js',
     ]);
   });
 
-  it('sends an unauthenticated owner to the PIN prompt, not the merchant sign-in', () => {
+  it("sends an unauthenticated owner to the owner's PIN at the main address", () => {
     /*
      * Middleware runs before any page guard, so a redirect decided only in
      * requirePlatformAdmin() never happens. Without this branch the owner is bounced to a
      * page asking for an email and password they do not have.
      */
     const redirectBlock = source.slice(source.indexOf('if (!user && !isPublic'));
-    expect(redirectBlock).toContain("pathname.startsWith('/platform')");
-    expect(redirectBlock).toContain("'/platform/sign-in'");
+    expect(redirectBlock).toMatch(/if \(surface === 'owner'\) \{\s*signIn\.pathname = '\/';/);
+  });
+
+  it("sends the owner's old PIN address to the main address", () => {
+    expect(source).toMatch(
+      /if \(pathname === '\/platform\/sign-in'\) \{[\s\S]*?entry\.pathname = '\/';/,
+    );
   });
 
   it('excludes the device routes from nothing in the matcher', () => {
@@ -113,7 +114,10 @@ describe('shop entry URLs do not expose the application', () => {
   const actualRoutes = (() => {
     const appDir = join(import.meta.dirname, '..', '..', 'apps', 'web', 'src', 'app');
     const names = new Set<string>();
-    for (const group of ['(app)', '.']) {
+    const groups = readdirSync(appDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith('('))
+      .map((entry) => entry.name);
+    for (const group of [...groups, '.']) {
       const dir = join(appDir, group);
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
@@ -145,7 +149,9 @@ describe('shop entry URLs do not expose the application', () => {
      */
     it('is let through without a session', () => {
       expect(source).toContain('!isShopManifest');
-      expect(source).toMatch(/if \(!user && !isPublic && !isShopEntry && !isShopManifest\)/);
+      expect(source).toMatch(
+        /if \(!user && !isPublic && !isShopEntry && !isShopManifest && !isShopPosDoor\)/,
+      );
     });
 
     it('matches exactly two segments, never a prefix of the shop', () => {
@@ -157,6 +163,19 @@ describe('shop entry URLs do not expose the application', () => {
     it('keeps the RESERVED guard on the shop half', () => {
       // Otherwise /pos/manifest.webmanifest and friends would slip past the check.
       expect(source).toMatch(/SLUG\.test\(shopSegment\)\s*&&\s*!RESERVED\.has\(shopSegment\)/);
+    });
+  });
+
+  describe("a business's till door", () => {
+    // Where the installed POS app starts, so it must open without a session, exactly like the
+    // business's own address — and only at exactly two segments.
+    it('is exactly /{slug}/pos, with the reserved guard on the business half', () => {
+      expect(source).toContain(
+        "const isShopPosDoor = rest.length === 0 && fileSegment === 'pos' && isShopAddress;",
+      );
+      expect(source).toMatch(
+        /const isShopAddress =\s*shopSegment !== undefined && SLUG\.test\(shopSegment\) && !RESERVED\.has\(shopSegment\);/,
+      );
     });
   });
 

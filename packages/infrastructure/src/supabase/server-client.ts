@@ -36,6 +36,17 @@ export interface CookieStore {
 }
 
 /**
+ * Which session a client reads.
+ *
+ * One origin can hold more than one application's session at once — Carl's owner console and a
+ * business's till are signed in separately (apps/web/src/lib/surface.ts). Omitted, the client
+ * uses Supabase's default cookie.
+ */
+export interface SessionCookieOptions {
+  readonly name?: string | undefined;
+}
+
+/**
  * A client acting as the signed-in user.
  *
  * Every query it makes is filtered by RLS exactly as the browser's would be. Use this for
@@ -43,13 +54,17 @@ export interface CookieStore {
  * reach for the service role because it is "server-side anyway". Server-side is not the
  * same as authorised.
  */
-export function serverClient(cookies: CookieStore): CarlSupabaseClient {
+export function serverClient(
+  cookies: CookieStore,
+  session: SessionCookieOptions = {},
+): CarlSupabaseClient {
   const env = publicEnv();
 
   return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      ...(session.name ? { cookieOptions: { name: session.name } } : {}),
       cookies: {
         getAll: () => cookies.getAll(),
         setAll: (items) => {

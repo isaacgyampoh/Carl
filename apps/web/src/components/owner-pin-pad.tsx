@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { signInWithPin } from '@/server/platform-auth-actions';
@@ -56,8 +55,7 @@ function messageFor(
  * already raises. It submits on the fourth digit, so a partial PIN never leaves the device,
  * and there is no Confirm button because four digits is the whole credential.
  */
-export function PinPad() {
-  const router = useRouter();
+export function OwnerPinPad({ next }: { next?: string | undefined }) {
   const [digits, setDigits] = useState('');
   const [status, setStatus] = useState<'idle' | 'checking' | 'error'>('idle');
   const [error, setError] = useState<{ text: string; retryable: boolean } | null>(null);
@@ -75,10 +73,14 @@ export function PinPad() {
     setError(null);
 
     void (async () => {
-      const result = await signInWithPin({ pin: digits });
+      const result = await signInWithPin({ pin: digits, next });
       if (result.ok) {
-        router.replace(result.data.mustChangePin ? '/platform/settings?change_pin=1' : '/platform');
-        router.refresh();
+        /*
+         * Where to go is the server's answer, from the session it just verified — the console,
+         * or the PIN change it requires. A full load rather than a client transition, so nothing
+         * rendered before the sign-in (by this app or any other on this device) is reused.
+         */
+        window.location.replace(result.data.destination);
         return;
       }
       setStatus('error');
@@ -87,7 +89,7 @@ export function PinPad() {
       submitted.current = false;
       inputRef.current?.focus();
     })();
-  }, [digits, router]);
+  }, [digits, next]);
 
   function retry() {
     setStatus('idle');

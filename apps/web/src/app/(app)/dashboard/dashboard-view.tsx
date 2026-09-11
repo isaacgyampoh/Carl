@@ -561,8 +561,8 @@ function InstallCard({ install }: { install: NonNullable<DashboardData['install'
   return (
     <Card>
       <CardHeader
-        title="Install Carl on each till"
-        description="Every POS computer, tablet and phone opens straight into your business."
+        title="Install Carl POS on each till"
+        description="Every till, tablet and phone opens straight to your POS."
       />
       <CardBody className="space-y-3 text-sm">
         <ol className="list-decimal space-y-1.5 pl-5 text-[color:var(--color-ink-muted)]">
@@ -573,7 +573,7 @@ function InstallCard({ install }: { install: NonNullable<DashboardData['install'
             </span>{' '}
             in Chrome or Edge.
           </li>
-          <li>Choose Install, then open Carl from its own icon.</li>
+          <li>Choose Install, then open Carl POS from its own icon.</li>
           <li>Each person signs in with their own PIN.</li>
         </ol>
         <Link href="/windows-pos" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>

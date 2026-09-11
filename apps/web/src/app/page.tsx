@@ -1,110 +1,59 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { OwnerPinPad } from '@/components/owner-pin-pad';
 import { currentAuth } from '@/lib/auth';
+import { ownerDestination } from '@/lib/destinations';
 
 export const metadata: Metadata = {
-  title: 'Carl — point of sale for Ghanaian retail',
-  description:
-    'Sell, track stock and see what your shop is making. Works on a phone, and keeps selling when the internet does not.',
+  title: { absolute: 'Carl Owner' },
+  robots: { index: false, follow: false },
 };
 export const dynamic = 'force-dynamic';
 
 /**
- * The public face of Carl.
+ * The main address: the platform owner's way in.
  *
- * Deliberately outside the `(app)` group: that layout renders a shopkeeper's navigation —
- * tills, stock, suppliers — and none of it means anything to somebody who has not signed
- * in yet.
+ * `/` used to be a marketing page, and the owner's PIN lived at /platform/sign-in behind an
+ * "install first" gate. Opening Carl's address showed the owner a sales pitch, and an app
+ * installed from it opened the same sales pitch. The main address is now the owner's entry,
+ * and a correct PIN leads to the console and nowhere else.
  *
- * A signed-in shopkeeper who lands here is sent to their dashboard rather than shown a
- * sales pitch for software they already use.
+ * ## What it is not
+ *
+ * Not an installable application. No manifest is declared here or inherited, so a browser
+ * offers nothing to install on this page. The installed Carl app is the POS, installed from a
+ * business's own POS address; the owner console stays here, in the browser.
+ *
+ * Not a door to any business. It reads only the owner console's own session (lib/surface.ts),
+ * so a cashier or shop administrator signed in on this device is invisible here, and no
+ * business PIN opens it: `verify_platform_pin` accepts only a platform administrator's.
  */
-export default async function HomePage() {
+export default async function OwnerEntryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
   const auth = await currentAuth();
-  if (auth) redirect(auth.user.isPlatformAdmin ? '/platform' : '/dashboard');
+  if (auth?.user.isPlatformAdmin) redirect(ownerDestination(next));
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
-      {/* No sign-in link anywhere on this page, deliberately.
-          This is the public marketing site. Carl's own administration console can onboard,
-          suspend and bill every customer on the platform, and advertising its entrance to
-          every visitor gains a shopkeeper nothing while handing an attacker the door to
-          knock on. Shops reach Carl through the address their business was given; the
-          platform owner reaches it through the installed application. */}
-      <header className="flex items-center justify-between">
-        <span className="text-lg font-semibold tracking-tight">Carl</span>
-      </header>
-
-      <section className="mt-16 max-w-2xl sm:mt-24">
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          Run your shop, not your software.
-        </h1>
-        <p className="mt-5 text-lg text-[color:var(--color-ink-muted)]">
-          Carl is a point of sale and stock system for shops with one counter or twenty. It keeps
-          selling when the internet drops, and tells you what you actually made at the end of the
-          day.
-        </p>
-        <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
-          Already using Carl? Open the link your provider gave you.
-        </p>
-      </section>
-
-      <section className="mt-20 grid gap-x-10 gap-y-10 sm:mt-28 sm:grid-cols-2">
-        {[
-          {
-            title: 'Sell in seconds',
-            body: 'Scan or search, take cash, mobile money, card or a mix of them, and print a receipt. Prices and discounts are decided by the server, never by the till.',
-          },
-          {
-            title: 'Keeps working offline',
-            body: 'The desktop till holds its own copy of your catalogue and records every sale locally. When the connection returns, the sales sync themselves — exactly once.',
-          },
-          {
-            title: 'Stock that adds up',
-            body: 'Every movement is written to a ledger that cannot be edited after the fact. Purchases, transfers between branches, counts and adjustments all reconcile.',
-          },
-          {
-            title: 'Knows who did what',
-            body: 'Each person signs in with their own four-digit PIN, so a sale, a refund and a discount all carry a name. Managers approve what cashiers cannot.',
-          },
-          {
-            title: 'More than one branch',
-            body: 'Move stock between shops, see each branch separately or together, and give staff access only to where they work.',
-          },
-          {
-            title: 'On the phone in your pocket',
-            body: 'Install Carl from the browser and it behaves like an app. No app store, no waiting for approval, no separate download to keep updated.',
-          },
-        ].map((feature) => (
-          <div key={feature.title}>
-            <h2 className="font-medium">{feature.title}</h2>
-            <p className="mt-2 text-sm text-[color:var(--color-ink-muted)]">{feature.body}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="mt-20 border-t border-[color:var(--color-border)] pt-10 sm:mt-28">
-        <h2 className="text-xl font-medium">Getting started</h2>
-        <ol className="mt-4 space-y-3 text-sm text-[color:var(--color-ink-muted)]">
-          <li>
-            <span className="font-medium text-[color:var(--color-ink)]">1.</span> Your Carl provider
-            sets up your business and gives you a link and a four-digit PIN.
-          </li>
-          <li>
-            <span className="font-medium text-[color:var(--color-ink)]">2.</span> Open the link,
-            enter the PIN, and choose your own.
-          </li>
-          <li>
-            <span className="font-medium text-[color:var(--color-ink)]">3.</span> Install Carl on
-            the counter machine to sell offline, or use it straight from a phone.
-          </li>
-        </ol>
-      </section>
-
-      <footer className="mt-20 flex flex-wrap items-center justify-between gap-4 border-t border-[color:var(--color-border)] pt-8 text-sm text-[color:var(--color-ink-muted)] sm:mt-28">
-        <span>Carl</span>
-        <span>Already a customer? Open the address your business was given.</span>
+    <main className="flex min-h-dvh flex-col px-6">
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="w-full max-w-sm">
+          <header className="mb-12 text-center">
+            <div className="text-2xl font-semibold tracking-tight">Carl</div>
+            <h1 className="mt-8 text-lg font-medium">Owner console</h1>
+            <p className="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
+              Enter your 4-digit PIN to continue
+            </p>
+          </header>
+          <OwnerPinPad next={next} />
+        </div>
+      </div>
+      <footer className="pb-8 text-center text-xs text-[color:var(--color-ink-muted)]">
+        Working at a shop? Open the address your business was given.
       </footer>
     </main>
   );

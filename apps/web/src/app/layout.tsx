@@ -10,7 +10,14 @@ export const metadata: Metadata = {
   description: 'Carl — point of sale, inventory and business management for multi-branch retail.',
   applicationName: 'Carl',
   formatDetection: { telephone: false },
-  manifest: '/manifest.webmanifest',
+  /*
+   * No manifest here, deliberately.
+   *
+   * Declared on the root layout, every page inherited an installable manifest with
+   * `start_url: "/"` — the owner's entry, and before that the marketing page. Installing from
+   * any screen, a till included, produced an application that opened on the main website.
+   * Only the till's screens declare a manifest now, and it is the POS app's.
+   */
   icons: {
     icon: [
       { url: '/icon.svg', type: 'image/svg+xml' },
@@ -19,11 +26,6 @@ export const metadata: Metadata = {
     // The only icon iOS uses for the home screen. It reads neither the manifest nor SVG, so
     // without this an installed Carl on an iPhone showed a screenshot of the page.
     apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-  },
-  appleWebApp: {
-    capable: true,
-    title: 'Carl',
-    statusBarStyle: 'default',
   },
 };
 

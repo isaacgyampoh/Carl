@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
+import { entryFrom } from '@/lib/destinations';
 import { NewPinForm } from './new-pin-form';
 
 export const metadata: Metadata = { title: 'Choose your PIN', robots: { index: false } };
@@ -20,12 +21,13 @@ export default async function NewPinPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tenant?: string }>;
+  searchParams: Promise<{ tenant?: string; to?: string }>;
 }) {
-  const [{ slug }, { tenant }] = await Promise.all([params, searchParams]);
+  const [{ slug }, { tenant, to }] = await Promise.all([params, searchParams]);
+  const entry = entryFrom(to);
   const auth = await currentAuth();
-  if (!auth) redirect(`/${slug}`);
-  if (!tenant) redirect('/dashboard');
+  if (!auth) redirect(entry === 'pos' ? `/${slug}/pos` : `/${slug}`);
+  if (!tenant) redirect(entry === 'pos' ? `/${slug}/enter?to=pos` : `/${slug}/enter`);
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
@@ -36,7 +38,7 @@ export default async function NewPinPage({
             Pick four digits only you know. You will use these to sign in from now on.
           </p>
         </header>
-        <NewPinForm tenantId={tenant} />
+        <NewPinForm tenantId={tenant} slug={slug} entry={entry} />
       </div>
     </main>
   );

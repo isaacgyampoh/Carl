@@ -19,11 +19,19 @@
  * and does not pretend it can take a sale.
  */
 
-const VERSION = 'carl-v1';
+/*
+ * Bumped whenever what this worker caches, or how it treats a route, changes. `activate`
+ * deletes every cache from another version, so an update cannot leave an old copy behind.
+ *
+ * v2: the owner console moved to the main address and the installed app became the till
+ * (start_url /{slug}/pos). No manifest is cached any more: a cached manifest is how an
+ * installed app keeps an old start_url, and a browser fetches manifests itself.
+ */
+const VERSION = 'carl-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 
-/** Assets worth having before they are asked for. */
-const PRECACHE = ['/offline', '/manifest.webmanifest', '/icon.svg'];
+/** Assets worth having before they are asked for. Pages and manifests are never among them. */
+const PRECACHE = ['/offline', '/icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -89,7 +97,9 @@ self.addEventListener('fetch', (event) => {
 
   // Pages: network first, falling back to the offline page. Never serve a stale page as
   // though it were live — a shop looking at yesterday's stock figures is worse off than a
-  // shop being told it is offline.
+  // shop being told it is offline. It also means no cached page can decide where a launch
+  // or a sign-in goes: every navigation, including an installed app's start_url and every
+  // redirect after a PIN, is answered by the server.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() =>

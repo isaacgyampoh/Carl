@@ -18,7 +18,11 @@ export function SignOutButton() {
       loading={signingOut}
       onClick={() => {
         setSigningOut(true);
-        void signOut()
+        // Where they were, so a cashier at the till returns to the till's door.
+        const till =
+          window.location.pathname.startsWith('/pos') ||
+          window.matchMedia('(display-mode: standalone)').matches;
+        void signOut({ till })
           .then((result) => {
             // Staff go back to their own business's PIN prompt, not the email sign-in page.
             router.replace(result.ok ? result.data.next : '/sign-in');

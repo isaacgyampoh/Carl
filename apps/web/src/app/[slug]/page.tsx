@@ -1,19 +1,22 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { currentAuth } from '@/lib/auth';
 import { memberTenantAtSlug } from '@carl/infrastructure/auth/resolve-auth-context';
 import { supabase } from '@/lib/supabase';
 import { MemberPinPad } from './member-pin-pad';
-import { InstallGate } from '@/components/install-gate';
 
 /*
  * The manifest is set here, as page metadata, and not as a raw <link> in the body.
  *
- * The root layout declares `/manifest.webmanifest`. A raw link in the page ADDED a second
- * manifest after it, and browsers use the first: live, a shop's page carried the generic
- * manifest ahead of its own, so an installed shop application still opened on the marketing
- * page. Page metadata overrides the layout's field, so exactly one manifest is emitted.
+ * A raw link in the page body once ADDED a second manifest after an inherited one, and browsers
+ * use the first: an installed shop application opened on the marketing page. Page metadata
+ * emits exactly one.
+ *
+ * It is the business's POS app manifest (start_url `/{slug}/pos`). Declared here too, rather
+ * than only on the till's door, so an app installed from this address before the till had its
+ * own door picks up the new start_url the next time it opens here.
  *
  * Reads only the slug from the URL, never the database — see the page comment below.
  */
@@ -32,7 +35,11 @@ export async function generateMetadata({
 export const dynamic = 'force-dynamic';
 
 /**
- * A shop's front door.
+ * A business's own address: the way into its portal.
+ *
+ * Staff type their PIN here and go, by their own grants, to the dashboard or to the till. It is
+ * not the installed app's door — that is `/{slug}/pos` — so there is no install gate in front
+ * of the PIN: installing is offered where the till is, under its own name.
  *
  * ## Why this does not check whether the business exists
  *
@@ -67,25 +74,29 @@ export default async function ShopEntryPage({ params }: { params: Promise<{ slug
     const client = await supabase();
     const membership = await memberTenantAtSlug(client, auth.user.userId, slug);
 
-    if (membership) {
-      // Already operating in this business: straight in. Otherwise switch to it first.
-      redirect(auth.tenant?.tenantId === membership.tenantId ? '/dashboard' : `/${slug}/enter`);
-    }
+    // In through /enter, which selects this business and decides from the person's own grants
+    // whether that means the dashboard or the till.
+    if (membership) redirect(`/${slug}/enter`);
     // Not a member here — including the platform owner — so this business's own sign-in.
   }
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
-        <InstallGate>
-          <header className="mb-10 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
-            <p className="mt-1 text-sm text-[color:var(--color-ink-muted)]">
-              Enter your 4-digit PIN
-            </p>
-          </header>
-          <MemberPinPad slug={slug} />
-        </InstallGate>
+        <header className="mb-10 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Welcome to Carl</h1>
+          <p className="mt-1 text-sm text-[color:var(--color-ink-muted)]">Enter your 4-digit PIN</p>
+        </header>
+        <MemberPinPad slug={slug} entry="portal" />
+        <p className="mt-10 text-center text-sm text-[color:var(--color-ink-muted)]">
+          Setting up a till?{' '}
+          <Link
+            href={`/${slug}/pos`}
+            className="font-medium text-[color:var(--color-ink)] underline-offset-4 hover:underline"
+          >
+            Open Carl POS
+          </Link>
+        </p>
       </div>
     </main>
   );

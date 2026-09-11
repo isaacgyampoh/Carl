@@ -46,7 +46,6 @@ export default async function DashboardPage() {
   const auth = await requireAuth();
 
   if (!auth.tenant) {
-    if (auth.user.isPlatformAdmin) redirect('/platform');
     return (
       <EmptyState
         title="No business attached to your account"
@@ -198,7 +197,8 @@ export default async function DashboardPage() {
               sale: (setupResults[3].data ?? []).length > 0,
             }
           : null,
-        install: canSetUpTerminals && slug ? { url: `${clientAppUrl()}/${slug}` } : null,
+        // The till app's own door, which is where the installed POS starts.
+        install: canSetUpTerminals && slug ? { url: `${clientAppUrl()}/${slug}/pos` } : null,
       }}
     />
   );

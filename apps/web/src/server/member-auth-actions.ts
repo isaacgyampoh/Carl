@@ -6,7 +6,7 @@ import { z } from '@carl/validation';
 import { BRANCH_COOKIE, CONTEXT_COOKIE_OPTIONS, TENANT_COOKIE, currentAuth } from '@/lib/auth';
 import { DOOR_COOKIE } from '@/lib/shop-door';
 import { cookies } from 'next/headers';
-import { supabase, serviceRoleClient } from '@/lib/supabase';
+import { currentSurface, supabase, serviceRoleClient } from '@/lib/supabase';
 import { actionOk, toActionResult, type ActionResult } from './errors';
 
 const log = createLogger({ level: 'info', base: { module: 'member-auth' } });
@@ -14,6 +14,8 @@ const log = createLogger({ level: 'info', base: { module: 'member-auth' } });
 const signInSchema = z.object({
   slug: z.string().trim().min(1).max(60),
   pin: z.string().regex(/^[0-9]{4}$/),
+  // Which door was used: the business's own address, or the till app's. Not a role.
+  entry: z.enum(['portal', 'pos']).optional(),
 });
 
 /**
@@ -25,13 +27,21 @@ const signInSchema = z.object({
  * correct PIN opens the door; it does not remove the walls.
  *
  * The PIN is never logged, in any form.
+ *
+ * ## Where it leads
+ *
+ * Through `/{slug}/enter`, which selects this business and sends the person, from their own
+ * grants, to the till or the dashboard (lib/destinations.ts). Every PIN used to end at
+ * `/dashboard` whoever typed it and wherever, including in the installed till app.
  */
 export async function signInWithMemberPin(
   input: unknown,
-): Promise<ActionResult<{ mustChangePin: boolean; tenantId: string }>> {
+): Promise<ActionResult<{ mustChangePin: boolean; tenantId: string; destination: string }>> {
   try {
     const parsed = signInSchema.safeParse(input);
-    if (!parsed.success) {
+    // A business PIN belongs to a business's pages. On the owner's, it would write a member's
+    // session into the owner console's cookie, so it is refused there before any check.
+    if (!parsed.success || (await currentSurface()) !== 'business') {
       return { ok: false, code: 'INVALID_PIN', message: 'That PIN is not correct.' };
     }
 
@@ -100,9 +110,16 @@ export async function signInWithMemberPin(
       userId: result.out_user_id,
       ...(result.out_tenant_id ? { tenantId: result.out_tenant_id } : {}),
     });
+    const tenantId = result.out_tenant_id ?? '';
+    const mustChangePin = result.out_must_change === true;
+    const slug = encodeURIComponent(parsed.data.slug.toLowerCase());
+    const till = parsed.data.entry === 'pos';
     return actionOk({
-      mustChangePin: result.out_must_change === true,
-      tenantId: result.out_tenant_id ?? '',
+      mustChangePin,
+      tenantId,
+      destination: mustChangePin
+        ? `/${slug}/new-pin?tenant=${encodeURIComponent(tenantId)}${till ? '&to=pos' : ''}`
+        : `/${slug}/enter${till ? '?to=pos' : ''}`,
     });
   } catch (error) {
     return toActionResult(error);

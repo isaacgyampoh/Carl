@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { signInWithMemberPin } from '@/server/member-auth-actions';
@@ -47,8 +46,14 @@ function messageFor(
  * It submits on the fourth digit, so a partial PIN never leaves the device, and there is no
  * Confirm button because four digits is the whole credential.
  */
-export function MemberPinPad({ slug }: { slug: string }) {
-  const router = useRouter();
+export function MemberPinPad({
+  slug,
+  entry = 'portal',
+}: {
+  slug: string;
+  /** The business's own address, or the till app's door. Decides nothing about who they are. */
+  entry?: 'portal' | 'pos';
+}) {
   const [digits, setDigits] = useState('');
   const [status, setStatus] = useState<'idle' | 'checking' | 'error'>('idle');
   const [error, setError] = useState<{ text: string; retryable: boolean } | null>(null);
@@ -66,14 +71,11 @@ export function MemberPinPad({ slug }: { slug: string }) {
     setError(null);
 
     void (async () => {
-      const result = await signInWithMemberPin({ slug, pin: digits });
+      const result = await signInWithMemberPin({ slug, pin: digits, entry });
       if (result.ok) {
-        router.replace(
-          result.data.mustChangePin
-            ? `/${slug}/new-pin?tenant=${encodeURIComponent(result.data.tenantId)}`
-            : '/dashboard',
-        );
-        router.refresh();
+        // The server's answer, and a full load, so nothing rendered for a previous session on
+        // this till is reused.
+        window.location.replace(result.data.destination);
         return;
       }
       setStatus('error');
@@ -82,7 +84,7 @@ export function MemberPinPad({ slug }: { slug: string }) {
       submitted.current = false;
       inputRef.current?.focus();
     })();
-  }, [digits, router, slug]);
+  }, [digits, entry, slug]);
 
   return (
     <div className="space-y-6">

@@ -16,7 +16,13 @@ export function ServiceWorker() {
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       // Registration failing is not worth interrupting anyone over: the application works
       // without it, just without offline awareness.
-      navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+      navigator.serviceWorker
+        // Never from the HTTP cache: a worker that cannot be replaced keeps its old behaviour.
+        .register('/sw.js', { updateViaCache: 'none' })
+        // Checked on every load rather than whenever the browser gets round to it, so a till
+        // left open for days still picks up a new version.
+        .then((registration) => registration.update())
+        .catch(() => undefined);
     }
 
     const update = () => setOffline(!navigator.onLine);

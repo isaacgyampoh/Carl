@@ -23,6 +23,15 @@ export function shopDoor(
 ): string | null {
   const [first] = pathname.slice(1).split(/\//);
   if (first && isShopSlug(first)) return `/${first}`;
-  if (doorCookie && isShopSlug(doorCookie)) return `/${doorCookie}`;
+  if (doorCookie && isShopSlug(doorCookie)) {
+    // A till whose session ended goes back to the till's own door, which returns to the till,
+    // not to the business portal's.
+    return isPosScreen(pathname) ? `/${doorCookie}/pos` : `/${doorCookie}`;
+  }
   return null;
+}
+
+/** The till itself, as opposed to the business portal's screens. */
+export function isPosScreen(pathname: string): boolean {
+  return pathname === '/pos' || pathname.startsWith('/pos/');
 }

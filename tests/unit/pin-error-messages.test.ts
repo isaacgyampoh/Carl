@@ -17,7 +17,7 @@ import { join } from 'node:path';
  */
 describe('PIN screens never leak technical errors', () => {
   const screens = [
-    ['owner', join('apps', 'web', 'src', 'app', 'platform', 'sign-in', 'pin-pad.tsx')],
+    ['owner', join('apps', 'web', 'src', 'components', 'owner-pin-pad.tsx')],
     ['shop staff', join('apps', 'web', 'src', 'app', '[slug]', 'member-pin-pad.tsx')],
   ] as const;
 

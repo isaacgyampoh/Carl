@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/sign-in?error=invalid_code`);
   }
 
-  // Same open-redirect guard as the sign-in form: `next` is attacker-controlled.
-  const destination = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  // Same open-redirect guard as the sign-in form: `next` is attacker-controlled. The default is
+  // the business dashboard: these links are for staff, and `/` is the platform owner's entry.
+  const destination = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
   return NextResponse.redirect(`${origin}${destination}`);
 }

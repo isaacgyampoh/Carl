@@ -37,6 +37,7 @@ export function ClientHandover({
   downloads: DownloadTarget[];
 }) {
   const shopUrl = `${appUrl.replace(/\/$/, '')}/${slug}`;
+  const posUrl = `${shopUrl}/pos`;
   const [copied, setCopied] = useState<string | null>(null);
 
   async function copy(label: string, value: string) {
@@ -59,7 +60,7 @@ export function ClientHandover({
       </Alert>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium">Their Carl address</h3>
+        <h3 className="text-sm font-medium">Their business portal</h3>
         <div className="flex items-stretch gap-2">
           <code className="min-w-0 flex-1 truncate rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-3 py-3 text-sm">
             {shopUrl}
@@ -72,6 +73,26 @@ export function ClientHandover({
             {copied === 'url' ? 'Copied' : 'Copy'}
           </button>
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">Carl POS app, for their tills</h3>
+        <div className="flex items-stretch gap-2">
+          <code className="min-w-0 flex-1 truncate rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-3 py-3 text-sm">
+            {posUrl}
+          </code>
+          <button
+            type="button"
+            onClick={() => void copy('pos', posUrl)}
+            className={buttonClasses({ variant: 'secondary' })}
+          >
+            {copied === 'pos' ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <p className="text-sm text-[color:var(--color-ink-muted)]">
+          Open this on each till, tablet or phone and choose Install. The installed app opens
+          straight to their POS; the portal address above stays in the browser.
+        </p>
       </section>
 
       <section className="space-y-2">

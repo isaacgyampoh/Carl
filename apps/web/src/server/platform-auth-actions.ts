@@ -5,12 +5,17 @@ import { createLogger, ErrorCode } from '@carl/shared';
 import { z } from '@carl/validation';
 
 import { requirePlatformAdmin } from '@/lib/auth';
-import { supabase, serviceRoleClient } from '@/lib/supabase';
+import { ownerDestination } from '@/lib/destinations';
+import { currentSurface, supabase, serviceRoleClient } from '@/lib/supabase';
 import { actionOk, toActionResult, type ActionResult } from './errors';
 
 const log = createLogger({ level: 'info', base: { module: 'platform-auth' } });
 
-const pinSchema = z.object({ pin: z.string().regex(/^[0-9]{4}$/) });
+const pinSchema = z.object({
+  pin: z.string().regex(/^[0-9]{4}$/),
+  // A console screen to return to. Confined to the console by ownerDestination().
+  next: z.string().max(300).optional(),
+});
 
 /**
  * Signs the platform owner in with a PIN.
@@ -26,6 +31,13 @@ const pinSchema = z.object({ pin: z.string().regex(/^[0-9]{4}$/) });
  * The service-role key is used here and only here in this flow, server-side, to mint that
  * session. It never reaches the browser.
  *
+ * ## Where it leads
+ *
+ * To the owner console, decided here from the verified result, never to wherever the browser
+ * was. It runs only on the owner console's own surface (lib/surface.ts), so the session it
+ * mints lands in the owner's cookie and can neither replace nor be replaced by a business
+ * sign-in on the same device.
+ *
  * ## What is deliberately not logged
  *
  * The PIN, in any form. Not on success, not on failure, not truncated, not hashed. A
@@ -33,12 +45,14 @@ const pinSchema = z.object({ pin: z.string().regex(/^[0-9]{4}$/) });
  */
 export async function signInWithPin(
   input: unknown,
-): Promise<ActionResult<{ mustChangePin: boolean }>> {
+): Promise<ActionResult<{ mustChangePin: boolean; destination: string }>> {
   try {
     const parsed = pinSchema.safeParse(input);
-    if (!parsed.success) {
-      // Same answer as a wrong PIN: a distinct "malformed" response tells an attacker their
-      // probe reached the checker, which is information they do not need.
+    // Same answer as a wrong PIN: a distinct "malformed" response tells an attacker their
+    // probe reached the checker, which is information they do not need. Invoked from any page
+    // but the owner's own, it would write the owner's session into a business's cookie, so it
+    // refuses there before a PIN is ever checked or an attempt counted.
+    if (!parsed.success || (await currentSurface()) !== 'owner') {
       return { ok: false, code: 'INVALID_PIN', message: 'That PIN is not correct.' };
     }
 
@@ -111,7 +125,13 @@ export async function signInWithPin(
     }
 
     log.info('platform owner signed in', { userId: result.user_id });
-    return actionOk({ mustChangePin: result.is_default === true });
+    const mustChangePin = result.is_default === true;
+    return actionOk({
+      mustChangePin,
+      destination: mustChangePin
+        ? '/platform/settings?change_pin=1'
+        : ownerDestination(parsed.data.next),
+    });
   } catch (error) {
     return toActionResult(error);
   }
@@ -154,9 +174,9 @@ export async function changeOwnerPin(input: unknown): Promise<ActionResult<{ cha
   }
 }
 
-/** Ends the owner's session. */
+/** Ends the owner's session, and returns to the owner's PIN at the main address. */
 export async function signOutOwner(): Promise<never> {
   const client = await supabase();
   await client.auth.signOut();
-  redirect('/platform/sign-in');
+  redirect('/');
 }

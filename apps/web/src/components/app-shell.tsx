@@ -228,18 +228,44 @@ interface ShellItem {
   exact?: boolean | undefined;
 }
 
-export function AppShell({ auth, children }: { auth: AuthContext; children: ReactNode }) {
-  const tenant = auth.tenant;
+interface ShellGroup {
+  heading: string;
+  items: ShellItem[];
+}
 
-  const groups: { heading: string; items: ShellItem[] }[] = NAV_SECTIONS.map((section) => ({
+/**
+ * The business application: a business's portal and its till.
+ *
+ * It carries nothing of the owner console. The console used to render inside this shell, with
+ * its links appended for a platform administrator: with a business in the session the owner
+ * saw the till's navigation around the console, and the shell's home link led to the business
+ * dashboard. The console has its own shell now (OwnerShell), in its own route group.
+ */
+export function AppShell({ auth, children }: { auth: AuthContext; children: ReactNode }) {
+  const groups: ShellGroup[] = NAV_SECTIONS.map((section) => ({
     heading: section.heading,
     items: section.items
       .filter((item) => item.permissions.length === 0 || hasAnyPermission(auth, item.permissions))
       .map((item) => ({ href: item.href, label: item.label, short: item.short, Icon: item.icon })),
   })).filter((group) => group.items.length > 0);
 
-  if (auth.user.isPlatformAdmin) {
-    groups.push({
+  return (
+    <Shell
+      user={auth.user}
+      tenant={auth.tenant}
+      subtitle={auth.tenant?.tenantName ?? null}
+      groups={groups}
+      home="/dashboard"
+    >
+      {children}
+    </Shell>
+  );
+}
+
+/** The owner console: the platform's screens, and nothing of any business. */
+export function OwnerShell({ auth, children }: { auth: AuthContext; children: ReactNode }) {
+  const groups: ShellGroup[] = [
+    {
       heading: 'Carl platform',
       items: PLATFORM_NAV.map(([href, label]) => ({
         href,
@@ -248,9 +274,31 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
         // The console's front page must not stay lit on every page beneath it.
         exact: href === '/platform',
       })),
-    });
-  }
+    },
+  ];
 
+  return (
+    <Shell user={auth.user} tenant={null} subtitle="Owner console" groups={groups} home="/platform">
+      {children}
+    </Shell>
+  );
+}
+
+function Shell({
+  user,
+  tenant,
+  subtitle,
+  groups,
+  home,
+  children,
+}: {
+  user: AuthContext['user'];
+  tenant: AuthContext['tenant'];
+  subtitle: string | null;
+  groups: ShellGroup[];
+  home: string;
+  children: ReactNode;
+}) {
   // Phone tabs: everything if it fits, otherwise the most-used four plus a More sheet.
   const all = groups.flatMap((group) => group.items);
   const rank = (item: ShellItem) => {
@@ -278,8 +326,6 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
         }))
         .filter((group) => group.items.length > 0);
 
-  const home = tenant ? '/dashboard' : '/platform';
-
   return (
     /*
      * The shell is the height of the screen and only its content area scrolls, the way an
@@ -296,9 +342,9 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
           <Link href={home} className="text-lg font-semibold tracking-tight">
             Carl
           </Link>
-          {tenant && (
+          {subtitle && (
             <p className="mt-0.5 truncate text-sm text-[color:var(--color-ink-muted)]">
-              {tenant.tenantName}
+              {subtitle}
             </p>
           )}
         </div>
@@ -324,10 +370,8 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
 
         <div className="border-t border-[color:var(--color-border)] px-3 py-3">
           <div className="px-2 pb-2">
-            <p className="truncate text-sm font-medium">{auth.user.fullName}</p>
-            <p className="truncate text-xs text-[color:var(--color-ink-muted)]">
-              {auth.user.email}
-            </p>
+            <p className="truncate text-sm font-medium">{user.fullName}</p>
+            <p className="truncate text-xs text-[color:var(--color-ink-muted)]">{user.email}</p>
           </div>
           <SignOutButton />
         </div>
@@ -374,7 +418,7 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
             <div className="flex min-w-0 items-center gap-3">
               {/* Below desktop there is no sidebar naming the business, so the header does. */}
               <p className="min-w-0 truncate text-base font-semibold lg:hidden">
-                {tenant?.tenantName ?? 'Carl'}
+                {subtitle ?? 'Carl'}
               </p>
               {tenant && <BranchSwitcher tenant={tenant} />}
             </div>
@@ -389,12 +433,7 @@ export function AppShell({ auth, children }: { auth: AuthContext; children: Reac
           {children}
         </main>
 
-        <MobileTabBar
-          tabs={tabs}
-          more={more}
-          userName={auth.user.fullName}
-          userEmail={auth.user.email}
-        />
+        <MobileTabBar tabs={tabs} more={more} userName={user.fullName} userEmail={user.email} />
       </div>
     </div>
   );

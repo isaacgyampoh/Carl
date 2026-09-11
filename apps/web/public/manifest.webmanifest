@@ -1,9 +1,9 @@
 {
   "id": "/",
-  "name": "Carl",
-  "short_name": "Carl",
-  "description": "Point of sale, inventory and business management for multi-branch retail.",
-  "start_url": "/",
+  "name": "Carl POS",
+  "short_name": "Carl POS",
+  "description": "The Carl till: sell, take payment and print receipts for your business.",
+  "start_url": "/pos",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
@@ -40,32 +40,6 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Point of sale",
-      "short_name": "Sell",
-      "url": "/pos",
-      "icons": [
-        {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Today's report",
-      "short_name": "Reports",
-      "url": "/reports?range=today",
-      "icons": [
-        {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
     }
   ]
 }
