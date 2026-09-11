@@ -24,6 +24,7 @@
  * administrator to see the screens behind them.
  */
 import { spawn } from 'node:child_process';
+import { inflateSync } from 'node:zlib';
 import { createRequire } from 'node:module';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -45,6 +46,104 @@ const {
   OUT,
 } = process.env;
 const SLUG = 'mama-akos';
+
+/*
+ * Decoding a screenshot, because some failures are invisible to the DOM.
+ *
+ * The door pictures once disappeared from every screen in the product while every class that
+ * put them there was still present and correct: the backdrop carried `-z-10`, the screen
+ * itself was given a background colour, and a negatively-stacked child of an element that
+ * forms no stacking context is painted underneath it. A DOM audit called that clean. A
+ * shopkeeper's screenshot did not.
+ */
+function decodePng(buffer) {
+  let pos = 8,
+    width = 0,
+    height = 0,
+    colourType = 6;
+  const idat = [];
+  while (pos < buffer.length) {
+    const length = buffer.readUInt32BE(pos);
+    const type = buffer.toString('ascii', pos + 4, pos + 8);
+    const body = buffer.subarray(pos + 8, pos + 8 + length);
+    if (type === 'IHDR') {
+      width = body.readUInt32BE(0);
+      height = body.readUInt32BE(4);
+      colourType = body[9];
+    } else if (type === 'IDAT') idat.push(body);
+    else if (type === 'IEND') break;
+    pos += length + 12;
+  }
+  const channels = colourType === 6 ? 4 : colourType === 2 ? 3 : 1;
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * channels;
+  const out = Buffer.alloc(height * stride);
+  let src = 0;
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[src];
+    src += 1;
+    const line = raw.subarray(src, src + stride);
+    src += stride;
+    const prev = y > 0 ? out.subarray((y - 1) * stride, y * stride) : Buffer.alloc(stride);
+    const cur = out.subarray(y * stride, (y + 1) * stride);
+    for (let x = 0; x < stride; x += 1) {
+      const a = x >= channels ? cur[x - channels] : 0;
+      const b = prev[x];
+      const c = x >= channels ? prev[x - channels] : 0;
+      const v = line[x];
+      cur[x] =
+        filter === 0
+          ? v
+          : filter === 1
+            ? (v + a) & 255
+            : filter === 2
+              ? (v + b) & 255
+              : filter === 3
+                ? (v + ((a + b) >> 1)) & 255
+                : (() => {
+                    const pp = a + b - c,
+                      pa = Math.abs(pp - a),
+                      pb = Math.abs(pp - b),
+                      pc = Math.abs(pp - c);
+                    return (v + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
+                  })();
+    }
+  }
+  return { width, height, channels, data: out };
+}
+
+/** How much the colour varies inside a rectangle given as fractions of the image. */
+function detail({ width, height, channels, data }, [x0, y0, x1, y1]) {
+  const sums = [0, 0, 0],
+    squares = [0, 0, 0];
+  let n = 0;
+  for (let y = Math.floor(y0 * height); y < Math.floor(y1 * height); y += 2) {
+    for (let x = Math.floor(x0 * width); x < Math.floor(x1 * width); x += 2) {
+      const i = (y * width + x) * channels;
+      for (let c = 0; c < 3; c += 1) {
+        sums[c] += data[i + c];
+        squares[c] += data[i + c] ** 2;
+      }
+      n += 1;
+    }
+  }
+  if (n === 0) return 0;
+  return (
+    [0, 1, 2].reduce(
+      (acc, c) => acc + Math.sqrt(Math.max(squares[c] / n - (sums[c] / n) ** 2, 0)),
+      0,
+    ) / 3
+  );
+}
+
+/** Where on each shape a door's picture should be. */
+const PICTURE_AREA = {
+  phone: [0.2, 0.05, 0.8, 0.2],
+  tablet: [0.25, 0.05, 0.75, 0.2],
+  desktop: [0.04, 0.2, 0.32, 0.85],
+};
+/** Below this, the area is one flat colour: the picture is not being painted. */
+const FLAT = 6;
 
 const VIEWPORTS = [
   { name: 'phone', width: 390, height: 844, mobile: true, scale: 3 },
@@ -394,7 +493,7 @@ const MEASURE = `(() => {
     }
   }
 
-  return { faults, title: document.title, path: location.pathname };
+  return { faults, title: document.title, path: location.pathname, door: document.querySelector('main[data-door]')?.dataset.door ?? null };
 })()`;
 
 /*
@@ -438,6 +537,15 @@ const MUST_CATCH = [
   'heading level skipped',
 ];
 const missed = MUST_CATCH.filter((kind) => !caught.has(kind));
+
+// The pixel check has to be able to tell flat from detailed, or it cannot report either.
+const canaryShot = decodePng(
+  Buffer.from((await send('Page.captureScreenshot', { format: 'png' }, sessionId)).data, 'base64'),
+);
+if (detail(canaryShot, [0.02, 0.85, 0.4, 0.98]) >= FLAT)
+  missed.push('(pixel check reads blank space as detailed)');
+if (detail(canaryShot, [0.0, 0.0, 1.0, 0.3]) < FLAT)
+  missed.push('(pixel check reads text as flat)');
 if (missed.length > 0) {
   console.error('The audit cannot see these faults, so it cannot report their absence:');
   for (const kind of missed) console.error('  ' + kind);
@@ -482,14 +590,32 @@ for (const viewport of VIEWPORTS) {
       { format: 'png', captureBeyondViewport: true },
       sessionId,
     );
-    writeFileSync(join(OUT, viewport.name, `${name}.png`), Buffer.from(shot.data, 'base64'));
+    const png = Buffer.from(shot.data, 'base64');
+    writeFileSync(join(OUT, viewport.name, `${name}.png`), png);
+
+    // A door with no picture on it is a fault nothing in the DOM can report. Only asked of a
+    // screen that says it is a door: signed in, a shop's address is a dashboard.
+    let pictureDetail = null;
+    if (measured.door) {
+      const variation = detail(decodePng(png), PICTURE_AREA[viewport.name]);
+      pictureDetail = Number(variation.toFixed(1));
+      if (variation < FLAT) {
+        (measured.faults ??= []).push({
+          kind: 'door shows no picture',
+          detail: `the picture area is one flat colour (${variation.toFixed(1)})`,
+        });
+      }
+    }
+
     const weight = { ...traffic };
+    const extra = pictureDetail === null ? {} : { picture: measured.door, pictureDetail };
     for (const fault of measured.faults ?? [])
       report.push({
         viewport: viewport.name,
         screen: name,
         landed: measured.path,
         weight,
+        ...extra,
         ...fault,
       });
     if ((measured.faults ?? []).length === 0)
@@ -498,6 +624,7 @@ for (const viewport of VIEWPORTS) {
         screen: name,
         landed: measured.path,
         weight,
+        ...extra,
         kind: 'ok',
         detail: '',
       });
