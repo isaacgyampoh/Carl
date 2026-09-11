@@ -23,6 +23,9 @@ apps/desktop/src-tauri/gen/
 *.pem
 *.key
 !supabase/**/*.key.example
+# The one exception: a public certificate, and only a public certificate. Nightly backups are
+# encrypted to it; the private half lives off this machine and must never be committed.
+!ops/backup-recipient.pem
 
 # local databases
 *.sqlite
