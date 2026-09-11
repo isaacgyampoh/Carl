@@ -13,23 +13,13 @@
  * who is signed in, and the server decides everything about it — including its price and whether
  * there was stock. What the device holds is a record of what was rung up, not an authority.
  */
+import type { CatalogueItem } from './offline-catalogue';
 import type { ReceiptSource } from './receipt-data';
 
 const DATABASE = 'carl-till';
 const VERSION = 1;
 const CATALOGUE = 'catalogue';
 const QUEUE = 'queue';
-
-export interface CatalogueItem {
-  productId: string;
-  name: string;
-  sku: string;
-  unit: string;
-  unitPrice: number;
-  quantity: number;
-  packSize: number;
-  barcodes: string[];
-}
 
 export interface QueuedSale {
   /** The sale's identity, reused on every attempt so it can never be recorded twice. */
@@ -118,24 +108,4 @@ export async function markQueued(key: string, patch: Partial<QueuedSale>): Promi
 /** Whether this browser can hold anything at all: a private window may refuse. */
 export function storageAvailable(): boolean {
   return typeof indexedDB !== 'undefined';
-}
-
-/** Searches the cached catalogue the way the server's search does, for when there is no server. */
-export function searchCatalogue(
-  items: CatalogueItem[],
-  query: string,
-  limit = 20,
-): CatalogueItem[] {
-  const term = query.trim().toLowerCase();
-  if (term.length === 0) return [];
-  const exact = items.filter(
-    (item) =>
-      item.sku.toLowerCase() === term || item.barcodes.some((code) => code.toLowerCase() === term),
-  );
-  if (exact.length > 0) return exact.slice(0, limit);
-  return items
-    .filter(
-      (item) => item.name.toLowerCase().includes(term) || item.sku.toLowerCase().includes(term),
-    )
-    .slice(0, limit);
 }

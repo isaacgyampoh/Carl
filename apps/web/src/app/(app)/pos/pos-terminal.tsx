@@ -20,6 +20,7 @@ import { Alert, Button, cn } from '@carl/ui';
 
 import { PAYMENT_METHOD_LABEL } from '@/components/receipt';
 import { canSellOffline, queueSummary, type QueueState } from '@/lib/offline-policy';
+import { searchCatalogue, type CatalogueItem } from '@/lib/offline-catalogue';
 import {
   listQueue,
   loadCatalogue,
@@ -27,9 +28,7 @@ import {
   queueSale,
   removeQueued,
   saveCatalogue,
-  searchCatalogue,
   storageAvailable,
-  type CatalogueItem,
   type QueuedSale,
 } from '@/lib/offline-store';
 import {

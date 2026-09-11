@@ -7,7 +7,7 @@ import {
   OFFLINE_LIMITS,
   queueSummary,
 } from '../../apps/web/src/lib/offline-policy';
-import { searchCatalogue, type CatalogueItem } from '../../apps/web/src/lib/offline-store';
+import { searchCatalogue, type CatalogueItem } from '../../apps/web/src/lib/offline-catalogue';
 
 /**
  * Selling on a phone with no connection.
