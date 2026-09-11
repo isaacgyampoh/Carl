@@ -1,0 +1,100 @@
+name: Nightly backup
+
+# Supabase keeps its own backups, and point-in-time recovery is on. This is the copy that does
+# not depend on Supabase being reachable, or on the account still existing: an encrypted dump,
+# pushed to a private repository, readable only with a key that is not on any server.
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    name: Dump, encrypt and store
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The server is PostgreSQL 17; an older pg_dump refuses to dump it.
+      - name: PostgreSQL 17 client
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump and encrypt
+        env:
+          PRODUCTION_DB_URL: ${{ secrets.PRODUCTION_DB_URL }}
+        run: |
+          set -euo pipefail
+          day=$(date -u +%Y-%m-%d)
+          echo "day=$day" >> "$GITHUB_ENV"
+
+          # Custom format: compressed, and restorable table by table with pg_restore.
+          pg_dump --format=custom --no-owner --no-privileges --file="carl-$day.dump" "$PRODUCTION_DB_URL"
+          test -s "carl-$day.dump"
+
+          # Encrypted to a certificate whose private key exists only off this platform. A leaked
+          # repository, or a leaked runner, yields ciphertext.
+          openssl cms -encrypt -binary -aes-256-cbc -outform DER \
+            -in "carl-$day.dump" -out "carl-$day.dump.cms" ops/backup-recipient.pem
+          openssl cms -cmsout -inform DER -in "carl-$day.dump.cms" -noout
+
+          # The plaintext dump never leaves this step.
+          shred -u "carl-$day.dump" 2>/dev/null || rm -f "carl-$day.dump"
+          echo "encrypted backup: $(du -h "carl-$day.dump.cms" | cut -f1)"
+
+      - name: Store it, keeping thirty days
+        env:
+          DEPLOY_KEY: ${{ secrets.BACKUP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+          git clone --quiet --depth 1 git@github.com:isaacgyampoh/carl-backups.git store
+          cd store
+          mkdir -p dumps
+          cp "../carl-$day.dump.cms" dumps/
+
+          # Thirty days kept, and exactly one commit: a year of binary dumps in git history would
+          # outgrow the repository it is stored in.
+          ls dumps | sort | head -n -30 | xargs -r -I{} rm -f "dumps/{}"
+
+          git config user.email "actions@github.com"
+          git config user.name "Carl backup"
+          git checkout --quiet --orphan fresh
+          git add -A
+          git commit --quiet -m "Encrypted database backups as of $day"
+          git push --force --quiet origin fresh:main
+          echo "stored $(ls dumps | wc -l) encrypted backups, newest carl-$day.dump.cms"
+
+      - name: Say so if it failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="The nightly database backup failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --label health --json number --jq '.[0].number' 2>/dev/null)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh label create health --description "Automated production health checks" --color B60205 2>/dev/null || true
+            gh issue create --title "Nightly backup failed" --body "$body" --label health
+          fi

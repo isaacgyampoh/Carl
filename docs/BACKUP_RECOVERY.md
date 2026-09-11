@@ -20,15 +20,44 @@ time yields a _self-consistent_ history rather than a partially-rewritten one.
 
 ## Database backups
 
-| Layer                  | Mechanism                  | Retention          | Status             |
-| ---------------------- | -------------------------- | ------------------ | ------------------ |
-| Automated daily        | Supabase managed backups   | 7 days (Pro)       | ⬜ NOT CONFIGURED  |
-| Point-in-time recovery | Supabase PITR (paid plan)  | 7–28 days          | ⬜ NOT CONFIGURED  |
-| Pre-migration snapshot | Manual, before each deploy | Until the next one | ⬜ NOT ESTABLISHED |
+| Layer                  | Mechanism                      | Retention          | Status                   |
+| ---------------------- | ------------------------------ | ------------------ | ------------------------ |
+| Point-in-time recovery | Supabase PITR add-on           | 7 days             | ✅ ON (since 2026-09-11) |
+| Automated daily        | Supabase managed backups       | 7 days (Pro)       | ✅ ON                    |
+| Nightly encrypted dump | `.github/workflows/backup.yml` | 30 days            | ✅ ON (02:17 UTC)        |
+| Pre-migration snapshot | Manual, before each deploy     | Until the next one | ⬜ NOT ESTABLISHED       |
 
-PITR is the one that matters. Daily backups mean a shop can lose a day of trading — which
-for a busy branch is hundreds of transactions and real money that has already changed
-hands.
+PITR is the one that matters for a bad afternoon: daily backups alone mean a shop can lose a
+day of trading, which for a busy branch is hundreds of transactions and money that has already
+changed hands.
+
+The nightly dump is the one that matters for a bad year. It does not depend on Supabase being
+reachable, on the project still existing, or on anyone still having the account: it is a
+`pg_dump` in custom format, encrypted to a certificate, pushed to the private repository
+`isaacgyampoh/carl-backups`, thirty kept.
+
+### Restoring a nightly dump
+
+The private key is **not** on any server. It lives at `~/.carl/backup-private.pem` on the
+machine that set this up, and a copy belongs wherever the company keeps its other credentials —
+without it, the backups are unreadable, and nobody else can read them either.
+
+```bash
+# 1. Fetch the day you want
+git clone git@github.com:isaacgyampoh/carl-backups.git
+ls carl-backups/dumps
+
+# 2. Decrypt it
+openssl cms -decrypt -inform DER -in carl-backups/dumps/carl-2026-09-11.dump.cms \
+  -inkey ~/.carl/backup-private.pem -out carl-2026-09-11.dump
+
+# 3. Restore, into a NEW database first — never straight over production
+createdb carl_restore
+pg_restore --no-owner --no-privileges --dbname carl_restore carl-2026-09-11.dump
+```
+
+Restoring into production is the last step of a decision, not the first: read
+"Recovery scenarios" below, and prefer point-in-time recovery when the data is only minutes old.
 
 ## Recovery scenarios
 

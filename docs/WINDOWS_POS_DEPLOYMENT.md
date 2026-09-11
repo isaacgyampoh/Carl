@@ -5,25 +5,31 @@ never been tested.
 
 ## What has and has not been verified
 
-|                                              | Status                                 |
-| -------------------------------------------- | -------------------------------------- |
-| Windows installer builds on a Windows runner | ✅ Verified in CI                      |
-| Installer is a valid executable, checksummed | ✅ Verified in CI                      |
-| No secret in the installer or bundle         | ✅ Verified against real secret values |
-| Barcode scanner logic                        | ✅ 15 automated tests                  |
-| Receipt layout and ESC/POS commands          | ✅ 42 automated tests                  |
-| Printer transport compiles for Windows       | ✅ Verified in CI on a Windows runner  |
-| Printing grants no new Tauri capability      | ✅ Asserted by test                    |
-| Offline queue, sync, idempotency             | ✅ Automated tests                     |
-| **Installed on a Windows machine**           | ❌ **Never**                           |
-| **A cashier completing a sale on a till**    | ❌ **Never**                           |
-| **Any thermal printer**                      | ❌ **Never — no printer exists**       |
-| **Any barcode scanner**                      | ❌ **Never — no scanner exists**       |
-| **Any cash drawer**                          | ❌ **Never — no drawer exists**        |
-| Code signing                                 | ⛔ **BLOCKED — no certificate**        |
+|                                              | Status                                                  |
+| -------------------------------------------- | ------------------------------------------------------- |
+| Windows installer builds on a Windows runner | ✅ Verified in CI                                       |
+| Installer is a valid executable, checksummed | ✅ Verified in CI                                       |
+| No secret in the installer or bundle         | ✅ Verified against real secret values                  |
+| Barcode scanner logic                        | ✅ 15 automated tests                                   |
+| Receipt layout and ESC/POS commands          | ✅ 42 automated tests                                   |
+| Printer transport compiles for Windows       | ✅ Verified in CI on a Windows runner                   |
+| Printing grants no new Tauri capability      | ✅ Asserted by test                                     |
+| Offline queue, sync, idempotency             | ✅ Automated tests                                      |
+| **Installed on a Windows machine**           | ❌ **Never**                                            |
+| **A cashier completing a sale on a till**    | ❌ **Never**                                            |
+| **Any thermal printer**                      | ❌ **Never — no printer exists**                        |
+| **Any barcode scanner**                      | ❌ **Never — no scanner exists**                        |
+| **Any cash drawer**                          | ❌ **Never — no drawer exists**                         |
+| Code signing                                 | ⛔ **BLOCKED — no certificate** (see `CODE_SIGNING.md`) |
 
 Nobody on this project owns a Windows machine or any POS peripheral. Everything above
 marked ❌ is genuinely unknown, not merely unrecorded.
+
+## Accepting a till on real hardware
+
+Printers, scanners, drawers and a genuine loss of connection cannot be proved in CI, and have
+not been. `WINDOWS_TILL_ACCEPTANCE.md` is the checklist to run on the first till at each client,
+and again whenever the hardware changes.
 
 ## How a client installs it
 
