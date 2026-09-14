@@ -84,10 +84,23 @@ thirty-three read policies were rewritten the same way in
 | Expenses, first page             | 2.7 ms   | 0.8 ms  |
 
 The customer list is worth a second look: its first page was slow too, not only its count.
-The screen orders by name, there is no `(tenant_id, name)` index, and the old policy had to
-be evaluated for every row before the sort could begin. A set comparison is cheap enough that
-the sort no longer matters at this volume — but an index there would still be the right answer
-if a shop's customer list grows much past this.
+The screen orders by name, and no index carried that order, so the old policy had to be
+evaluated for every row before the sort could begin.
+
+`20260101004500_list_orderings.sql` adds the three indexes that were missing — customers and
+products by name, purchases by created_at — measured on 20,000 rows:
+
+| List, first page | Without | With   |
+| ---------------- | ------- | ------ |
+| Customers        | 11.7 ms | 0.1 ms |
+| Purchases        | 13.3 ms | 0.6 ms |
+| Products         | 5.6 ms  | 0.1 ms |
+
+Small numbers, and they are small because the sort is the whole cost: it grows with everything
+a shop has ever recorded, while an index that already carries the order does not. Every other
+paged screen already had its index; suppliers is indexed on `lower(name)` and orders by `name`,
+which is recorded in the migration and deliberately left alone at the size a supplier list
+reaches.
 
 Four more sets were needed for the rules that are not "one permission over one branch":
 `member_tenant_ids()`, `permitted_tenant_ids(p)`, `accessible_branch_ids_all()` and
