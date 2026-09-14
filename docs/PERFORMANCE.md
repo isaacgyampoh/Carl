@@ -27,37 +27,49 @@ Each query is measured on its own connection with its own timeout (`CARL_PERF_TI
 finding rather than the end of the run — which is how the first version of this probe lost
 the nine measurements after its third query.
 
-## What it found, and what fixed it (2026-09-11, staging, micro instance)
+## A correction to what this document used to say
 
-| Query                            | Budget   | Before           | After      |
-| -------------------------------- | -------- | ---------------- | ---------- |
-| Barcode scan                     | 50 ms    | 3.9 ms           | 0.9 ms     |
-| Product search by name           | 200 ms   | 6,184.7 ms       | 18.1 ms    |
-| Sales list, first page           | 200 ms   | 98,934.5 ms      | 71.1 ms    |
-| Today's takings                  | 400 ms   | 531.0 ms         | 6.0 ms     |
-| Low stock                        | 400 ms   | 2.6 ms           | 1.9 ms     |
-| Inventory ledger for one product | 300 ms   | 5,628.6 ms       | 9.0 ms     |
-| Best sellers over a year         | 5,000 ms | no answer in 60s | 1,193.7 ms |
+An earlier version of this page reported the sales list going from **98,934 ms to 71 ms**.
+That number was real, and it measured a query Carl never sends.
 
-2 of 7 within budget, then 7 of 7. The sales list — the screen a shop opens most — went from
-99 seconds to 71 milliseconds on the same data, same instance, same security rules.
+The probe asked `select ... from sales order by sold_at desc limit 50` — with no `tenant_id`
+filter. Every screen in Carl applies one (`.eq('tenant_id', auth.tenant.tenantId)`); it is not
+the security control, but it is always there, and it is what lets the planner use
+`sales (tenant_id, sold_at desc)`. Without it there was nothing to index on, so the old policy
+had to examine every sale on the platform. With it, the old policy was already fast for the
+common case.
 
-## Why it was slow
+The probe now sends the queries the screens send. The figures below replace the old ones.
 
-Not a missing index. The indexes were all there, including a trigram index on `products.name`
-and `sales (tenant_id, sold_at desc)`, and the planner was using none of them.
+## What the change is actually worth (2026-09-14)
 
-Every read policy asked a question **about each row**: `app.can_read(sales.tenant_id,
-'sales.view_all', sales.branch_id)`. Two things follow from that:
+Measured on 20,000 sales in PGlite, as the person who opens the screen, best of three runs,
+old policy against new:
 
-1. PostgreSQL cannot drive an index from a function call whose arguments are columns, because
-   it is not a comparison against a constant.
-2. The helper is not `LEAKPROOF`, so the security check must be evaluated **before** ordinary
-   filters — before `name ilike $1`, before `sold_at >= $1`. Every row is examined, and three
-   membership and permission lookups run for each one.
+| Query, as Carl's screen sends it         | Before       | After       |
+| ---------------------------------------- | ------------ | ----------- |
+| Sales list, first page, as a manager     | 6.4 ms       | 0.7 ms      |
+| **The exact row count beside that list** | **2,016 ms** | **10.8 ms** |
+| **Sales list, first page, as a cashier** | **2,278 ms** | **6.0 ms**  |
+| Today's takings                          | 73.1 ms      | 0.7 ms      |
+| Product search by name                   | 1.5 ms       | 0.1 ms      |
 
-On `sales` it was worse: two permissive SELECT policies, ORed together by PostgreSQL, which
-removed the last chance of an index-driven plan.
+The first page for a manager was never the problem: an index handed it the newest fifty rows
+and the policy ran fifty times. The damage was in the two queries that have to touch every row
+of a business's history:
+
+- **The exact count.** Every paged screen in Carl asks PostgREST for `count: 'exact'`, which
+  counts the whole filtered set. Under the old policy that meant three permission lookups for
+  every sale the business had ever made — two seconds at 20,000 sales, and it grows with the
+  shop.
+- **A cashier's own list.** `sales.view` without `sales.view_all` means most rows fail the
+  filter, so the scan walks the whole table looking for fifty that pass, running the permission
+  lookups on each.
+
+Both are now a comparison against a set resolved once for the statement.
+
+`tests/db/hot-query-plans.test.ts` asserts the property rather than the timings: these queries
+must contain no `SubPlan` — no per-row permission lookup — for a manager or a cashier.
 
 ## What fixed it
 
@@ -89,10 +101,11 @@ The full suite of 610 database and RLS tests passes unchanged, including multi-t
 
 ## What is still worth doing
 
-- The same treatment for the remaining tables whose policies call `app.can_read` per row
-  (`customers`, `expenses`, `purchases`, `transfers`, and others). None of them is near the
-  volume that made `sales` unusable, and each should be measured before and after rather than
-  changed on faith.
+- **The remaining thirty-three policies** that call `app.can_read` per row (`customers`,
+  `expenses`, `purchases`, `transfers`, `audit_logs` and others). The same argument applies to
+  every paged screen that asks for an exact count, so the fix is probably the same — but the
+  measurement has to come first, on the queries those screens actually send, and it has not
+  been taken yet. The probe now seeds those tables and covers their queries, ready for it.
 - `LEAKPROOF` helpers, which would let PostgreSQL apply ordinary filters first everywhere.
   Marking a function leakproof requires superuser, which a hosted Supabase project does not
   grant, so this needs Supabase's involvement.
