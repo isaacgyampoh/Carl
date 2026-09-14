@@ -50,6 +50,16 @@ describe('the readable sets agree with app.can_read', () => {
     'products.view',
     'inventory.view',
     'reports.view',
+    'customers.view',
+    'suppliers.view',
+    'purchases.view',
+    'expenses.view',
+    'devices.view',
+    'devices.manage',
+    'audit.view',
+    'staff.view',
+    'branches.manage',
+    'register.view_variance',
   ];
 
   beforeAll(async () => {
@@ -138,4 +148,83 @@ describe('the readable sets agree with app.can_read', () => {
     expect(rows[0]!.branches).not.toContain(first.branchId);
     expect(rows[0]!.branches).not.toContain(secondBranchId);
   });
+
+  /*
+   * The four sets 20260101004400 added, each asserted the same way: against the function it
+   * was built from, for every person, business and branch in the fixture.
+   */
+  it('the membership set is exactly what can_read_tenant allows', async () => {
+    for (const userId of PEOPLE()) {
+      for (const tenantId of TENANTS()) {
+        const { rows } = await db.asUser(userId, () =>
+          db.query<{ in_set: boolean; allowed: boolean }>(
+            `select $1::uuid = any (app.member_tenant_ids()) as in_set,
+                    app.can_read_tenant($1::uuid) as allowed`,
+            [tenantId],
+          ),
+        );
+        expect(rows[0]!.in_set, `member_tenant_ids disagrees for ${tenantId}`).toBe(
+          rows[0]!.allowed,
+        );
+      }
+    }
+  });
+
+  it('the accessible-branch set is exactly membership plus branch access', async () => {
+    for (const userId of PEOPLE()) {
+      for (const branch of BRANCHES()) {
+        const { rows } = await db.asUser(userId, () =>
+          db.query<{ in_set: boolean; allowed: boolean }>(
+            `select $1::uuid = any (app.accessible_branch_ids_all()) as in_set,
+                    (app.can_read_tenant($2::uuid) and app.can_access_branch($1::uuid)) as allowed`,
+            [branch.id, branch.tenantId],
+          ),
+        );
+        expect(rows[0]!.in_set, `accessible_branch_ids_all disagrees for ${branch.id}`).toBe(
+          rows[0]!.allowed,
+        );
+      }
+    }
+  });
+
+  it.each(PERMISSIONS)(
+    'for %s, the permitted tenant set matches has_permission',
+    async (permission) => {
+      for (const userId of PEOPLE()) {
+        for (const tenantId of TENANTS()) {
+          const { rows } = await db.asUser(userId, () =>
+            db.query<{ in_set: boolean; allowed: boolean }>(
+              `select $2::uuid = any (app.permitted_tenant_ids($1)) as in_set,
+                    app.has_permission($2::uuid, $1) as allowed`,
+              [permission, tenantId],
+            ),
+          );
+          expect(rows[0]!.in_set, `permitted_tenant_ids disagrees for ${permission}`).toBe(
+            rows[0]!.allowed,
+          );
+        }
+      }
+    },
+  );
+
+  it.each(PERMISSIONS)(
+    'for %s, the permitted branch set matches has_permission',
+    async (permission) => {
+      for (const userId of PEOPLE()) {
+        for (const branch of BRANCHES()) {
+          const { rows } = await db.asUser(userId, () =>
+            db.query<{ in_set: boolean; allowed: boolean }>(
+              `select $2::uuid = any (app.permitted_branch_ids($1)) as in_set,
+                    (app.can_read_tenant($3::uuid)
+                     and app.has_permission($3::uuid, $1, $2::uuid)) as allowed`,
+              [permission, branch.id, branch.tenantId],
+            ),
+          );
+          expect(rows[0]!.in_set, `permitted_branch_ids disagrees for ${permission}`).toBe(
+            rows[0]!.allowed,
+          );
+        }
+      }
+    },
+  );
 });

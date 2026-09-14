@@ -68,6 +68,36 @@ of a business's history:
 
 Both are now a comparison against a set resolved once for the statement.
 
+### And the other thirty-three policies (2026-09-14)
+
+The same argument applies to every table a shop accumulates rows in, so the remaining
+thirty-three read policies were rewritten the same way in
+`20260101004400_readable_sets_everywhere.sql`. Measured first, on 20,000 rows per table:
+
+| Query, as Carl's screen sends it | Before   | After   |
+| -------------------------------- | -------- | ------- |
+| Customer list, first page        | 716 ms   | 11.9 ms |
+| Customer list, the exact count   | 711 ms   | 8.4 ms  |
+| Expenses, the exact count        | 1,045 ms | 9.2 ms  |
+| Audit log, first page            | 1,016 ms | 3.6 ms  |
+| Audit log, the exact count       | 1,008 ms | 2.7 ms  |
+| Expenses, first page             | 2.7 ms   | 0.8 ms  |
+
+The customer list is worth a second look: its first page was slow too, not only its count.
+The screen orders by name, there is no `(tenant_id, name)` index, and the old policy had to
+be evaluated for every row before the sort could begin. A set comparison is cheap enough that
+the sort no longer matters at this volume — but an index there would still be the right answer
+if a shop's customer list grows much past this.
+
+Four more sets were needed for the rules that are not "one permission over one branch":
+`member_tenant_ids()`, `permitted_tenant_ids(p)`, `accessible_branch_ids_all()` and
+`permitted_branch_ids(p)`. Each is built by calling the function it replaces, and
+`tests/db/readable-sets.test.ts` asserts all six against their originals — sixty-four
+combinations of person, business, branch and permission.
+
+Eleven more tables gained the composite foreign key that makes the equivalence exact: a row's
+branch has to belong to a row's tenant.
+
 `tests/db/hot-query-plans.test.ts` asserts the property rather than the timings: these queries
 must contain no `SubPlan` — no per-row permission lookup — for a manager or a cashier.
 
