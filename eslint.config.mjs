@@ -222,6 +222,18 @@ export default tseslint.config(
     },
   },
 
+  // The till's boot guard, for the same reason: a plain browser script served as an asset,
+  // deliberately outside the bundle because it reports the failures that stop the bundle
+  // from running at all.
+  {
+    files: ['apps/desktop/public/boot-guard.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      parserOptions: { projectService: false, project: null },
+      globals: { ...globals.browser },
+    },
+  },
+
   // ---- Tests ----------------------------------------------------------------
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', 'tests/**/*.ts'],

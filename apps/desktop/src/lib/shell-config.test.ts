@@ -66,9 +66,41 @@ describe('the shell the till opens in', () => {
     expect(html, 'nothing tells the cashier the till is starting').toMatch(/Starting the till/i);
   });
 
-  it('takes the boot mark out of the page once the application has mounted', () => {
+  it('loads the boot guard before the bundle it is there to report on', () => {
+    const guard = html.indexOf('boot-guard.js');
+    const bundle = html.indexOf('/src/main.tsx');
+    expect(guard, 'index.html no longer loads the boot guard').toBeGreaterThan(-1);
+    expect(guard, 'the guard must be in place before the bundle can fail').toBeLessThan(bundle);
+  });
+
+  it('listens for a failed download, which does not bubble', () => {
+    const guard = readFileSync(desktop('public', 'boot-guard.js'), 'utf8');
+    // A <script> that 404s fires an error event on the element and it does not bubble, so a
+    // plain window listener never sees it. Without the capture phase the window sat on
+    // "Starting the till…" until the timer noticed, twenty-five seconds later.
+    expect(guard).toMatch(/addEventListener\(\s*'error',[\s\S]*?,\s*true,?\s*\)/);
+    expect(guard).toContain('unhandledrejection');
+  });
+
+  it('does not clear the boot mark until something has been drawn', () => {
     const main = readFileSync(desktop('src', 'main.tsx'), 'utf8');
-    expect(main).toContain("getElementById('boot')");
-    expect(main).toContain('.remove()');
+    const boundary = readFileSync(desktop('src', 'ui', 'boot-boundary.tsx'), 'utf8');
+
+    // `render()` returning is not the same as anything having been drawn. Clearing the mark
+    // on the next line is what turned a failed first render into an empty window.
+    expect(main, 'the mark is cleared before the first commit again').not.toMatch(
+      /getElementById\('boot'\)/,
+    );
+    expect(main).toContain('<BootBoundary>');
+    expect(boundary).toContain('componentDidMount');
+    expect(boundary).toContain("getElementById('boot')");
+  });
+
+  it('catches a render that throws instead of unmounting to nothing', () => {
+    const boundary = readFileSync(desktop('src', 'ui', 'boot-boundary.tsx'), 'utf8');
+    expect(boundary).toContain('getDerivedStateFromError');
+    expect(boundary).toContain('componentDidCatch');
+    // Whatever it shows, it has to offer the way out.
+    expect(boundary).toMatch(/Start again/);
   });
 });

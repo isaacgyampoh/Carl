@@ -87,6 +87,11 @@
       <div class="bar"></div>
       <div class="said">Starting the till…</div>
     </div>
+    <!--
+      Before the bundle, deliberately: this is what reports the failures that stop the bundle
+      from running at all. See public/boot-guard.js.
+    -->
+    <script src="/boot-guard.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

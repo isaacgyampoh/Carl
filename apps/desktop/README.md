@@ -245,3 +245,36 @@ application change is needed.
 
 No hardware of any kind has been connected to this system. Nothing above marked "no
 hardware tested" should be read as working on a specific device.
+
+## A window that shows nothing
+
+A till that draws nothing is the worst screen Carl has: a cashier has a customer in front of
+them and no way to tell whether the machine is thinking, broken, or off. Four things guard
+against it, and each can be checked by hand.
+
+| Guard             | Where                       | What it covers                                                      |
+| ----------------- | --------------------------- | ------------------------------------------------------------------- |
+| Window background | `src-tauri/tauri.conf.json` | The frame between the window opening and the webview painting       |
+| Boot mark         | `index.html`                | Before the stylesheet and bundle have arrived                       |
+| Boot guard        | `public/boot-guard.js`      | The bundle fails to download, throws while loading, or never starts |
+| Error boundary    | `src/ui/boot-boundary.tsx`  | A render that throws, which otherwise unmounts to an empty page     |
+
+`src/lib/shell-config.test.ts` asserts the structure of all four. To check the behaviour,
+build the bundle and serve `dist/` over plain HTTP, then break it on purpose:
+
+```bash
+pnpm --filter @carl/desktop build
+cd apps/desktop/dist && python3 -m http.server 4310
+```
+
+- **The bundle never downloads** — delete `dist/assets/*.js` and reload.
+  Expect: _Carl could not start. Could not load …/assets/index-_.js*
+- **The bundle throws while loading** — put `throw new Error('x')` at the top of the built
+  JavaScript and reload. Expect: _Carl could not start. Uncaught Error: x_
+- **The application throws while rendering** — add a `throw` to the top of `App`, rebuild.
+  Expect: _Carl stopped while drawing the screen._
+- **Nothing at all runs** — open the page with JavaScript disabled.
+  Expect: _Carl / Starting the till…_ on `#0f1115`, not a white or empty page.
+
+Every one of those must show words and a way to start again. If any shows an empty window,
+that is the bug this section exists for.
