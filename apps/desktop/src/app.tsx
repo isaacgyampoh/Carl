@@ -50,7 +50,7 @@ export interface Runtime {
 }
 
 type State =
-  | { status: 'starting' }
+  | { status: 'starting'; slow?: boolean }
   | { status: 'failed'; detail: string }
   | { status: 'activating'; runtime: Runtime }
   | {
@@ -172,8 +172,41 @@ export function App(): React.JSX.Element {
     void start();
   }, [start]);
 
+  /*
+   * A till that is still starting after twenty seconds is not starting.
+   *
+   * Opening the database, checking it, and reading the keychain are all quick when they work
+   * and can hang when they do not — a locked database file, a credential prompt nobody
+   * answered, a disk that has stopped responding. Without this the window sits on the same
+   * word forever, which is indistinguishable from a broken machine and is exactly what gets
+   * reported as a black screen.
+   */
+  useEffect(() => {
+    if (state.status !== 'starting' || state.slow) return undefined;
+    const timer = setTimeout(() => {
+      setState((current) =>
+        current.status === 'starting' ? { status: 'starting', slow: true } : current,
+      );
+    }, 20_000);
+    return () => clearTimeout(timer);
+  }, [state]);
+
   if (state.status === 'starting') {
-    return <Splash message="Starting Carl…" />;
+    // exactOptionalPropertyTypes: an absent prop and a prop set to undefined are different
+    // things here, so the slow case is built rather than passed as a pair of maybes.
+    return state.slow ? (
+      <Splash
+        message="Starting Carl…"
+        detail={
+          'This is taking longer than it should. The local database may be in use by another ' +
+          'copy of Carl, or the disk may not be responding. Starting again is safe: nothing ' +
+          'is written until a sale is rung up.'
+        }
+        action={{ label: 'Start again', onClick: () => void start() }}
+      />
+    ) : (
+      <Splash message="Starting Carl…" />
+    );
   }
 
   if (state.status === 'failed') {

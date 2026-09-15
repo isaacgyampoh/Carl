@@ -18,11 +18,12 @@
         "minWidth": 1024,
         "minHeight": 640,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "backgroundColor": "#0F1115"
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://carl-red.vercel.app https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "csp": "default-src 'self'; connect-src 'self' https://thecarl.cc https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
       "capabilities": ["default"],
       "assetProtocol": {
         "enable": false,
