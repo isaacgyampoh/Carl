@@ -103,4 +103,32 @@ describe('the shell the till opens in', () => {
     // Whatever it shows, it has to offer the way out.
     expect(boundary).toMatch(/Start again/);
   });
+
+  it('states one version, in all five places that state one', () => {
+    /*
+     * The installer's file version comes from tauri.conf.json, the crate's from Cargo.toml
+     * and Cargo.lock, npm's from package.json, and what the running till reports comes from
+     * env.ts. A release is tagged by hand, and the tag is checked against the installer — so
+     * a file left behind does not fail the build, it ships a terminal that lies about which
+     * version it is when a shop reports a fault.
+     */
+    const version = JSON.parse(readFileSync(desktop('src-tauri', 'tauri.conf.json'), 'utf8'))
+      .version as string;
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+
+    const pkg = JSON.parse(readFileSync(desktop('package.json'), 'utf8')) as { version: string };
+    expect(pkg.version, 'apps/desktop/package.json').toBe(version);
+
+    const cargo = readFileSync(desktop('src-tauri', 'Cargo.toml'), 'utf8');
+    expect(/^version = "([^"]+)"/m.exec(cargo)?.[1], 'Cargo.toml').toBe(version);
+
+    const lock = readFileSync(desktop('src-tauri', 'Cargo.lock'), 'utf8');
+    const locked = /name = "carl-desktop"\nversion = "([^"]+)"/.exec(lock)?.[1];
+    expect(locked, 'Cargo.lock').toBe(version);
+
+    expect(
+      /VITE_APP_VERSION \?\? '([^']+)'/.exec(env)?.[1],
+      'env.ts — what a till reports when a shop rings up about it',
+    ).toBe(version);
+  });
 });
