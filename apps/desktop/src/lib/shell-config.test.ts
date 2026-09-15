@@ -123,7 +123,9 @@ describe('the shell the till opens in', () => {
     expect(/^version = "([^"]+)"/m.exec(cargo)?.[1], 'Cargo.toml').toBe(version);
 
     const lock = readFileSync(desktop('src-tauri', 'Cargo.lock'), 'utf8');
-    const locked = /name = "carl-desktop"\nversion = "([^"]+)"/.exec(lock)?.[1];
+    // \r?\n, because a Windows runner checks this repository out with CRLF endings and a
+    // bare \n matched nothing there — which is exactly how this test first failed.
+    const locked = /name = "carl-desktop"\r?\nversion = "([^"]+)"/.exec(lock)?.[1];
     expect(locked, 'Cargo.lock').toBe(version);
 
     expect(
