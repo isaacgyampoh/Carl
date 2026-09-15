@@ -33,6 +33,15 @@ if (!existsSync(DIST)) {
   process.exit(1);
 }
 
+const CONFIG = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'apps',
+  'desktop',
+  'src-tauri',
+  'tauri.conf.json',
+);
+
 const html = readFileSync(join(DIST, 'index.html'), 'utf8');
 const assets = existsSync(join(DIST, 'assets')) ? readdirSync(join(DIST, 'assets')) : [];
 const scripts = assets.filter((f) => f.endsWith('.js'));
@@ -88,6 +97,71 @@ for (const [name, pattern] of [
   ['no device secret pepper', /CARL_DEVICE_SECRET_PEPPER/],
 ]) {
   check(name, !pattern.test(code));
+}
+
+/*
+ * The address this bundle will call, against the policy that ships beside it.
+ *
+ * v0.2.0 went to shops with `connect-src` naming a Vercel preview the product had moved off
+ * months earlier, while the release workflow built the bundle pointing at thecarl.cc. Every
+ * call the terminal made was refused by its own webview: a till that installs, opens, and
+ * cannot be activated. Nothing caught it, because each half was correct on its own.
+ *
+ * Checked against the built JavaScript rather than the source, because VITE_CARL_URL is
+ * substituted at build time — so a release that points a terminal somewhere its own policy
+ * forbids is the same defect and is caught here too.
+ *
+ * Deliberately not "every https:// string in the bundle": React's own error messages carry
+ * links to react.dev that nothing ever fetches, and a check that shouts about those would be
+ * turned off within a week.
+ */
+const csp = JSON.parse(readFileSync(CONFIG, 'utf8')).app?.security?.csp ?? '';
+const connectSrc = (/connect-src ([^;"]+)/.exec(csp)?.[1] ?? '').trim().split(/\s+/);
+
+const envSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'apps', 'desktop', 'src', 'lib', 'env.ts'),
+  'utf8',
+);
+const fallback = /CARL_URL: string = env\.VITE_CARL_URL \?\? '([^']+)'/.exec(envSource)?.[1];
+const carlUrl = process.env.VITE_CARL_URL || fallback;
+
+const allows = (address) => {
+  if (!address) return false;
+  const { origin, hostname } = new URL(address);
+  if (connectSrc.includes(origin)) return true;
+  // A wildcard entry such as https://*.supabase.co covers its subdomains.
+  return connectSrc.some(
+    (allowed) =>
+      allowed.startsWith('https://') &&
+      allowed.includes('*') &&
+      hostname.endsWith(allowed.slice(allowed.indexOf('*') + 1).replace(/^\./, '')),
+  );
+};
+
+check(
+  'the webview may reach the Carl this bundle calls',
+  Boolean(carlUrl) && allows(carlUrl),
+  carlUrl
+    ? `${carlUrl} against connect-src ${connectSrc.join(' ')}`
+    : 'no Carl URL found in env.ts or VITE_CARL_URL',
+);
+
+check(
+  'the bundle actually carries that address',
+  Boolean(carlUrl) &&
+    scripts.some((file) =>
+      readFileSync(join(DIST, 'assets', file), 'utf8').includes(String(carlUrl)),
+    ),
+  `${carlUrl} should appear in the built JavaScript`,
+);
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+if (supabaseUrl) {
+  check(
+    'the webview may reach Supabase',
+    allows(supabaseUrl),
+    `${supabaseUrl} against connect-src ${connectSrc.join(' ')}`,
+  );
 }
 
 for (const { name, ok, detail } of checks) {
